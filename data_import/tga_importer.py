@@ -22,6 +22,7 @@ def tga_importer(file_path: str, manufacturer: str = "auto") -> Dict[str, np.nda
 
     Raises:
         ValueError: If the file format is not recognized or supported.
+        FileNotFoundError: If the specified file does not exist.
 
     Examples:
         >>> data = tga_importer("path/to/tga_data.csv")
@@ -30,21 +31,28 @@ def tga_importer(file_path: str, manufacturer: str = "auto") -> Dict[str, np.nda
     """
     logger.info(f"Importing TGA data from {file_path}")
 
-    if manufacturer == "auto":
-        manufacturer = _detect_manufacturer(file_path)
+    try:
+        if manufacturer == "auto":
+            manufacturer = _detect_manufacturer(file_path)
 
-    if manufacturer == "TA":
-        data = _import_ta_instruments(file_path)
-    elif manufacturer == "Mettler":
-        data = _import_mettler_toledo(file_path)
-    elif manufacturer == "Netzsch":
-        data = _import_netzsch(file_path)
-    elif manufacturer == "Setaram":
-        data = import_setaram(file_path)
-    else:
-        raise ValueError(f"Unsupported manufacturer: {manufacturer}")
+        if manufacturer == "TA":
+            data = _import_ta_instruments(file_path)
+        elif manufacturer == "Mettler":
+            data = _import_mettler_toledo(file_path)
+        elif manufacturer == "Netzsch":
+            data = _import_netzsch(file_path)
+        elif manufacturer == "Setaram":
+            data = import_setaram(file_path)
+        else:
+            raise ValueError(f"Unsupported manufacturer: {manufacturer}")
 
-    return data
+        return data
+    except FileNotFoundError:
+        logger.error(f"File not found: {file_path}")
+        raise
+    except Exception as e:
+        logger.error(f"Error importing TGA data: {str(e)}")
+        raise
 
 def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
     """
@@ -59,6 +67,7 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
 
     Raises:
         ValueError: If the file format is not recognized as a valid Setaram format.
+        FileNotFoundError: If the specified file does not exist.
 
     Examples:
         >>> data = import_setaram("path/to/setaram_data.txt")
@@ -68,11 +77,9 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
     logger.info(f"Importing Setaram data from {file_path}")
 
     try:
-        # Try to read the file with all possible columns
         df = pd.read_csv(file_path, sep=r'\s+', engine='python', 
                          names=['Time', 'Furnace_Temperature', 'Sample_Temperature', 'TG', 'HeatFlow'])
         
-        # Check if HeatFlow column exists (simultaneous DSC-TGA)
         if 'HeatFlow' in df.columns:
             logger.info("Detected simultaneous DSC-TGA data")
             return {
@@ -91,52 +98,128 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
                 'weight': df['TG'].values,
                 'heat_flow': None
             }
+    except FileNotFoundError:
+        logger.error(f"File not found: {file_path}")
+        raise
     except Exception as e:
-        logger.error(f"Error reading Setaram file: {e}")
-        raise ValueError(f"Unable to read Setaram file. Error: {e}")
+        logger.error(f"Error reading Setaram file: {str(e)}")
+        raise ValueError(f"Unable to read Setaram file. Error: {str(e)}")
 
 def _detect_manufacturer(file_path: str) -> str:
-    """Detect the instrument manufacturer based on file content."""
-    with open(file_path, 'r') as f:
-        header = f.read(1000)  # Read first 1000 characters
+    """
+    Detect the instrument manufacturer based on file content.
 
-    if "TA Instruments" in header:
-        return "TA"
-    elif "METTLER TOLEDO" in header:
-        return "Mettler"
-    elif "NETZSCH" in header:
-        return "Netzsch"
-    elif "Time (s)" in header and "Furnace Temperature (°C)" in header:
-        return "Setaram"
-    else:
-        raise ValueError("Unable to detect manufacturer automatically. Please specify manually.")
+    Args:
+        file_path (str): Path to the data file.
+
+    Returns:
+        str: Detected manufacturer name.
+
+    Raises:
+        ValueError: If unable to detect the manufacturer automatically.
+        FileNotFoundError: If the specified file does not exist.
+    """
+    try:
+        with open(file_path, 'r') as f:
+            header = f.read(1000)  # Read first 1000 characters
+
+        if "TA Instruments" in header:
+            return "TA"
+        elif "METTLER TOLEDO" in header:
+            return "Mettler"
+        elif "NETZSCH" in header:
+            return "Netzsch"
+        elif "Time (s)" in header and "Furnace Temperature (°C)" in header:
+            return "Setaram"
+        else:
+            raise ValueError("Unable to detect manufacturer automatically. Please specify manually.")
+    except FileNotFoundError:
+        logger.error(f"File not found: {file_path}")
+        raise
 
 def _import_ta_instruments(file_path: str) -> Dict[str, np.ndarray]:
-    """Import TGA data from TA Instruments format."""
-    df = pd.read_csv(file_path, skiprows=1)
-    return {
-        "temperature": df["Temperature (°C)"].values,
-        "time": df["Time (min)"].values,
-        "weight": df["Weight (mg)"].values,
-        "weight_percent": df["Weight (%)"].values
-    }
+    """
+    Import TGA data from TA Instruments format.
+
+    Args:
+        file_path (str): Path to the TA Instruments data file.
+
+    Returns:
+        Dict[str, np.ndarray]: Dictionary containing temperature, time, weight, and weight_percent data.
+
+    Raises:
+        ValueError: If the file format is not recognized as a valid TA Instruments format.
+        FileNotFoundError: If the specified file does not exist.
+    """
+    try:
+        df = pd.read_csv(file_path, skiprows=1)
+        return {
+            "temperature": df["Temperature (°C)"].values,
+            "time": df["Time (min)"].values,
+            "weight": df["Weight (mg)"].values,
+            "weight_percent": df["Weight (%)"].values
+        }
+    except FileNotFoundError:
+        logger.error(f"File not found: {file_path}")
+        raise
+    except Exception as e:
+        logger.error(f"Error reading TA Instruments file: {str(e)}")
+        raise ValueError(f"Unable to read TA Instruments file. Error: {str(e)}")
 
 def _import_mettler_toledo(file_path: str) -> Dict[str, np.ndarray]:
-    """Import TGA data from Mettler Toledo format."""
-    df = pd.read_csv(file_path, skiprows=2, delimiter='\t')
-    return {
-        "temperature": df["Temperature [°C]"].values,
-        "time": df["Time [min]"].values,
-        "weight": df["Weight [mg]"].values,
-        "weight_percent": df["Weight [%]"].values
-    }
+    """
+    Import TGA data from Mettler Toledo format.
+
+    Args:
+        file_path (str): Path to the Mettler Toledo data file.
+
+    Returns:
+        Dict[str, np.ndarray]: Dictionary containing temperature, time, weight, and weight_percent data.
+
+    Raises:
+        ValueError: If the file format is not recognized as a valid Mettler Toledo format.
+        FileNotFoundError: If the specified file does not exist.
+    """
+    try:
+        df = pd.read_csv(file_path, skiprows=2, delimiter='\t')
+        return {
+            "temperature": df["Temperature [°C]"].values,
+            "time": df["Time [min]"].values,
+            "weight": df["Weight [mg]"].values,
+            "weight_percent": df["Weight [%]"].values
+        }
+    except FileNotFoundError:
+        logger.error(f"File not found: {file_path}")
+        raise
+    except Exception as e:
+        logger.error(f"Error reading Mettler Toledo file: {str(e)}")
+        raise ValueError(f"Unable to read Mettler Toledo file. Error: {str(e)}")
 
 def _import_netzsch(file_path: str) -> Dict[str, np.ndarray]:
-    """Import TGA data from Netzsch format."""
-    df = pd.read_csv(file_path, skiprows=10, delimiter='\t')
-    return {
-        "temperature": df["Temperature/°C"].values,
-        "time": df["Time/min"].values,
-        "weight": df["Mass/mg"].values,
-        "weight_percent": df["Mass/%"].values
-    }
+    """
+    Import TGA data from Netzsch format.
+
+    Args:
+        file_path (str): Path to the Netzsch data file.
+
+    Returns:
+        Dict[str, np.ndarray]: Dictionary containing temperature, time, weight, and weight_percent data.
+
+    Raises:
+        ValueError: If the file format is not recognized as a valid Netzsch format.
+        FileNotFoundError: If the specified file does not exist.
+    """
+    try:
+        df = pd.read_csv(file_path, skiprows=10, delimiter='\t')
+        return {
+            "temperature": df["Temperature/°C"].values,
+            "time": df["Time/min"].values,
+            "weight": df["Mass/mg"].values,
+            "weight_percent": df["Mass/%"].values
+        }
+    except FileNotFoundError:
+        logger.error(f"File not found: {file_path}")
+        raise
+    except Exception as e:
+        logger.error(f"Error reading Netzsch file: {str(e)}")
+        raise ValueError(f"Unable to read Netzsch file. Error: {str(e)}")
