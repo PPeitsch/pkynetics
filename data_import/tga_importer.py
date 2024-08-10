@@ -8,6 +8,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def tga_importer(file_path: str, manufacturer: str = "auto") -> Dict[str, np.ndarray]:
     """
     Import TGA data from common file formats.
@@ -54,6 +55,7 @@ def tga_importer(file_path: str, manufacturer: str = "auto") -> Dict[str, np.nda
         logger.error(f"Error importing TGA data: {str(e)}")
         raise
 
+
 def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
     """
     Import Setaram TGA or simultaneous DSC-TGA data.
@@ -77,9 +79,9 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
     logger.info(f"Importing Setaram data from {file_path}")
 
     try:
-        df = pd.read_csv(file_path, sep=r'\s+', engine='python', 
+        df = pd.read_csv(file_path, sep=r'\s+', engine='python',
                          names=['Time', 'Furnace_Temperature', 'Sample_Temperature', 'TG', 'HeatFlow'])
-        
+
         if 'HeatFlow' in df.columns:
             logger.info("Detected simultaneous DSC-TGA data")
             return {
@@ -104,6 +106,7 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
     except Exception as e:
         logger.error(f"Error reading Setaram file: {str(e)}")
         raise ValueError(f"Unable to read Setaram file. Error: {str(e)}")
+
 
 def _detect_manufacturer(file_path: str) -> str:
     """
@@ -137,6 +140,7 @@ def _detect_manufacturer(file_path: str) -> str:
         logger.error(f"File not found: {file_path}")
         raise
 
+
 def _import_ta_instruments(file_path: str) -> Dict[str, np.ndarray]:
     """
     Import TGA data from TA Instruments format.
@@ -166,6 +170,7 @@ def _import_ta_instruments(file_path: str) -> Dict[str, np.ndarray]:
         logger.error(f"Error reading TA Instruments file: {str(e)}")
         raise ValueError(f"Unable to read TA Instruments file. Error: {str(e)}")
 
+
 def _import_mettler_toledo(file_path: str) -> Dict[str, np.ndarray]:
     """
     Import TGA data from Mettler Toledo format.
@@ -194,6 +199,7 @@ def _import_mettler_toledo(file_path: str) -> Dict[str, np.ndarray]:
     except Exception as e:
         logger.error(f"Error reading Mettler Toledo file: {str(e)}")
         raise ValueError(f"Unable to read Mettler Toledo file. Error: {str(e)}")
+
 
 def _import_netzsch(file_path: str) -> Dict[str, np.ndarray]:
     """
