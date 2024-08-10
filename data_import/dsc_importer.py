@@ -79,8 +79,21 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
     logger.info(f"Importing Setaram data from {file_path}")
 
     try:
-        df = pd.read_csv(file_path, sep=r'\s+', engine='python',
-                         names=['Time', 'Furnace_Temperature', 'Sample_Temperature', 'TG', 'HeatFlow'])
+        # Try different encodings
+        encodings = ['utf-8', 'iso-8859-1', 'windows-1252']
+        df = None
+        
+        for encoding in encodings:
+            try:
+                df = pd.read_csv(file_path, sep=r'\s+', engine='python',
+                                 names=['Time', 'Furnace_Temperature', 'Sample_Temperature', 'TG', 'HeatFlow'],
+                                 encoding=encoding)
+                break  # If successful, exit the loop
+            except UnicodeDecodeError:
+                continue  # Try the next encoding
+        
+        if df is None:
+            raise ValueError(f"Unable to read file with any of the attempted encodings: {encodings}")
 
         if 'TG' in df.columns:
             logger.info("Detected simultaneous DSC-TGA data")
@@ -123,8 +136,19 @@ def _detect_manufacturer(file_path: str) -> str:
         FileNotFoundError: If the specified file does not exist.
     """
     try:
-        with open(file_path, 'r') as f:
-            header = f.read(1000)  # Read first 1000 characters
+        encodings = ['utf-8', 'iso-8859-1', 'windows-1252']
+        header = None
+        
+        for encoding in encodings:
+            try:
+                with open(file_path, 'r', encoding=encoding) as f:
+                    header = f.read(1000)  # Read first 1000 characters
+                break  # If successful, exit the loop
+            except UnicodeDecodeError:
+                continue  # Try the next encoding
+        
+        if header is None:
+            raise ValueError(f"Unable to read file with any of the attempted encodings: {encodings}")
 
         if "TA Instruments" in header:
             return "TA"
@@ -156,7 +180,7 @@ def _import_ta_instruments(file_path: str) -> Dict[str, np.ndarray]:
         FileNotFoundError: If the specified file does not exist.
     """
     try:
-        df = pd.read_csv(file_path, skiprows=1)
+        df = pd.read_csv(file_path, skiprows=1, encoding='iso-8859-1')
         return {
             "temperature": df["Temperature (°C)"].values,
             "time": df["Time (min)"].values,
@@ -186,7 +210,7 @@ def _import_mettler_toledo(file_path: str) -> Dict[str, np.ndarray]:
         FileNotFoundError: If the specified file does not exist.
     """
     try:
-        df = pd.read_csv(file_path, skiprows=2, delimiter='\t')
+        df = pd.read_csv(file_path, skiprows=2, delimiter='\t', encoding='iso-8859-1')
         return {
             "temperature": df["Temperature [°C]"].values,
             "time": df["Time [min]"].values,
@@ -217,7 +241,7 @@ def _import_netzsch(file_path: str) -> Dict[str, np.ndarray]:
         FileNotFoundError: If the specified file does not exist.
     """
     try:
-        df = pd.read_csv(file_path, skiprows=10, delimiter='\t')
+        df = pd.read_csv(file_path, skiprows=10, delimiter='\t', encoding='iso-8859-1')
         return {
             "temperature": df["Temperature/°C"].values,
             "time": df["Time/min"].values,
