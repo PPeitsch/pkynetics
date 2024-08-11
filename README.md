@@ -12,6 +12,10 @@ Pkynetics is a comprehensive library for thermal analysis kinetic methods, inclu
 - Result visualization and statistical analysis
 - Parallel processing capabilities
 
+## Requirements
+
+Pkynetics requires Python 3.8 or later. It has been tested with Python 3.8, 3.9, 3.10, and 3.11.
+
 ## Installation
 
 You can install Pkynetics using pip:
@@ -19,6 +23,8 @@ You can install Pkynetics using pip:
 ```
 pip install pkynetics
 ```
+
+Make sure you have Python 3.8 or later installed on your system.
 
 ## Usage
 
