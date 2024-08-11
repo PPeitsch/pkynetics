@@ -43,7 +43,13 @@ def tga_importer(file_path: str, manufacturer: str = "auto") -> Dict[str, np.nda
         elif manufacturer == "Netzsch":
             data = _import_netzsch(file_path)
         elif manufacturer == "Setaram":
-            data = import_setaram(file_path)
+            setaram_data = import_setaram(file_path)
+            return {
+                "temperature": setaram_data['temperature'],
+                "time": setaram_data['time'],
+                "weight": setaram_data['weight'],
+                "weight_percent": (setaram_data['weight'] / setaram_data['weight'][0]) * 100 if setaram_data['weight'] is not None else None
+            }
         else:
             raise ValueError(f"Unsupported manufacturer: {manufacturer}")
 
@@ -64,17 +70,12 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
         file_path (str): Path to the Setaram data file.
 
     Returns:
-        Dict[str, Union[np.ndarray, None]]: Dictionary containing time, furnace_temperature, 
+        Dict[str, Union[np.ndarray, None]]: Dictionary containing time, temperature, 
         sample_temperature, weight, and heat_flow (if available) data.
 
     Raises:
         ValueError: If the file format is not recognized as a valid Setaram format.
         FileNotFoundError: If the specified file does not exist.
-
-    Examples:
-        >>> data = import_setaram("path/to/setaram_data.txt")
-        >>> print(data.keys())
-        dict_keys(['time', 'furnace_temperature', 'sample_temperature', 'weight', 'heat_flow'])
     """
     logger.info(f"Importing Setaram data from {file_path}")
 
@@ -85,9 +86,7 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
         
         for encoding in encodings:
             try:
-                df = pd.read_csv(file_path, sep=r'\s+', engine='python',
-                                 names=['Time', 'Furnace_Temperature', 'Sample_Temperature', 'TG', 'HeatFlow'],
-                                 encoding=encoding)
+                df = pd.read_csv(file_path, sep=';', decimal=',', encoding=encoding, dtype=str)
                 break  # If successful, exit the loop
             except UnicodeDecodeError:
                 continue  # Try the next encoding
@@ -95,24 +94,41 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
         if df is None:
             raise ValueError(f"Unable to read file with any of the attempted encodings: {encodings}")
 
-        if 'HeatFlow' in df.columns:
-            logger.info("Detected simultaneous DSC-TGA data")
-            return {
-                'time': df['Time'].values,
-                'furnace_temperature': df['Furnace_Temperature'].values,
-                'sample_temperature': df['Sample_Temperature'].values,
-                'weight': df['TG'].values,
-                'heat_flow': df['HeatFlow'].values
-            }
+        # Clean column names
+        df.columns = df.columns.str.strip()
+
+        # Rename columns to match expected format
+        column_mapping = {
+            'Time (s)': 'time',
+            'Furnace Temperature (°C)': 'temperature',
+            'Sample Temperature (°C)': 'sample_temperature',
+            'TG (mg)': 'weight',
+            'HeatFlow (mW)': 'heat_flow'
+        }
+        df = df.rename(columns=column_mapping)
+
+        # Convert string values to float
+        for col in df.columns:
+            df[col] = pd.to_numeric(df[col].str.replace(',', '.').str.strip(), errors='coerce')
+
+        result = {
+            'time': df['time'].values,
+            'temperature': df['temperature'].values,
+            'sample_temperature': df['sample_temperature'].values,
+        }
+
+        if 'heat_flow' in df.columns:
+            result['heat_flow'] = df['heat_flow'].values
         else:
-            logger.info("Detected TGA-only data")
-            return {
-                'time': df['Time'].values,
-                'furnace_temperature': df['Furnace_Temperature'].values,
-                'sample_temperature': df['Sample_Temperature'].values,
-                'weight': df['TG'].values,
-                'heat_flow': None
-            }
+            result['heat_flow'] = None
+
+        if 'weight' in df.columns:
+            result['weight'] = df['weight'].values
+        else:
+            result['weight'] = None
+
+        return result
+
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")
         raise
