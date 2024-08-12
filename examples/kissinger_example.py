@@ -13,27 +13,30 @@ t_p = calculate_t_p(true_e_a, true_a, beta)
 
 # Add some noise to make it more realistic
 noise_level = 0.01
-t_p += np.random.normal(0, noise_level * t_p, t_p.shape)
+t_p_noisy = t_p + np.random.normal(0, noise_level * t_p, t_p.shape)
 
 # Perform Kissinger analysis
-e_a, a, r_squared = kissinger_method(t_p, beta)
+e_a, a, r_squared = kissinger_method(t_p_noisy, beta)
 
 print(f"True values: E_a = {true_e_a/1000:.2f} kJ/mol, A = {true_a:.2e} min^-1")
 print(f"Fitted values: E_a = {e_a/1000:.2f} kJ/mol, A = {a:.2e} min^-1")
 print(f"R^2 = {r_squared:.4f}")
 
 # Prepare data for plotting
-x = 1000 / t_p  # Convert to 1000/T for better scale
-y = np.log(beta / t_p**2)
+x_exp = 1000 / t_p_noisy  # Convert to 1000/T for better scale
+y_exp = np.log(beta / t_p_noisy**2)
 
-# Calculate the fitted line
-x_fit = np.linspace(min(x), max(x), 100)
-y_fit = -e_a / (8.314 * 1000) * x_fit + np.log(a * 8.314 / e_a)
+# Generate theoretical curves
+x_theory = np.linspace(min(x_exp), max(x_exp), 100)
+t_theory = 1000 / x_theory
+y_theory_true = kissinger_equation(t_theory, true_e_a, np.log(true_a * 8.314 / true_e_a))
+y_theory_fit = kissinger_equation(t_theory, e_a, np.log(a * 8.314 / e_a))
 
 # Plot the results
 plt.figure(figsize=(10, 6))
-plt.scatter(x, y, label='Experimental data')
-plt.plot(x_fit, y_fit, 'r-', label='Fitted line')
+plt.scatter(x_exp, y_exp, label='Experimental data')
+plt.plot(x_theory, y_theory_true, 'g--', label='True theoretical curve')
+plt.plot(x_theory, y_theory_fit, 'r-', label='Fitted theoretical curve')
 plt.xlabel('1000/T (K$^{-1}$)')
 plt.ylabel('ln(β/T$_p^2$) (K$^{-1}$·min$^{-1}$)')
 plt.title('Kissinger Plot')
