@@ -5,7 +5,7 @@ This module provides various model-fitting methods for analyzing thermal analysi
 """
 
 from .avrami import avrami_method, avrami_equation
-#from .kissinger import kissinger_method
+from .kissinger import kissinger_method, kissinger_equation
 #from .coats_redfern import coats_redfern_method
 #from .freeman_carroll import freeman_carroll_method
 #from .horowitz_metzger import horowitz_metzger_method
@@ -13,7 +13,8 @@ from .avrami import avrami_method, avrami_equation
 __all__ = [
     "avrami_method",
     "avrami_equation",
-#    "kissinger_method",
+    "kissinger_method",
+    "kissinger_equation",
 #    "coats_redfern_method",
 #    "freeman_carroll_method",
 #    "horowitz_metzger_method",
