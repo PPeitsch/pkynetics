@@ -24,6 +24,37 @@ def horowitz_metzger_equation(theta: np.ndarray, e_a: float, r: float, t_s: floa
     """
     return e_a * theta / (r * t_s**2)
 
+
+def select_linear_region(theta: np.ndarray, y: np.ndarray, alpha: np.ndarray,
+                         min_conversion: float = 0.2, max_conversion: float = 0.8) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Select the region of the data between 20-80% conversion.
+
+    Args:
+        theta (np.ndarray): Theta values (T - T_s).
+        y (np.ndarray): ln(-ln(1-α)) values.
+        alpha (np.ndarray): Conversion values.
+        min_conversion (float): Minimum conversion value to consider (default: 0.2).
+        max_conversion (float): Maximum conversion value to consider (default: 0.8).
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: Selected theta and y values.
+    """
+    # Selection based on conversion range
+    mask = (alpha >= min_conversion) & (alpha <= max_conversion)
+    theta_selected = theta[mask]
+    y_selected = y[mask]
+
+    # Ensure we have enough points for meaningful analysis
+    if len(theta_selected) < 20:
+        logger.warning("Not enough points in the 20-80% conversion range. Expanding range.")
+        min_conversion, max_conversion = 0.1, 0.9
+        mask = (alpha >= min_conversion) & (alpha <= max_conversion)
+        theta_selected = theta[mask]
+        y_selected = y[mask]
+
+    return theta_selected, y_selected
+
 def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float = 1) -> Tuple[float, float, float, float]:
     """
     Perform Horowitz-Metzger analysis to determine kinetic parameters.
@@ -61,17 +92,15 @@ def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float
 
         # Prepare data for fitting
         if n == 1:
-            y = np.log(np.log(1 / (1 - alpha)))
+            y = np.log(-np.log(1 - alpha))
         else:
             y = np.log((1 - (1 - alpha)**(1-n)) / (1 - n))
 
-        # Remove any invalid points (NaN or inf) and potential outliers
-        valid_mask = np.isfinite(y) & (theta != 0)
-        theta = theta[valid_mask]
-        y = y[valid_mask]
+        # Select the most linear region
+        theta_selected, y_selected = select_linear_region(theta, y, alpha)
 
-        # Perform robust linear regression
-        slope, intercept, r_value, _, _ = linregress(theta, y)
+        # Perform robust linear regression on selected data
+        slope, intercept, r_value, _, _ = linregress(theta_selected, y_selected)
 
         # Calculate kinetic parameters
         r = 8.314  # Gas constant in J/(mol·K)
@@ -85,7 +114,7 @@ def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float
         logger.error(f"Error in Horowitz-Metzger analysis: {str(e)}")
         raise
 
-def horowitz_metzger_plot(temperature: np.ndarray, alpha: np.ndarray, n: float = 1) -> Tuple[np.ndarray, np.ndarray, float, float, float, float]:
+def horowitz_metzger_plot(temperature: np.ndarray, alpha: np.ndarray, n: float = 1) -> Tuple[np.ndarray, np.ndarray, float, float, float, float, np.ndarray, np.ndarray]:
     """
     Generate data for Horowitz-Metzger plot and perform analysis.
 
@@ -95,22 +124,20 @@ def horowitz_metzger_plot(temperature: np.ndarray, alpha: np.ndarray, n: float =
         n (float): Reaction order. Default is 1.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray, float, float, float, float]: 
+        Tuple[np.ndarray, np.ndarray, float, float, float, float, np.ndarray, np.ndarray]: 
             x values (theta), y values, activation energy (J/mol), 
             pre-exponential factor (min^-1), temperature of maximum decomposition rate (K),
-            and R-squared value.
+            R-squared value, selected theta values, and selected y values.
     """
     e_a, a, t_s, r_squared = horowitz_metzger_method(temperature, alpha, n)
     
     theta = temperature - t_s
     if n == 1:
-        y = np.log(np.log(1 / (1 - alpha)))
+        y = np.log(-np.log(1 - alpha))
     else:
         y = np.log((1 - (1 - alpha)**(1-n)) / (1 - n))
 
-    # Remove any invalid points (NaN or inf) and potential outliers
-    valid_mask = np.isfinite(y) & (theta != 0)
-    theta = theta[valid_mask]
-    y = y[valid_mask]
+    # Select the most linear region
+    theta_selected, y_selected = select_linear_region(theta, y, alpha)
 
-    return theta, y, e_a, a, t_s, r_squared
+    return theta, y, e_a, a, t_s, r_squared, theta_selected, y_selected
