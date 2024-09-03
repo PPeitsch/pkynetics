@@ -4,6 +4,7 @@ import numpy as np
 from scipy.stats import linregress
 from typing import Tuple
 
+
 def freeman_carroll_equation(x: np.ndarray, e_a: float, n: float) -> np.ndarray:
     """
     Freeman-Carroll equation for kinetic analysis.
@@ -19,7 +20,8 @@ def freeman_carroll_equation(x: np.ndarray, e_a: float, n: float) -> np.ndarray:
     r = 8.314  # Gas constant in J/(mol·K)
     return -e_a / r * x + n
 
-def freeman_carroll_method(temperature: np.ndarray, alpha: np.ndarray, 
+
+def freeman_carroll_method(temperature: np.ndarray, alpha: np.ndarray,
                            time: np.ndarray) -> Tuple[float, float, float]:
     """
     Perform Freeman-Carroll analysis to determine kinetic parameters.
@@ -37,7 +39,7 @@ def freeman_carroll_method(temperature: np.ndarray, alpha: np.ndarray,
     """
     if len(temperature) != len(alpha) or len(temperature) != len(time):
         raise ValueError("Temperature, alpha, and time arrays must have the same length")
-    
+
     if np.any(alpha <= 0) or np.any(alpha >= 1):
         raise ValueError("Alpha values must be between 0 and 1 (exclusive)")
 
@@ -49,7 +51,7 @@ def freeman_carroll_method(temperature: np.ndarray, alpha: np.ndarray,
 
     # Calculate differentials
     d_alpha = np.gradient(alpha, time)
-    d_temp_inv = np.gradient(1/temperature, time)
+    d_temp_inv = np.gradient(1 / temperature, time)
 
     # Calculate terms for Freeman-Carroll plot
     eps = 1e-10  # Small value to avoid divide by zero
@@ -76,9 +78,10 @@ def freeman_carroll_method(temperature: np.ndarray, alpha: np.ndarray,
     e_a = max(-slope * r, 0)  # Activation energy in J/mol, ensure it's non-negative
     n = intercept  # Reaction order
 
-    return e_a, n, r_value**2
+    return e_a, n, r_value ** 2
 
-def freeman_carroll_plot(temperature: np.ndarray, alpha: np.ndarray, 
+
+def freeman_carroll_plot(temperature: np.ndarray, alpha: np.ndarray,
                          time: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float, float, float]:
     """
     Generate data for Freeman-Carroll plot and perform analysis.
@@ -94,9 +97,9 @@ def freeman_carroll_plot(temperature: np.ndarray, alpha: np.ndarray,
             reaction order, and R-squared value.
     """
     e_a, n, r_squared = freeman_carroll_method(temperature, alpha, time)
-    
+
     d_alpha = np.gradient(alpha, time)
-    d_temp_inv = np.gradient(1/temperature, time)
+    d_temp_inv = np.gradient(1 / temperature, time)
 
     eps = 1e-10  # Small value to avoid divide by zero
     x = d_temp_inv / np.log(np.maximum(1 - alpha, eps))

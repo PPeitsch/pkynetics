@@ -9,6 +9,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def horowitz_metzger_equation(theta: np.ndarray, e_a: float, r: float, t_s: float) -> np.ndarray:
     """
     Horowitz-Metzger equation for kinetic analysis.
@@ -22,7 +23,7 @@ def horowitz_metzger_equation(theta: np.ndarray, e_a: float, r: float, t_s: floa
     Returns:
         np.ndarray: y values for the Horowitz-Metzger plot.
     """
-    return e_a * theta / (r * t_s**2)
+    return e_a * theta / (r * t_s ** 2)
 
 
 def select_linear_region(theta: np.ndarray, y: np.ndarray, alpha: np.ndarray,
@@ -55,7 +56,9 @@ def select_linear_region(theta: np.ndarray, y: np.ndarray, alpha: np.ndarray,
 
     return theta_selected, y_selected
 
-def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float = 1) -> Tuple[float, float, float, float]:
+
+def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float = 1) -> Tuple[
+    float, float, float, float]:
     """
     Perform Horowitz-Metzger analysis to determine kinetic parameters.
 
@@ -75,7 +78,7 @@ def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float
 
     if len(temperature) != len(alpha):
         raise ValueError("Temperature and alpha arrays must have the same length")
-    
+
     if np.any(alpha <= 0) or np.any(alpha >= 1):
         raise ValueError("Alpha values must be between 0 and 1 (exclusive)")
 
@@ -94,7 +97,7 @@ def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float
         if n == 1:
             y = np.log(-np.log(1 - alpha))
         else:
-            y = np.log((1 - (1 - alpha)**(1-n)) / (1 - n))
+            y = np.log((1 - (1 - alpha) ** (1 - n)) / (1 - n))
 
         # Select the most linear region
         theta_selected, y_selected = select_linear_region(theta, y, alpha)
@@ -104,17 +107,20 @@ def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float
 
         # Calculate kinetic parameters
         r = 8.314  # Gas constant in J/(mol·K)
-        e_a = slope * r * t_s**2  # Activation energy in J/mol
+        e_a = slope * r * t_s ** 2  # Activation energy in J/mol
         a = np.exp(intercept + e_a / (r * t_s))  # Pre-exponential factor in min^-1
 
-        logger.info(f"Horowitz-Metzger analysis completed. E_a = {e_a/1000:.2f} kJ/mol, A = {a:.2e} min^-1, T_s = {t_s:.2f} K, R^2 = {r_value**2:.4f}")
-        return e_a, a, t_s, r_value**2
+        logger.info(
+            f"Horowitz-Metzger analysis completed. E_a = {e_a / 1000:.2f} kJ/mol, A = {a:.2e} min^-1, T_s = {t_s:.2f} K, R^2 = {r_value ** 2:.4f}")
+        return e_a, a, t_s, r_value ** 2
 
     except Exception as e:
         logger.error(f"Error in Horowitz-Metzger analysis: {str(e)}")
         raise
 
-def horowitz_metzger_plot(temperature: np.ndarray, alpha: np.ndarray, n: float = 1) -> Tuple[np.ndarray, np.ndarray, float, float, float, float, np.ndarray, np.ndarray]:
+
+def horowitz_metzger_plot(temperature: np.ndarray, alpha: np.ndarray, n: float = 1) -> Tuple[
+    np.ndarray, np.ndarray, float, float, float, float, np.ndarray, np.ndarray]:
     """
     Generate data for Horowitz-Metzger plot and perform analysis.
 
@@ -130,12 +136,12 @@ def horowitz_metzger_plot(temperature: np.ndarray, alpha: np.ndarray, n: float =
             R-squared value, selected theta values, and selected y values.
     """
     e_a, a, t_s, r_squared = horowitz_metzger_method(temperature, alpha, n)
-    
+
     theta = temperature - t_s
     if n == 1:
         y = np.log(-np.log(1 - alpha))
     else:
-        y = np.log((1 - (1 - alpha)**(1-n)) / (1 - n))
+        y = np.log((1 - (1 - alpha) ** (1 - n)) / (1 - n))
 
     # Select the most linear region
     theta_selected, y_selected = select_linear_region(theta, y, alpha)
