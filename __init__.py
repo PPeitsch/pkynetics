@@ -22,7 +22,6 @@ from . import utility_functions
 # Convenience imports for commonly used functions
 from .data_preprocessing import smooth_data
 from .data_import import tga_importer, dsc_importer
-from .model_free_methods import FriedmanMethod, OzawaFlynnWall
 from .result_visualization import plot_activation_energy
 
 __all__ = [
@@ -39,7 +38,6 @@ __all__ = [
     "smooth_data",
     "tga_importer",
     "dsc_importer",
-    "FriedmanMethod",
-    "OzawaFlynnWall",
+    "synthetic_data",
     "plot_activation_energy",
 ]
