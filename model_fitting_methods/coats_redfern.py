@@ -1,8 +1,9 @@
 """Implementation of the Coats-Redfern method for kinetic analysis."""
 
 import numpy as np
+from numpy import ndarray, dtype, floating, void
 from scipy.stats import linregress
-from typing import Tuple
+from typing import Tuple, Union, Any
 
 
 def coats_redfern_equation(t: np.ndarray, e_a: float, ln_a: float, n: float, r: float = 8.314) -> np.ndarray:
@@ -23,7 +24,7 @@ def coats_redfern_equation(t: np.ndarray, e_a: float, ln_a: float, n: float, r: 
 
 
 def coats_redfern_method(temperature: np.ndarray, alpha: np.ndarray,
-                         heating_rate: float, n: float = 1) -> Tuple[float, float, float]:
+                         heating_rate: float, n: float = 1) -> Tuple[float, float, float, np.ndarray, np.ndarray]:
     """
     Perform Coats-Redfern analysis to determine kinetic parameters.
 
@@ -42,46 +43,42 @@ def coats_redfern_method(temperature: np.ndarray, alpha: np.ndarray,
     if len(temperature) != len(alpha):
         raise ValueError("Temperature and alpha arrays must have the same length")
 
-    if np.any(alpha < 0) or np.any(alpha >= 1):
-        raise ValueError("Alpha values must be between 0 and 1 (exclusive)")
+    alpha = np.clip(alpha, 0, 1)
 
-    if np.any(temperature <= 0):
-        raise ValueError("Temperature values must be positive")
-
-    # Prepare data for fitting
-    x = 1 / temperature
+    x = 1000 / temperature
     y = _prepare_y_data(alpha, temperature, n)
 
-    # Remove any invalid points (NaN or inf) and potential outliers
-    valid_mask = np.isfinite(y) & (y > -35)  # Adjust this threshold as needed
-    x = x[valid_mask]
-    y = y[valid_mask]
+    # Focus on the most linear part (typically 20% to 80% conversion)
+    mask = (alpha >= 0.2) & (alpha <= 0.8)
+    x_filtered = x[mask]
+    y_filtered = y[mask]
+
+    # Remove any invalid points (NaN or inf)
+    valid_mask = np.isfinite(x_filtered) & np.isfinite(y_filtered)
+    x_filtered = x_filtered[valid_mask]
+    y_filtered = y_filtered[valid_mask]
 
     # Perform robust linear regression
-    slope, intercept, r_value, _, _ = linregress(x, y)
+    slope, intercept, r_value, _, _ = linregress(x_filtered, y_filtered)
 
     # Calculate kinetic parameters
     r = 8.314  # Gas constant in J/(mol·K)
     e_a = -slope * r  # Activation energy in J/mol
     a = np.exp(intercept + np.log(heating_rate / e_a))  # Pre-exponential factor in min^-1
 
-    return e_a, a, r_value ** 2
+    return e_a, a, r_value ** 2, x, y, x_filtered, y_filtered
 
 
 def _prepare_y_data(alpha: np.ndarray, temperature: np.ndarray, n: float) -> np.ndarray:
     """
     Prepare y data for Coats-Redfern analysis based on reaction order.
-
-    Args:
-        alpha (np.ndarray): Conversion data.
-        temperature (np.ndarray): Temperature data in Kelvin.
-        n (float): Reaction order.
-
-    Returns:
-        np.ndarray: Prepared y data for Coats-Redfern plot.
     """
     eps = 1e-10  # Small value to avoid log(0)
+    alpha_term = np.clip(1 - alpha, eps, 1 - eps)  # Ensure we don't take log of 0 or negative values
+
     if n == 1:
-        return np.log(np.maximum(-np.log(1 - alpha + eps), eps) / temperature ** 2)
+        y = np.log(-np.log(alpha_term) / temperature ** 2)
     else:
-        return np.log(np.maximum((1 - (1 - alpha + eps) ** (1 - n)) / ((1 - n) * temperature ** 2), eps))
+        y = np.log((1 - alpha_term ** (1 - n)) / ((1 - n) * temperature ** 2))
+
+    return y
