@@ -68,35 +68,6 @@ def coats_redfern_method(temperature: np.ndarray, alpha: np.ndarray,
     return e_a, a, r_value ** 2
 
 
-def coats_redfern_plot(temperature: np.ndarray, alpha: np.ndarray,
-                       heating_rate: float, n: float = 1) -> Tuple[np.ndarray, np.ndarray, float, float, float]:
-    """
-    Generate data for Coats-Redfern plot and perform analysis.
-
-    Args:
-        temperature (np.ndarray): Temperature data in Kelvin.
-        alpha (np.ndarray): Conversion data.
-        heating_rate (float): Heating rate in K/min.
-        n (float): Reaction order. Default is 1.
-
-    Returns:
-        Tuple[np.ndarray, np.ndarray, float, float, float]: 
-            x values (1000/T), y values, activation energy (J/mol), 
-            pre-exponential factor (min^-1), and R-squared value.
-    """
-    e_a, a, r_squared = coats_redfern_method(temperature, alpha, heating_rate, n)
-
-    x = 1000 / temperature  # Convert to 1000/T for better scale
-    y = _prepare_y_data(alpha, temperature, n)
-
-    # Remove any invalid points (NaN or inf) and potential outliers
-    valid_mask = np.isfinite(y) & (y > -35)  # Adjust this threshold as needed
-    x = x[valid_mask]
-    y = y[valid_mask]
-
-    return x, y, e_a, a, r_squared
-
-
 def _prepare_y_data(alpha: np.ndarray, temperature: np.ndarray, n: float) -> np.ndarray:
     """
     Prepare y data for Coats-Redfern analysis based on reaction order.
