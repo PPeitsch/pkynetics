@@ -8,8 +8,7 @@ from .kinetic_plot import (
 )
 from .model_specific_plots import (
     plot_coats_redfern,
-    plot_freeman_carroll,
-    plot_kissinger
+    plot_freeman_carroll
 )
 
 __all__ = [
