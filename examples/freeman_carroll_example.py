@@ -5,7 +5,7 @@ import os
 
 import numpy as np
 from synthetic_data import generate_freeman_carroll_data
-from model_fitting_methods import freeman_carroll_method
+from model_fitting_methods import freeman_carroll_method, plot_diagnostic
 from result_visualization import plot_conversion_vs_temperature
 from result_visualization.model_specific_plots import plot_freeman_carroll
 
@@ -45,3 +45,5 @@ n_error = abs(n - n_true) / n_true * 100
 
 print(f"Relative error in E_a: {e_a_error:.2f}%")
 print(f"Relative error in n: {n_error:.2f}%")
+
+plot_diagnostic(time, alpha, temperature)
