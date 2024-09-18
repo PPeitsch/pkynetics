@@ -6,7 +6,17 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
-[0.2.0] - 2024-09-18
+[0.2.1] - 2024-09-18
+--------------------
+
+Changed
+^^^^^^^
+- Significantly improved documentation for all modules and methods
+- Enhanced clarity and structure of method descriptions
+- Added more detailed usage examples and notes for each method
+- Improved cross-referencing between related methods and visualization functions
+
+[0.2.0] - 2024-09-17
 --------------------
 
 Added
