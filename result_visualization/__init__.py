@@ -5,7 +5,8 @@ from .kinetic_plot import (
     plot_conversion_vs_temperature,
     plot_derivative_thermogravimetry,
     plot_activation_energy_vs_conversion,
-    plot_avrami_results
+    plot_avrami_results,
+    plot_kissinger
 )
 from .model_specific_plots import (
     plot_coats_redfern,
