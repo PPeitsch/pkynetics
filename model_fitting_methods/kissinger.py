@@ -9,6 +9,8 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+R = 8.314  # Gas constant in J/(mol·K)
+
 
 def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
     """
@@ -22,33 +24,31 @@ def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: Calculated peak temperatures in K.
     """
-    r = 8.314  # Gas constant in J/(mol·K)
 
     def kissinger_equation(t, b):
-        return (e_a * b) / (r * t ** 2) - a * np.exp(-e_a / (r * t))
+        return (e_a * b) / (R * t ** 2) - a * np.exp(-e_a / (R * t))
 
     t_p = np.zeros_like(beta)
     for i, b in enumerate(beta):
-        t_p[i] = fsolve(kissinger_equation, x0=e_a / (r * 20), args=(b,))[
-            0]  # Initial guess based on typical T_p values
+        t_p[i] = fsolve(kissinger_equation, x0=e_a / (R * 20), args=(b,))[0]
 
     return t_p
 
 
-def kissinger_equation(t_p: np.ndarray, e_a: float, ln_ar_ea: float) -> np.ndarray:
+def kissinger_equation(t_p: np.ndarray, e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
     """
     Kissinger equation for non-isothermal kinetics.
 
     Args:
         t_p (np.ndarray): Peak temperatures in K.
         e_a (float): Activation energy in J/mol.
-        ln_ar_ea (float): ln(AR/E_a), where A is the pre-exponential factor and R is the gas constant.
+        a (float): Pre-exponential factor in min^-1.
+        beta (np.ndarray): Heating rates in K/min.
 
     Returns:
         np.ndarray: ln(β/T_p^2) values.
     """
-    r = 8.314  # Gas constant in J/(mol·K)
-    return ln_ar_ea - e_a / (r * t_p)
+    return np.log(beta / t_p ** 2)  # Removed the additional terms
 
 
 def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, float, float, float]:
@@ -69,22 +69,23 @@ def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, f
     """
     logger.info("Performing Kissinger analysis")
 
+    if np.any(t_p <= 0) or np.any(beta <= 0):
+        raise ValueError("Peak temperatures and heating rates must be positive")
+
     x = 1 / t_p
-    y = np.log(beta / t_p**2)
+    y = np.log(beta / t_p ** 2)
 
     slope, intercept, r_value, _, stderr = stats.linregress(x, y)
 
-    r = 8.314  # Gas constant in J/(mol·K)
-    e_a = -r * slope
-    ln_a = intercept + np.log(e_a / r)
-    a = np.exp(ln_a)
+    e_a = -R * slope
+    a = np.exp(intercept + np.log(e_a / R))  # Corrected calculation of 'a'
 
-    se_e_a = r * stderr
-    se_ln_a = np.sqrt((stderr / slope)**2 + (se_e_a / e_a)**2)
+    se_e_a = R * stderr
+    se_ln_a = np.sqrt((stderr / slope) ** 2 + (se_e_a / e_a) ** 2)
 
-    r_squared = r_value**2
+    r_squared = r_value ** 2
 
-    logger.info(f"Kissinger analysis completed. E_a = {e_a/1000:.2f} ± {se_e_a/1000:.2f} kJ/mol, "
+    logger.info(f"Kissinger analysis completed. E_a = {e_a / 1000:.2f} ± {se_e_a / 1000:.2f} kJ/mol, "
                 f"A = {a:.2e} min^-1, R^2 = {r_squared:.4f}")
 
     return e_a, a, se_e_a, se_ln_a, r_squared
