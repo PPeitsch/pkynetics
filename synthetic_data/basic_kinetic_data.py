@@ -1,12 +1,23 @@
-"""Module for generating basic kinetic data for testing various models."""
-
 import numpy as np
 from typing import List, Tuple
+import logging
+
+# Constants
+R = 8.314  # Gas constant in J/(mol·K)
+
+logger = logging.getLogger(__name__)
 
 
-def generate_basic_kinetic_data(e_a: float, a: float, heating_rates: List[float],
-                                t_range: Tuple[float, float], reaction_model: str = 'first_order',
-                                noise_level: float = 0) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+def generate_basic_kinetic_data(
+        e_a: float,
+        a: float,
+        heating_rates: List[float],
+        t_range: Tuple[float, float],
+        reaction_model: str = 'first_order',
+        noise_level: float = 0,
+        num_points: int = 1000,
+        n: float = 1.5
+) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     """
     Generate basic kinetic data for testing various models.
     
@@ -17,26 +28,26 @@ def generate_basic_kinetic_data(e_a: float, a: float, heating_rates: List[float]
         t_range (Tuple[float, float]): Temperature range (start, end) in K
         reaction_model (str): Type of reaction model ('first_order', 'nth_order', etc.)
         noise_level (float): Standard deviation of Gaussian noise to add
+        num_points (int): Number of points to generate for each heating rate
+        n (float): Reaction order for 'nth_order' model
     
     Returns:
         Tuple[List[np.ndarray], List[np.ndarray]]: Lists of temperature data and conversion data for each heating rate
     """
-    r = 8.314  # Gas constant in J/(mol·K)
-
     temperature_data = []
     conversion_data = []
 
     for beta in heating_rates:
-        t = np.linspace(*t_range, 1000)
+        t = np.linspace(*t_range, num_points)
         time = (t - t[0]) / beta
-        k = a * np.exp(-e_a / (r * t))
+        k = a * np.exp(-e_a / (R * t))
 
         if reaction_model == 'first_order':
             alpha = 1 - np.exp(-k * time)
         elif reaction_model == 'nth_order':
-            n = 1.5  # Example value, could be parameterized
             alpha = 1 - (1 + (n - 1) * k * time) ** (1 / (1 - n))
         else:
+            logger.warning(f"Unsupported reaction model: {reaction_model}")
             raise ValueError(f"Unsupported reaction model: {reaction_model}")
 
         # Add noise

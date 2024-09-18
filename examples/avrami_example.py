@@ -1,4 +1,4 @@
-"""Example usage of the improved Avrami method for isothermal crystallization kinetics."""
+"""Example usage of the Avrami method for isothermal crystallization kinetics."""
 
 import numpy as np
 import matplotlib.pyplot as plt

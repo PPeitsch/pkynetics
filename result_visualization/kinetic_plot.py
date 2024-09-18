@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from typing import List
 
+
 def plot_arrhenius(temperatures: np.ndarray, rate_constants: np.ndarray, e_a: float, a: float):
     """
     Create an Arrhenius plot.
@@ -15,9 +16,9 @@ def plot_arrhenius(temperatures: np.ndarray, rate_constants: np.ndarray, e_a: fl
         a (float): Pre-exponential factor
     """
     plt.figure(figsize=(10, 6))
-    plt.plot(1/temperatures, np.log(rate_constants), 'bo', label='Data')
-    x = np.linspace(min(1/temperatures), max(1/temperatures), 100)
-    y = np.log(a) - e_a / (8.314 * 1/x)
+    plt.plot(1 / temperatures, np.log(rate_constants), 'bo', label='Data')
+    x = np.linspace(min(1 / temperatures), max(1 / temperatures), 100)
+    y = np.log(a) - e_a / (8.314 * 1 / x)
     plt.plot(x, y, 'r-', label='Fit')
     plt.xlabel('1/T (K^-1)')
     plt.ylabel('ln(k)')
@@ -26,7 +27,9 @@ def plot_arrhenius(temperatures: np.ndarray, rate_constants: np.ndarray, e_a: fl
     plt.grid(True)
     plt.show()
 
-def plot_conversion_vs_temperature(temperatures: List[np.ndarray], conversions: List[np.ndarray], heating_rates: List[float]):
+
+def plot_conversion_vs_temperature(temperatures: List[np.ndarray], conversions: List[np.ndarray],
+                                   heating_rates: List[float]):
     """
     Plot conversion vs temperature for multiple heating rates.
     
@@ -45,7 +48,9 @@ def plot_conversion_vs_temperature(temperatures: List[np.ndarray], conversions: 
     plt.grid(True)
     plt.show()
 
-def plot_derivative_thermogravimetry(temperatures: List[np.ndarray], conversions: List[np.ndarray], heating_rates: List[float]):
+
+def plot_derivative_thermogravimetry(temperatures: List[np.ndarray], conversions: List[np.ndarray],
+                                     heating_rates: List[float]):
     """
     Plot derivative thermogravimetry (DTG) curves for multiple heating rates.
     
@@ -64,6 +69,7 @@ def plot_derivative_thermogravimetry(temperatures: List[np.ndarray], conversions
     plt.legend()
     plt.grid(True)
     plt.show()
+
 
 def plot_activation_energy_vs_conversion(conversions: np.ndarray, activation_energies: np.ndarray, method: str):
     """
