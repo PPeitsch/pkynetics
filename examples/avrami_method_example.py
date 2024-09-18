@@ -1,44 +1,43 @@
-"""Example usage of the Avrami method for isothermal crystallization kinetics."""
-
 import numpy as np
-import matplotlib.pyplot as plt
-from model_fitting_methods import avrami_method, avrami_equation
+from model_fitting_methods import avrami_method, avrami_equation, calculate_half_time
+from synthetic_data.model_specific_data import generate_avrami_data
+from result_visualization.kinetic_plot import plot_avrami_results
 
-# Generate sample data
-time = np.linspace(0, 100, 500)  # Adjusted time range and increased number of points
-true_n, true_k = 2.5, 0.05  # Increased k to speed up the process
-relative_crystallinity = avrami_equation(time, true_k, true_n)
 
-# Add some noise to the data
-np.random.seed(42)  # for reproducibility
-noise = np.random.normal(0, 0.02, len(time))
-noisy_crystallinity = np.clip(relative_crystallinity + noise, 0, 1)
+def main():
+    # Generate sample data
+    time = np.linspace(0, 200, 400)
+    true_n, true_k = 2.5, 0.01
+    relative_crystallinity = generate_avrami_data(time, true_n, true_k, noise_level=0.01)
 
-# Perform Avrami analysis
-n, k, r_squared = avrami_method(time, noisy_crystallinity)
+    try:
+        # Perform Avrami analysis
+        n, k, r_squared = avrami_method(time, relative_crystallinity)
 
-# Print results
-print(f"True values: n = {true_n}, k = {true_k}")
-print(f"Fitted values: n = {n:.3f}, k = {k:.3e}")
-print(f"R^2 = {r_squared:.3f}")
+        # Generate fitted curve
+        fitted_curve = avrami_equation(time, k, n)
 
-# Plot the results
-plt.figure(figsize=(12, 8))
-plt.scatter(time, noisy_crystallinity, label='Noisy data', alpha=0.5, s=20)
-plt.plot(time, relative_crystallinity, label='True curve', linestyle='--', linewidth=2)
-plt.plot(time, avrami_equation(time, k, n), label='Fitted curve', linestyle=':', linewidth=2)
-plt.xlabel('Time')
-plt.ylabel('Relative Crystallinity')
-plt.title('Avrami Analysis of Isothermal Crystallization')
-plt.legend()
-plt.grid(True)
-plt.ylim(-0.05, 1.05)  # Set y-axis limits to show full range
+        # Calculate half-time
+        t_half = calculate_half_time(k, n)
 
-# Add text box with results
-textstr = f'True values:\nn = {true_n:.3f}\nk = {true_k:.3e}\n\nFitted values:\nn = {n:.3f}\nk = {k:.3e}\nR² = {r_squared:.3f}'
-props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-plt.text(0.05, 0.95, textstr, transform=plt.gca().transAxes, fontsize=10,
-         verticalalignment='top', bbox=props)
+        # Plot results
+        plot_avrami_results(time, relative_crystallinity, fitted_curve, n, k, r_squared, t_half)
 
-plt.tight_layout()
-plt.show()
+        # Print results
+        print(f"True values: n = {true_n}, k = {true_k}")
+        print(f"Fitted values: n = {n:.3f}, k = {k:.3e}")
+        print(f"R^2 = {r_squared:.3f}")
+        print(f"Half-time of crystallization: {t_half:.2f}")
+
+        # Calculate relative errors
+        n_error = abs(n - true_n) / true_n * 100
+        k_error = abs(k - true_k) / true_k * 100
+        print(f"Relative error in n: {n_error:.2f}%")
+        print(f"Relative error in k: {k_error:.2f}%")
+
+    except ValueError as e:
+        print(f"Error in Avrami analysis: {str(e)}")
+
+
+if __name__ == "__main__":
+    main()

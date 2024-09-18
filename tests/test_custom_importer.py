@@ -8,10 +8,11 @@ from data_import import CustomImporter
 # Get the absolute path of the project root directory
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
+
 class TestCustomImporter(unittest.TestCase):
     def setUp(self):
         self.custom_file_path = os.path.join(PROJECT_ROOT, 'data', 'sample_custom_data.csv')
-        
+
         # Create a sample custom data file for testing
         with open(self.custom_file_path, 'w') as f:
             f.write("Time(s);Temperature(C);Weight(mg)\n")
@@ -63,6 +64,7 @@ class TestCustomImporter(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             importer = CustomImporter('non_existent_file.csv', ['time', 'temperature', 'weight'])
             importer.import_data()
+
 
 if __name__ == '__main__':
     unittest.main()

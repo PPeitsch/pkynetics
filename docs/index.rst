@@ -1,30 +1,53 @@
-Welcome to Pkynetics's documentation!
-=====================================
+Welcome to Pkynetics's Documentation
+====================================
 
-Pkynetics is a comprehensive library for thermal analysis kinetic methods, including traditional model-fitting and model-free methods, advanced computational techniques, machine learning approaches, and result visualization.
+Pkynetics is a comprehensive Python library for thermal analysis kinetic methods. It provides tools for data preprocessing, kinetic analysis using various methods, and result visualization for thermal analysis data.
+
+Key Features
+------------
+
+- Data import from various thermal analysis instruments
+- Model-fitting methods for kinetic analysis
+- Model-free (isoconversional) methods
+- Advanced computational techniques
+- Result visualization tools
+
+Contents
+--------
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: User Guide:
 
    installation
    usage
-   api/data_preprocessing
-   api/data_import
-   api/model_fitting_methods
-   api/model_free_methods
-   api/advanced_methods
-   api/machine_learning_methods
-   api/result_visualization
-   api/statistical_analysis
-   api/parallel_processing
-   api/utility_functions
-   examples/tga_analysis
-   examples/dsc_analysis
-   examples/machine_learning_kinetics
-   examples/advanced_methods_comparison
+   troubleshooting
 
-Indices and tables
+.. toctree::
+   :maxdepth: 2
+   :caption: Modules:
+
+   modules/data_import/index
+   modules/model_fitting_methods/index
+   modules/model_free_methods/index
+   modules/result_visualization/index
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Development:
+
+   changelog
+
+Getting Started
+---------------
+
+To get started with Pkynetics, please refer to the :doc:`installation` guide for setup instructions, and the :doc:`usage` page for an overview of the library's capabilities.
+
+For detailed examples and API documentation, explore the module-specific pages listed in the Contents section.
+
+If you encounter any issues, consult the :doc:`troubleshooting` guide for solutions to common problems.
+
+Indices and Tables
 ==================
 
 * :ref:`genindex`

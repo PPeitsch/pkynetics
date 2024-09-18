@@ -1,11 +1,15 @@
 """Kissinger method for non-isothermal kinetics analysis."""
 
 import numpy as np
-import logging
+from scipy import stats
+from scipy.optimize import fsolve
 from typing import Tuple
+import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+R = 8.314  # Gas constant in J/(mol·K)
 
 
 def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
@@ -20,81 +24,68 @@ def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: Calculated peak temperatures in K.
     """
-    r = 8.314  # Gas constant in J/(mol·K)
-    t_p = np.full_like(beta, 500.0)  # Initial guess
-    for _ in range(100):  # Max 100 iterations
-        t_p_new = e_a / (r * np.log(a * r * t_p ** 2 / (e_a * beta)))
-        if np.allclose(t_p, t_p_new, rtol=1e-6):
-            return t_p_new
-        t_p = t_p_new
+
+    def kissinger_equation(t, b):
+        return (e_a * b) / (R * t ** 2) - a * np.exp(-e_a / (R * t))
+
+    t_p = np.zeros_like(beta)
+    for i, b in enumerate(beta):
+        t_p[i] = fsolve(kissinger_equation, x0=e_a / (R * 20), args=(b,))[0]
+
     return t_p
 
 
-def kissinger_equation(t_p: np.ndarray, e_a: float, ln_ar_ea: float) -> np.ndarray:
+def kissinger_equation(t_p: np.ndarray, e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
     """
     Kissinger equation for non-isothermal kinetics.
 
     Args:
-        t_p (np.ndarray): Peak temperatures.
-        e_a (float): Activation energy.
-        ln_ar_ea (float): ln(AR/E_a), where A is the pre-exponential factor and R is the gas constant.
+        t_p (np.ndarray): Peak temperatures in K.
+        e_a (float): Activation energy in J/mol.
+        a (float): Pre-exponential factor in min^-1.
+        beta (np.ndarray): Heating rates in K/min.
 
     Returns:
         np.ndarray: ln(β/T_p^2) values.
     """
-    r = 8.314  # Gas constant in J/(mol·K)
-    return ln_ar_ea - e_a / (r * t_p)
+    return np.log(beta / t_p ** 2)  # Removed the additional terms
 
 
-def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, float]:
+def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, float, float, float]:
     """
     Perform Kissinger analysis for non-isothermal kinetics.
 
     Args:
-        t_p (np.ndarray): Peak temperatures for different heating rates.
-        beta (np.ndarray): Heating rates corresponding to the peak temperatures.
+        t_p (np.ndarray): Peak temperatures for different heating rates in K.
+        beta (np.ndarray): Heating rates corresponding to the peak temperatures in K/min.
 
     Returns:
-        Tuple[float, float, float]: Activation energy (e_a), pre-exponential factor (a), 
-                                    and coefficient of determination (r_squared).
-
-    Raises:
-        ValueError: If input arrays have different lengths or contain invalid values.
+        Tuple[float, float, float, float, float]:
+            Activation energy (e_a) in J/mol,
+            Pre-exponential factor (a) in min^-1,
+            Standard error of E_a in J/mol,
+            Standard error of ln(A),
+            Coefficient of determination (r_squared).
     """
     logger.info("Performing Kissinger analysis")
-
-    t_p = np.asarray(t_p)
-    beta = np.asarray(beta)
-
-    if t_p.shape != beta.shape:
-        raise ValueError("Peak temperature and heating rate arrays must have the same shape")
 
     if np.any(t_p <= 0) or np.any(beta <= 0):
         raise ValueError("Peak temperatures and heating rates must be positive")
 
-    try:
-        # Prepare data for Kissinger plot
-        y = np.log(beta / t_p ** 2)
-        x = 1 / t_p
+    x = 1 / t_p
+    y = np.log(beta / t_p ** 2)
 
-        # Perform linear regression
-        slope, intercept = np.polyfit(x, y, 1)
+    slope, intercept, r_value, _, stderr = stats.linregress(x, y)
 
-        # Calculate activation energy and pre-exponential factor
-        r = 8.314  # Gas constant in J/(mol·K)
-        e_a = -slope * r
-        a = np.exp(intercept) * e_a / r
+    e_a = -R * slope
+    a = np.exp(intercept + np.log(e_a / R))  # Corrected calculation of 'a'
 
-        # Calculate R^2
-        y_fit = slope * x + intercept
-        ss_res = np.sum((y - y_fit) ** 2)
-        ss_tot = np.sum((y - np.mean(y)) ** 2)
-        r_squared = 1 - (ss_res / ss_tot)
+    se_e_a = R * stderr
+    se_ln_a = np.sqrt((stderr / slope) ** 2 + (se_e_a / e_a) ** 2)
 
-        logger.info(
-            f"Kissinger analysis completed. e_a = {e_a / 1000:.2f} kJ/mol, a = {a:.2e} min^-1, R^2 = {r_squared:.4f}")
-        return e_a, a, r_squared
+    r_squared = r_value ** 2
 
-    except Exception as e:
-        logger.error(f"Error in Kissinger analysis: {str(e)}")
-        raise
+    logger.info(f"Kissinger analysis completed. E_a = {e_a / 1000:.2f} ± {se_e_a / 1000:.2f} kJ/mol, "
+                f"A = {a:.2e} min^-1, R^2 = {r_squared:.4f}")
+
+    return e_a, a, se_e_a, se_ln_a, r_squared

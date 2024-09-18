@@ -1,48 +1,62 @@
 Usage
 =====
 
-This page provides a quick overview of how to use the Pkynetics library for thermal analysis kinetic methods.
+This page provides an overview of how to use the Pkynetics library for thermal analysis kinetic methods, focusing on the latest implemented features.
 
-Importing Data
---------------
+Data Import
+-----------
 
-Pkynetics provides importers for TGA and DSC data:
+Pkynetics provides importers for TGA and DSC data from various manufacturers:
 
 .. code-block:: python
 
     from pkynetics.data_import import tga_importer, dsc_importer
 
     # Import TGA data
-    tga_data = tga_importer('path/to/tga_data.csv')
+    tga_data = tga_importer('path/to/tga_data.csv', manufacturer='auto')
 
     # Import DSC data
-    dsc_data = dsc_importer('path/to/dsc_data.csv')
+    dsc_data = dsc_importer('path/to/dsc_data.csv', manufacturer='auto')
+
+The ``manufacturer`` parameter can be set to 'auto', 'TA', 'Mettler', 'Netzsch', or 'Setaram'.
 
 Model Fitting Methods
 ---------------------
 
-Here's an example of using the Avrami method for isothermal crystallization kinetics:
+Pkynetics implements several model fitting methods with improved data handling:
+
+Coats-Redfern Method
+^^^^^^^^^^^^^^^^^^^^
+
+For kinetic analysis:
 
 .. code-block:: python
 
-    from pkynetics.model_fitting_methods import avrami_method
+    from pkynetics.model_fitting_methods import coats_redfern_method
+    from pkynetics.result_visualization import plot_coats_redfern
 
-    n, k, r_squared = avrami_method(time_data, crystallinity_data)
-    print(f"Avrami exponent (n): {n}")
-    print(f"Rate constant (k): {k}")
-    print(f"R-squared: {r_squared}")
+    e_a, a, r_squared, x, y, x_fit, y_fit = coats_redfern_method(temperature, alpha, heating_rate, n=1)
+    plot_coats_redfern(x, y, x_fit, y_fit, e_a, a, r_squared)
 
-Model Free Methods
-------------------
+    print(f"Activation energy (E_a): {e_a/1000:.2f} kJ/mol")
+    print(f"Pre-exponential factor (A): {a:.2e} min^-1")
+    print(f"R-squared: {r_squared:.4f}")
 
-Here's an example of using the Friedman method:
+Result Visualization
+--------------------
+
+Pkynetics now offers enhanced visualization capabilities:
 
 .. code-block:: python
 
-    from pkynetics.model_free_methods import friedman_method
+    from pkynetics.result_visualization import (
+        plot_arrhenius,
+        plot_conversion_vs_temperature,
+        plot_derivative_thermogravimetry,
+        plot_activation_energy_vs_conversion
+    )
 
-    activation_energy, pre_exp_factor = friedman_method(temp_data, conversion_data, heating_rates)
-    print(f"Activation Energy: {activation_energy}")
-    print(f"Pre-exponential factor: {pre_exp_factor}")
+    # Example: Plot conversion vs temperature
+    plot_conversion_vs_temperature([temperature1, temperature2], [alpha1, alpha2], [heating_rate1, heating_rate2])
 
-For more detailed usage instructions and examples, please refer to the API documentation and the Examples section.
+For more detailed usage instructions and examples of other methods, please refer to the API documentation and the Examples section.

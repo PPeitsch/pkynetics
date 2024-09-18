@@ -1,57 +1,46 @@
 """Example usage of the Coats-Redfern method for non-isothermal kinetics analysis."""
 
+import sys
+import os
+
 import numpy as np
-import matplotlib.pyplot as plt
-from model_fitting_methods import coats_redfern_method, coats_redfern_plot
+from synthetic_data import generate_coats_redfern_data
+from model_fitting_methods import coats_redfern_method
+from result_visualization import plot_conversion_vs_temperature
+from result_visualization.model_specific_plots import plot_coats_redfern
 
-# Generate sample data
-temperature = np.linspace(300, 800, 500)  # Temperature in Kelvin
-true_e_a = 100000  # J/mol
-true_a = 1e10  # min^-1
-true_n = 1  # Reaction order
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Set true values for synthetic data generation
+e_a_true = 150000  # J/mol
+a_true = 1e15  # 1/s
 heating_rate = 10  # K/min
+t_range = (400, 800)  # K
+n_true = 1  # Reaction order
 
-# Calculate conversion
-r = 8.314  # Gas constant in J/(mol·K)
-k = true_a * np.exp(-true_e_a / (r * temperature))
-alpha = 1 - np.exp(-k * temperature / heating_rate)
+# Generate synthetic data
+temperature, alpha = generate_coats_redfern_data(e_a_true, a_true, heating_rate, t_range, n=n_true, noise_level=0.001)
 
-# Add some noise to make it more realistic
-noise_level = 0.01
-alpha_noisy = np.clip(alpha + np.random.normal(0, noise_level, alpha.shape), 0, 0.99)
+# Ensure alpha is within [0, 1] and remove potential artifacts at the boundaries
+alpha = np.clip(alpha, 0.01, 0.99)
+
+# Plot conversion vs temperature
+plot_conversion_vs_temperature([temperature], [alpha], [heating_rate])
 
 # Perform Coats-Redfern analysis
-e_a, a, r_squared = coats_redfern_method(temperature, alpha_noisy, heating_rate, n=true_n)
+e_a, a, r_squared, x, y, x_fit, y_fit = coats_redfern_method(temperature, alpha, heating_rate, n=n_true)
 
-print(f"True values: E_a = {true_e_a/1000:.2f} kJ/mol, A = {true_a:.2e} min^-1")
+# Plot Coats-Redfern results
+plot_coats_redfern(x, y, x_fit, y_fit, e_a, a, r_squared)
+
+# Print results
+print(f"True values: E_a = {e_a_true/1000:.2f} kJ/mol, A = {a_true:.2e} min^-1")
 print(f"Fitted values: E_a = {e_a/1000:.2f} kJ/mol, A = {a:.2e} min^-1")
 print(f"R^2 = {r_squared:.4f}")
 
-# Generate plot data
-x, y, _, _, _ = coats_redfern_plot(temperature, alpha_noisy, heating_rate, n=true_n)
-
-# Plot the results
-plt.figure(figsize=(10, 6))
-plt.scatter(x, y, label='Experimental data')
-plt.plot(x, np.polyval(np.polyfit(x, y, 1), x), 'r-', label='Fitted line')
-plt.xlabel('1000/T (K$^{-1}$)')
-plt.ylabel('ln(-ln(1-α)/T$^2$)' if true_n == 1 else 'ln((1-(1-α)$^{1-n}$)/((1-n)T$^2$))')
-plt.title('Coats-Redfern Plot')
-plt.legend()
-plt.grid(True)
-
-# Add text box with results
-textstr = f'E_a = {e_a/1000:.2f} kJ/mol\nA = {a:.2e} min$^{{-1}}$\nR$^2$ = {r_squared:.4f}'
-props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-plt.text(0.05, 0.95, textstr, transform=plt.gca().transAxes, fontsize=9,
-         verticalalignment='top', bbox=props)
-
-plt.tight_layout()
-plt.show()
-
 # Calculate relative error
-e_a_error = abs(e_a - true_e_a) / true_e_a * 100
-a_error = abs(a - true_a) / true_a * 100
+e_a_error = abs(e_a - e_a_true) / e_a_true * 100
+a_error = abs(a - a_true) / a_true * 100
 
 print(f"Relative error in E_a: {e_a_error:.2f}%")
 print(f"Relative error in A: {a_error:.2f}%")
