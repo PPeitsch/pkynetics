@@ -3,6 +3,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import List
+from model_fitting_methods import kissinger_equation
 
 
 def plot_arrhenius(temperatures: np.ndarray, rate_constants: np.ndarray, e_a: float, a: float):
@@ -86,4 +87,89 @@ def plot_activation_energy_vs_conversion(conversions: np.ndarray, activation_ene
     plt.ylabel('Activation Energy (kJ/mol)')
     plt.title(f'Activation Energy vs Conversion ({method} method)')
     plt.grid(True)
+    plt.show()
+
+
+def plot_kissinger(t_p: np.ndarray, beta: np.ndarray, e_a: float, a: float, r_squared: float):
+    """
+    Create a Kissinger plot.
+
+    Args:
+        t_p (np.ndarray): Peak temperatures for different heating rates in K
+        beta (np.ndarray): Heating rates in K/min
+        e_a (float): Activation energy in J/mol
+        a (float): Pre-exponential factor in min^-1
+        r_squared (float): R-squared value of the fit
+    """
+    plt.figure(figsize=(10, 6))
+
+    x_exp = 1000 / t_p
+    y_exp = np.log(beta / t_p ** 2)
+
+    plt.scatter(x_exp, y_exp, label='Experimental data')
+
+    # Generate theoretical curve
+    x_theory = np.linspace(min(x_exp), max(x_exp), 100)
+    t_theory = 1000 / x_theory
+    r = 8.314  # Gas constant in J/(mol·K)
+    ln_ar_ea = np.log(a * r / e_a)
+    y_theory = kissinger_equation(t_theory, e_a, ln_ar_ea)
+
+    plt.plot(x_theory, y_theory, 'r-', label='Theoretical curve')
+
+    plt.xlabel('1000/T (K$^{-1}$)')
+    plt.ylabel('ln(β/T$_p^2$) (K$^{-1}$·min$^{-1}$)')
+    plt.title('Kissinger Plot')
+    plt.legend()
+    plt.grid(True)
+
+    # Add text box with results
+    textstr = f'E_a = {e_a / 1000:.2f} kJ/mol\nA = {a:.2e} min$^{{-1}}$\nR$^2$ = {r_squared:.4f}'
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    plt.text(0.05, 0.95, textstr, transform=plt.gca().transAxes, fontsize=9,
+             verticalalignment='top', bbox=props)
+
+    plt.show()
+
+
+def plot_avrami_results(time: np.ndarray, relative_crystallinity: np.ndarray,
+                        fitted_curve: np.ndarray, n: float, k: float,
+                        r_squared: float, t_half: float):
+    """
+    Plot the results of Avrami analysis.
+
+    Args:
+        time (np.ndarray): Time data
+        relative_crystallinity (np.ndarray): Experimental relative crystallinity data
+        fitted_curve (np.ndarray): Fitted Avrami curve
+        n (float): Fitted Avrami exponent
+        k (float): Fitted crystallization rate constant
+        r_squared (float): R-squared value of the fit
+        t_half (float): Half-time of crystallization
+    """
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
+
+    # Data and fitted curve
+    ax1.scatter(time, relative_crystallinity, label='Experimental data', alpha=0.5)
+    ax1.plot(time, fitted_curve, 'r-', label='Fitted curve')
+    ax1.axvline(x=t_half, color='g', linestyle='--', label=f'Half-time ({t_half:.2f})')
+    ax1.set_xlabel('Time')
+    ax1.set_ylabel('Relative Crystallinity')
+    ax1.set_title('Avrami Analysis of Isothermal Crystallization')
+    ax1.legend()
+    ax1.grid(True)
+
+    # Avrami plot
+    mask = (relative_crystallinity > 0.01) & (relative_crystallinity < 0.99)
+    y = np.log(-np.log(1 - relative_crystallinity[mask]))
+    x = np.log(time[mask])
+    ax2.scatter(x, y, label='Avrami plot', alpha=0.5)
+    ax2.plot(x, n * x + np.log(k) * n, 'r-', label='Linear fit')
+    ax2.set_xlabel('log(Time)')
+    ax2.set_ylabel('log(-log(1-X))')
+    ax2.set_title('Avrami Plot')
+    ax2.legend()
+    ax2.grid(True)
+
+    plt.tight_layout()
     plt.show()

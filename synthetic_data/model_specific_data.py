@@ -3,6 +3,7 @@
 import numpy as np
 from typing import Tuple, List
 from .basic_kinetic_data import generate_basic_kinetic_data
+from .noise_generators import add_gaussian_noise
 
 
 def generate_coats_redfern_data(e_a: float, a: float, heating_rate: float,
@@ -48,3 +49,22 @@ def generate_freeman_carroll_data(e_a: float, a: float, heating_rate: float,
                                                        reaction_model='nth_order', noise_level=noise_level)
     time_data = (temp_data[0] - temp_data[0][0]) / heating_rate
     return temp_data[0], conv_data[0], time_data
+
+
+def generate_avrami_data(time: np.ndarray, n: float, k: float, noise_level: float = 0.01) -> np.ndarray:
+    """
+    Generate Avrami data with optional noise.
+
+    Args:
+        time (np.ndarray): Time array
+        n (float): Avrami exponent
+        k (float): Crystallization rate constant
+        noise_level (float): Standard deviation of Gaussian noise to add
+
+    Returns:
+        np.ndarray: Relative crystallinity data
+    """
+    relative_crystallinity = 1 - np.exp(-(k * time) ** n)
+    if noise_level > 0:
+        relative_crystallinity = add_gaussian_noise(relative_crystallinity, noise_level)
+    return relative_crystallinity

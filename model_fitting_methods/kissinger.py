@@ -35,6 +35,22 @@ def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
     return t_p
 
 
+def kissinger_equation(t_p: np.ndarray, e_a: float, ln_ar_ea: float) -> np.ndarray:
+    """
+    Kissinger equation for non-isothermal kinetics.
+
+    Args:
+        t_p (np.ndarray): Peak temperatures in K.
+        e_a (float): Activation energy in J/mol.
+        ln_ar_ea (float): ln(AR/E_a), where A is the pre-exponential factor and R is the gas constant.
+
+    Returns:
+        np.ndarray: ln(β/T_p^2) values.
+    """
+    r = 8.314  # Gas constant in J/(mol·K)
+    return ln_ar_ea - e_a / (r * t_p)
+
+
 def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, float, float, float]:
     """
     Perform Kissinger analysis for non-isothermal kinetics.
