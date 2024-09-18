@@ -6,6 +6,28 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[0.2.0] - 2024-09-18
+--------------------
+
+Added
+^^^^^
+- New plotting functions in the ``result_visualization`` module:
+   - ``plot_arrhenius``
+   - ``plot_conversion_vs_temperature``
+   - ``plot_derivative_thermogravimetry``
+   - ``plot_activation_energy_vs_conversion``
+   - ``plot_avrami_results``
+- Enhanced public API for visualization functions in ``result_visualization/__init__.py``
+
+Changed
+^^^^^^^
+- Improved data handling and filtering processes in kinetic analysis methods
+- Streamlined plotting and data generation functions for better organization
+
+Fixed
+^^^^^
+- Enhanced accuracy of kinetic analysis methods through improved data handling
+
 [0.1.0] - 2024-09-03
 --------------------
 
