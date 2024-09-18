@@ -1,10 +1,10 @@
 Usage
 =====
 
-This page provides a quick overview of how to use the Pkynetics library for thermal analysis kinetic methods, focusing on the currently implemented features.
+This page provides an overview of how to use the Pkynetics library for thermal analysis kinetic methods, focusing on the latest implemented features.
 
-Importing Data
---------------
+Data Import
+-----------
 
 Pkynetics provides importers for TGA and DSC data from various manufacturers:
 
@@ -18,40 +18,12 @@ Pkynetics provides importers for TGA and DSC data from various manufacturers:
     # Import DSC data
     dsc_data = dsc_importer('path/to/dsc_data.csv', manufacturer='auto')
 
-The `manufacturer` parameter can be set to 'auto', 'TA', 'Mettler', 'Netzsch', or 'Setaram'.
+The ``manufacturer`` parameter can be set to 'auto', 'TA', 'Mettler', 'Netzsch', or 'Setaram'.
 
 Model Fitting Methods
 ---------------------
 
-Pkynetics currently implements several model fitting methods:
-
-Avrami Method
-^^^^^^^^^^^^^
-
-For isothermal crystallization kinetics:
-
-.. code-block:: python
-
-    from pkynetics.model_fitting_methods import avrami_method
-
-    n, k, r_squared = avrami_method(time, relative_crystallinity)
-    print(f"Avrami exponent (n): {n}")
-    print(f"Rate constant (k): {k}")
-    print(f"R-squared: {r_squared}")
-
-Kissinger Method
-^^^^^^^^^^^^^^^^
-
-For non-isothermal kinetics analysis:
-
-.. code-block:: python
-
-    from pkynetics.model_fitting_methods import kissinger_method
-
-    e_a, a, r_squared = kissinger_method(t_p, beta)
-    print(f"Activation energy (E_a): {e_a}")
-    print(f"Pre-exponential factor (A): {a}")
-    print(f"R-squared: {r_squared}")
+Pkynetics implements several model fitting methods with improved data handling:
 
 Coats-Redfern Method
 ^^^^^^^^^^^^^^^^^^^^
@@ -61,39 +33,30 @@ For kinetic analysis:
 .. code-block:: python
 
     from pkynetics.model_fitting_methods import coats_redfern_method
+    from pkynetics.result_visualization import plot_coats_redfern
 
-    e_a, a, r_squared = coats_redfern_method(temperature, alpha, heating_rate, n=1)
-    print(f"Activation energy (E_a): {e_a}")
-    print(f"Pre-exponential factor (A): {a}")
-    print(f"R-squared: {r_squared}")
+    e_a, a, r_squared, x, y, x_fit, y_fit = coats_redfern_method(temperature, alpha, heating_rate, n=1)
+    plot_coats_redfern(x, y, x_fit, y_fit, e_a, a, r_squared)
 
-Freeman-Carroll Method
-^^^^^^^^^^^^^^^^^^^^^^
+    print(f"Activation energy (E_a): {e_a/1000:.2f} kJ/mol")
+    print(f"Pre-exponential factor (A): {a:.2e} min^-1")
+    print(f"R-squared: {r_squared:.4f}")
 
-For non-isothermal kinetics analysis:
+Result Visualization
+--------------------
 
-.. code-block:: python
-
-    from pkynetics.model_fitting_methods import freeman_carroll_method
-
-    e_a, n, r_squared = freeman_carroll_method(temperature, alpha, time)
-    print(f"Activation energy (E_a): {e_a}")
-    print(f"Reaction order (n): {n}")
-    print(f"R-squared: {r_squared}")
-
-Horowitz-Metzger Method
-^^^^^^^^^^^^^^^^^^^^^^^
-
-For kinetic analysis:
+Pkynetics now offers enhanced visualization capabilities:
 
 .. code-block:: python
 
-    from pkynetics.model_fitting_methods import horowitz_metzger_method
+    from pkynetics.result_visualization import (
+        plot_arrhenius,
+        plot_conversion_vs_temperature,
+        plot_derivative_thermogravimetry,
+        plot_activation_energy_vs_conversion
+    )
 
-    e_a, a, t_s, r_squared = horowitz_metzger_method(temperature, alpha)
-    print(f"Activation energy (E_a): {e_a}")
-    print(f"Pre-exponential factor (A): {a}")
-    print(f"Temperature of maximum decomposition rate (T_s): {t_s}")
-    print(f"R-squared: {r_squared}")
+    # Example: Plot conversion vs temperature
+    plot_conversion_vs_temperature([temperature1, temperature2], [alpha1, alpha2], [heating_rate1, heating_rate2])
 
-For more detailed usage instructions and examples, please refer to the API documentation and the Examples section.
+For more detailed usage instructions and examples of other methods, please refer to the API documentation and the Examples section.

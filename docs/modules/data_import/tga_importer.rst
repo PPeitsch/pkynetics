@@ -12,45 +12,67 @@ TGA Importer
    :return: Dictionary containing temperature, time, weight, and weight_percent data.
    :rtype: Dict[str, np.ndarray]
 
-   This function imports TGA data from various manufacturer formats, providing a consistent output structure regardless of the input format.
+Functionality
+-------------
 
-   Supported Manufacturers:
-   ------------------------
-   - TA Instruments
-   - Mettler Toledo
-   - Netzsch
-   - Setaram
+This function imports TGA data from various manufacturer formats, providing a consistent output structure regardless of the input format. It supports automatic detection of the manufacturer format or allows manual specification.
 
-   Output Dictionary Keys:
-   -----------------------
-   - 'temperature': Temperature data in Kelvin
-   - 'time': Time data in minutes
-   - 'weight': Weight data in milligrams
-   - 'weight_percent': Weight percent data
+Supported Manufacturers
+-----------------------
 
-   Example:
-   --------
-   .. code-block:: python
+- TA Instruments
+- Mettler Toledo
+- Netzsch
+- Setaram
 
-      from pkynetics.data_import import tga_importer
+Output Dictionary
+-----------------
 
-      # Import TGA data with automatic manufacturer detection
-      tga_data = tga_importer("path/to/tga_data.csv")
+The function returns a dictionary with the following keys:
 
-      # Import TGA data specifying the manufacturer
-      tga_data = tga_importer("path/to/tga_data.csv", manufacturer="TA")
+- 'temperature': Temperature data in Kelvin
+- 'time': Time data in minutes
+- 'weight': Weight data in milligrams
+- 'weight_percent': Weight percent data (calculated if not provided in the original data)
 
-      # Access the imported data
-      temperature = tga_data['temperature']
-      time = tga_data['time']
-      weight = tga_data['weight']
-      weight_percent = tga_data['weight_percent']
+Usage Example
+-------------
 
-   Note:
-   -----
-   When using "auto" for manufacturer detection, the function attempts to determine the manufacturer based on the file content. If automatic detection fails, you may need to specify the manufacturer manually.
+.. code-block:: python
 
-   Raises:
-   -------
-   - ValueError: If the file format is not recognized or supported.
-   - FileNotFoundError: If the specified file does not exist.
+   from pkynetics.data_import import tga_importer
+
+   # Import TGA data with automatic manufacturer detection
+   tga_data = tga_importer("path/to/tga_data.csv")
+
+   # Import TGA data specifying the manufacturer
+   tga_data = tga_importer("path/to/tga_data.csv", manufacturer="TA")
+
+   # Access the imported data
+   temperature = tga_data['temperature']
+   time = tga_data['time']
+   weight = tga_data['weight']
+   weight_percent = tga_data['weight_percent']
+
+   print(f"Number of data points: {len(temperature)}")
+   print(f"Temperature range: {temperature.min():.2f} K to {temperature.max():.2f} K")
+   print(f"Total weight loss: {weight[0] - weight[-1]:.2f} mg")
+
+Error Handling
+--------------
+
+- Raises `ValueError` if the file format is not recognized or supported.
+- Raises `FileNotFoundError` if the specified file does not exist.
+
+Notes
+-----
+
+- When using "auto" for manufacturer detection, the function attempts to determine the manufacturer based on the file content. If automatic detection fails, you may need to specify the manufacturer manually.
+- The function automatically converts temperature to Kelvin if the original data is in Celsius.
+- Weight percent is calculated if not provided in the original data, using the initial weight as 100%.
+
+See Also
+--------
+
+- :func:`dsc_importer`: For importing Differential Scanning Calorimetry (DSC) data
+- :class:`CustomImporter`: For handling custom data formats
