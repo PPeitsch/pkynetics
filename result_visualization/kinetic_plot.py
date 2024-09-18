@@ -6,6 +6,10 @@ from typing import List
 from model_fitting_methods import kissinger_equation
 
 
+# Constants
+R = 8.314  # Gas constant in J/(mol·K)
+
+
 def plot_arrhenius(temperatures: np.ndarray, rate_constants: np.ndarray, e_a: float, a: float):
     """
     Create an Arrhenius plot.
@@ -19,7 +23,7 @@ def plot_arrhenius(temperatures: np.ndarray, rate_constants: np.ndarray, e_a: fl
     plt.figure(figsize=(10, 6))
     plt.plot(1 / temperatures, np.log(rate_constants), 'bo', label='Data')
     x = np.linspace(min(1 / temperatures), max(1 / temperatures), 100)
-    y = np.log(a) - e_a / (8.314 * 1 / x)
+    y = np.log(a) - e_a / (R * 1 / x)
     plt.plot(x, y, 'r-', label='Fit')
     plt.xlabel('1/T (K^-1)')
     plt.ylabel('ln(k)')
@@ -111,8 +115,7 @@ def plot_kissinger(t_p: np.ndarray, beta: np.ndarray, e_a: float, a: float, r_sq
     # Generate theoretical curve
     x_theory = np.linspace(min(x_exp), max(x_exp), 100)
     t_theory = 1000 / x_theory
-    r = 8.314  # Gas constant in J/(mol·K)
-    ln_ar_ea = np.log(a * r / e_a)
+    ln_ar_ea = np.log(a * R / e_a)
     y_theory = kissinger_equation(t_theory, e_a, ln_ar_ea)
 
     plt.plot(x_theory, y_theory, 'r-', label='Theoretical curve')
