@@ -1,7 +1,7 @@
 """Module for generating model-specific kinetic data."""
 
 import numpy as np
-from typing import Tuple, List
+from typing import Tuple
 from .basic_kinetic_data import generate_basic_kinetic_data
 from .noise_generators import add_gaussian_noise
 
