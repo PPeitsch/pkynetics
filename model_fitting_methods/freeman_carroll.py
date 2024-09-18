@@ -1,8 +1,9 @@
-"""Implementation of the Freeman-Carroll method for kinetic analysis."""
-
 import numpy as np
 from scipy.stats import linregress
+from scipy.signal import savgol_filter
 from typing import Tuple
+import matplotlib.pyplot as plt
+
 
 def freeman_carroll_equation(x: np.ndarray, e_a: float, n: float) -> np.ndarray:
     """
@@ -19,99 +20,85 @@ def freeman_carroll_equation(x: np.ndarray, e_a: float, n: float) -> np.ndarray:
     r = 8.314  # Gas constant in J/(mol·K)
     return -e_a / r * x + n
 
-def freeman_carroll_method(temperature: np.ndarray, alpha: np.ndarray, 
-                           time: np.ndarray) -> Tuple[float, float, float]:
+
+def smooth_data(data: np.ndarray, window_length: int = 21, polyorder: int = 3) -> np.ndarray:
+    """Apply Savitzky-Golay filter to smooth data."""
+    return savgol_filter(data, window_length, polyorder)
+
+
+def safe_log(x: np.ndarray, min_value: float = 1e-10) -> np.ndarray:
+    """Safely compute logarithm, avoiding log(0) and negative values."""
+    return np.log(np.maximum(x, min_value))
+
+
+def safe_divide(a: np.ndarray, b: np.ndarray, fill_value: float = 0.0) -> np.ndarray:
+    """Safely divide two arrays, handling division by zero."""
+    with np.errstate(divide='ignore', invalid='ignore'):
+        result = np.divide(a, b)
+        result[~np.isfinite(result)] = fill_value
+    return result
+
+
+def freeman_carroll_method(temperature: np.ndarray, alpha: np.ndarray, time: np.ndarray) -> Tuple[
+    float, float, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Perform Freeman-Carroll analysis to determine kinetic parameters.
-
-    Args:
-        temperature (np.ndarray): Temperature data in Kelvin.
-        alpha (np.ndarray): Conversion data.
-        time (np.ndarray): Time data in minutes.
-
-    Returns:
-        Tuple[float, float, float]: Activation energy (J/mol), reaction order, and R-squared value.
-
-    Raises:
-        ValueError: If input arrays have different lengths or contain invalid values.
     """
-    if len(temperature) != len(alpha) or len(temperature) != len(time):
-        raise ValueError("Temperature, alpha, and time arrays must have the same length")
-    
-    if np.any(alpha <= 0) or np.any(alpha >= 1):
-        raise ValueError("Alpha values must be between 0 and 1 (exclusive)")
-
-    if np.any(temperature <= 0):
-        raise ValueError("Temperature values must be positive")
-
-    if np.any(time < 0):
-        raise ValueError("Time values must be non-negative")
+    # Smooth the data
+    alpha_smooth = smooth_data(alpha)
+    temp_smooth = smooth_data(temperature)
 
     # Calculate differentials
-    d_alpha = np.gradient(alpha, time)
-    d_temp_inv = np.gradient(1/temperature, time)
+    d_alpha_dt = np.gradient(alpha_smooth, time)
+    d_1_T = np.gradient(1 / temp_smooth, time)
 
     # Calculate terms for Freeman-Carroll plot
-    eps = 1e-10  # Small value to avoid divide by zero
-    y = np.log(np.maximum(d_alpha, eps)) / np.log(np.maximum(1 - alpha, eps))
-    x = d_temp_inv / np.log(np.maximum(1 - alpha, eps))
+    ln_1_minus_alpha = safe_log(1 - alpha_smooth)
+    d_ln_1_minus_alpha = np.gradient(ln_1_minus_alpha, time)
 
-    # Remove any invalid points (NaN or inf) and potential outliers
-    valid_mask = np.isfinite(x) & np.isfinite(y)
-    x = x[valid_mask]
-    y = y[valid_mask]
+    # Compute y and x values safely
+    y = safe_divide(np.gradient(safe_log(d_alpha_dt), time), d_ln_1_minus_alpha)
+    x = safe_divide(d_1_T, d_ln_1_minus_alpha)
 
-    # Remove outliers
-    q1, q3 = np.percentile(y, [25, 75])
+    # Focus on the most relevant part of the data (e.g., 5% to 95% conversion)
+    reaction_mask = (alpha_smooth >= 0.2) & (alpha_smooth <= 0.8) & np.isfinite(x) & np.isfinite(y)
+    x_filtered = x[reaction_mask]
+    y_filtered = y[reaction_mask]
+
+    # Remove outliers using IQR method
+    q1, q3 = np.percentile(y_filtered, [25, 75])
     iqr = q3 - q1
-    outlier_mask = (y >= q1 - 1.5 * iqr) & (y <= q3 + 1.5 * iqr)
-    x = x[outlier_mask]
-    y = y[outlier_mask]
+    outlier_mask = (y_filtered >= q1 - 1.5 * iqr) & (y_filtered <= q3 + 1.5 * iqr)
+    x_filtered = x_filtered[outlier_mask]
+    y_filtered = y_filtered[outlier_mask]
 
-    # Perform robust linear regression
-    slope, intercept, r_value, _, _ = linregress(x, y)
+    # Perform linear regression
+    slope, intercept, r_value, _, _ = linregress(x_filtered, y_filtered)
 
     # Calculate kinetic parameters
     r = 8.314  # Gas constant in J/(mol·K)
-    e_a = max(-slope * r, 0)  # Activation energy in J/mol, ensure it's non-negative
+    e_a = -slope * r  # Activation energy in J/mol
     n = intercept  # Reaction order
 
-    return e_a, n, r_value**2
+    return e_a, n, r_value ** 2, x, y, x_filtered, y_filtered
 
-def freeman_carroll_plot(temperature: np.ndarray, alpha: np.ndarray, 
-                         time: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float, float, float]:
-    """
-    Generate data for Freeman-Carroll plot and perform analysis.
 
-    Args:
-        temperature (np.ndarray): Temperature data in Kelvin.
-        alpha (np.ndarray): Conversion data.
-        time (np.ndarray): Time data in minutes.
+def plot_diagnostic(time, alpha, temperature):
+    d_alpha_dt = np.gradient(alpha, time)
 
-    Returns:
-        Tuple[np.ndarray, np.ndarray, float, float, float]: 
-            x values, y values, activation energy (J/mol), 
-            reaction order, and R-squared value.
-    """
-    e_a, n, r_squared = freeman_carroll_method(temperature, alpha, time)
-    
-    d_alpha = np.gradient(alpha, time)
-    d_temp_inv = np.gradient(1/temperature, time)
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
 
-    eps = 1e-10  # Small value to avoid divide by zero
-    x = d_temp_inv / np.log(np.maximum(1 - alpha, eps))
-    y = np.log(np.maximum(d_alpha, eps)) / np.log(np.maximum(1 - alpha, eps))
+    ax1.plot(time, alpha, label='α')
+    ax1.plot(time, d_alpha_dt, label='dα/dt')
+    ax1.set_xlabel('Time')
+    ax1.set_ylabel('Conversion (α) and Rate (dα/dt)')
+    ax1.legend()
 
-    # Remove any invalid points (NaN or inf) and potential outliers
-    valid_mask = np.isfinite(x) & np.isfinite(y)
-    x = x[valid_mask]
-    y = y[valid_mask]
+    ax2.plot(1 / temperature, safe_log(d_alpha_dt), 'o')
+    ax2.set_xlabel('1/T')
+    ax2.set_ylabel('ln(dα/dt)')
+    ax2.set_title('Arrhenius Plot')
 
-    # Remove outliers
-    q1, q3 = np.percentile(y, [25, 75])
-    iqr = q3 - q1
-    outlier_mask = (y >= q1 - 1.5 * iqr) & (y <= q3 + 1.5 * iqr)
-    x = x[outlier_mask]
-    y = y[outlier_mask]
+    plt.tight_layout()
+    plt.show()
 
-    return x, y, e_a, n, r_squared
