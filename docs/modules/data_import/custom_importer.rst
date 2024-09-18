@@ -3,7 +3,9 @@ Custom Importer
 
 .. py:class:: CustomImporter
 
-   A flexible importer for custom data formats.
+   A flexible importer for custom data formats in thermal analysis.
+
+   This class provides methods to import data from non-standard file formats, offering customizable options for data parsing and preprocessing.
 
    .. py:method:: __init__(file_path: str, column_names: List[str], separator: str = ',', decimal: str = '.', encoding: str = 'utf-8', skiprows: int = 0)
 
@@ -45,17 +47,25 @@ Custom Importer
       :rtype: List[str]
       :raises ValueError: If unable to suggest column names.
 
-Example:
---------
+Usage Example
+-------------
+
 .. code-block:: python
 
    from pkynetics.data_import import CustomImporter
 
+   # Detect delimiter and suggest column names
+   delimiter = CustomImporter.detect_delimiter('path/to/custom_data.csv')
+   suggested_columns = CustomImporter.suggest_column_names('path/to/custom_data.csv', delimiter=delimiter)
+
+   print(f"Detected delimiter: {delimiter}")
+   print(f"Suggested columns: {suggested_columns}")
+
    # Initialize the CustomImporter
    importer = CustomImporter(
        'path/to/custom_data.csv',
-       ['Time', 'Temperature', 'Weight'],
-       separator=',',
+       suggested_columns,
+       separator=delimiter,
        decimal='.',
        encoding='utf-8',
        skiprows=1
@@ -65,16 +75,27 @@ Example:
    data = importer.import_data()
 
    # Access the imported data
-   time = data['Time']
-   temperature = data['Temperature']
-   weight = data['Weight']
+   for column in suggested_columns:
+       print(f"{column}: {data[column][:5]}...")  # Print first 5 values of each column
 
-   # Detect delimiter
-   delimiter = CustomImporter.detect_delimiter('path/to/custom_data.csv')
+Key Features
+------------
 
-   # Suggest column names
-   column_names = CustomImporter.suggest_column_names('path/to/custom_data.csv', delimiter=',')
+1. Flexible data import for non-standard formats
+2. Automatic delimiter detection
+3. Column name suggestion
+4. Customizable import parameters (separator, decimal format, encoding, etc.)
+5. Robust error handling
 
-Note:
+Notes
 -----
-The CustomImporter is useful when dealing with non-standard data formats or when you need more control over the import process.
+
+- The CustomImporter is particularly useful when dealing with data formats not covered by the standard TGA and DSC importers.
+- It's recommended to use the `detect_delimiter` and `suggest_column_names` methods before initializing the CustomImporter to ensure correct data parsing.
+- Make sure to specify the correct decimal separator and encoding to avoid data misinterpretation.
+
+See Also
+--------
+
+- :func:`tga_importer`: For importing standard Thermogravimetric Analysis (TGA) data
+- :func:`dsc_importer`: For importing standard Differential Scanning Calorimetry (DSC) data
