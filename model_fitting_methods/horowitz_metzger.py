@@ -55,7 +55,9 @@ def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float
 
     try:
         # Find temperature of maximum decomposition rate
-        d_alpha = savgol_filter(np.gradient(alpha, temperature), 21, 3)  # Smooth the derivative
+        SAVGOL_WINDOW = 21
+        SAVGOL_POLY_ORDER = 3
+        d_alpha = savgol_filter(np.gradient(alpha, temperature), SAVGOL_WINDOW, SAVGOL_POLY_ORDER)  # Smooth the derivative
         t_s = temperature[np.argmax(d_alpha)]
 
         # Calculate theta
@@ -82,10 +84,9 @@ def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float
             f"Horowitz-Metzger analysis completed. E_a = {e_a / 1000:.2f} kJ/mol, A = {a:.2e} min^-1, T_s = {t_s:.2f} K, R^2 = {r_value ** 2:.4f}")
         return e_a, a, t_s, r_value ** 2
 
-    except Exception as e:
+    except (ValueError, RuntimeError) as e:  # Specify expected exception types
         logger.error(f"Error in Horowitz-Metzger analysis: {str(e)}")
         raise
-
 
 def select_linear_region(theta: np.ndarray, y: np.ndarray, alpha: np.ndarray,
                          min_conversion: float = 0.2, max_conversion: float = 0.8) -> Tuple[np.ndarray, np.ndarray]:
