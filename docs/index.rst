@@ -3,8 +3,6 @@ Welcome to Pkynetics's Documentation
 
 Pkynetics is a comprehensive Python library for thermal analysis kinetic methods. It provides tools for data preprocessing, kinetic analysis using various methods, and result visualization for thermal analysis data.
 
-Version: 0.2.0
-
 Key Features
 ------------
 
