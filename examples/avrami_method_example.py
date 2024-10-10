@@ -1,5 +1,5 @@
 import numpy as np
-from model_fitting_methods import avrami_method, avrami_equation, calculate_half_time
+from model_fitting_methods import jmak_method, jmak_equation, calculate_half_time
 from synthetic_data.model_specific_data import generate_avrami_data
 from result_visualization.kinetic_plot import plot_avrami_results
 
