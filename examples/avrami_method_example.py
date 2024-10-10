@@ -1,27 +1,27 @@
 import numpy as np
-from model_fitting_methods import jmak_method, jmak_equation, calculate_half_time
-from synthetic_data.model_specific_data import generate_avrami_data
-from result_visualization.kinetic_plot import plot_avrami_results
+from model_fitting_methods import jmak_method, jmak_equation, jmak_half_time
+from synthetic_data.model_specific_data import generate_jmak_data
+from result_visualization.kinetic_plot import plot_jmak_results
 
 
 def main():
     # Generate sample data
     time = np.linspace(0, 200, 400)
     true_n, true_k = 2.5, 0.01
-    relative_crystallinity = generate_avrami_data(time, true_n, true_k, noise_level=0.01)
+    relative_crystallinity = generate_jmak_data(time, true_n, true_k, noise_level=0.01)
 
     try:
-        # Perform Avrami analysis
-        n, k, r_squared = avrami_method(time, relative_crystallinity)
+        # Perform jmak analysis
+        n, k, r_squared = jmak_method(time, relative_crystallinity)
 
         # Generate fitted curve
-        fitted_curve = avrami_equation(time, k, n)
+        fitted_curve = jmak_equation(time, k, n)
 
         # Calculate half-time
-        t_half = calculate_half_time(k, n)
+        t_half = jmak_half_time(k, n)
 
         # Plot results
-        plot_avrami_results(time, relative_crystallinity, fitted_curve, n, k, r_squared, t_half)
+        plot_jmak_results(time, relative_crystallinity, fitted_curve, n, k, r_squared, t_half)
 
         # Print results
         print(f"True values: n = {true_n}, k = {true_k}")
@@ -36,7 +36,7 @@ def main():
         print(f"Relative error in k: {k_error:.2f}%")
 
     except ValueError as e:
-        print(f"Error in Avrami analysis: {str(e)}")
+        print(f"Error in JMAK analysis: {str(e)}")
 
 
 if __name__ == "__main__":
