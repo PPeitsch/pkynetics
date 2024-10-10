@@ -1,5 +1,3 @@
-# Rename this file to jmak_method_example.py
-
 import numpy as np
 from model_fitting_methods import jmak_method, jmak_equation, jmak_half_time
 from synthetic_data.model_specific_data import generate_jmak_data
