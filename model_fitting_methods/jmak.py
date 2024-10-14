@@ -117,3 +117,52 @@ def jmak_half_time(k: float, n: float) -> float:
         JMAK analysis for meaningful results.
     """
     return (np.log(2) / k) ** (1 / n)
+
+
+def modified_jmak_equation(T: np.ndarray, k0: float, n: float, E: float, T0: float, phi: float) -> np.ndarray:
+    """
+    Modified JMAK equation for non-isothermal processes.
+
+    Args:
+        T (np.ndarray): Temperature array.
+        k0 (float): Pre-exponential factor.
+        n (float): Avrami exponent.
+        E (float): Activation energy.
+        T0 (float): Onset temperature.
+        phi (float): Heating rate.
+
+    Returns:
+        np.ndarray: Transformed fraction.
+    """
+    R = 8.314  # Gas constant in J/(mol·K)
+    return 1 - np.exp(-(k0 / phi * (np.exp(-E / (R * T)) * (T - T0))) ** n)
+
+
+def fit_modified_jmak(T: np.ndarray, transformed_fraction: np.ndarray, T0: float, phi: float, E: float) -> Tuple[
+    float, float, float]:
+    """
+    Fit the modified JMAK equation to experimental data.
+
+    Args:
+        T (np.ndarray): Temperature array.
+        transformed_fraction (np.ndarray): Experimental transformed fraction.
+        T0 (float): Onset temperature.
+        phi (float): Heating rate.
+        E (float): Activation energy (from Kissinger method).
+
+    Returns:
+        Tuple[float, float, float]: k0, n, and R-squared value.
+    """
+
+    def objective(T, k0, n):
+        return modified_jmak_equation(T, k0, n, E, T0, phi)
+
+    popt, _ = curve_fit(objective, T, transformed_fraction, p0=[1e5, 1])
+    k0, n = popt
+
+    predicted = objective(T, k0, n)
+    ss_res = np.sum((transformed_fraction - predicted) ** 2)
+    ss_tot = np.sum((transformed_fraction - np.mean(transformed_fraction)) ** 2)
+    r_squared = 1 - (ss_res / ss_tot)
+
+    return k0, n, r_squared

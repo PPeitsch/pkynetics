@@ -81,15 +81,16 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
 
     try:
         # Try different encodings
-        encodings = ['utf-8', 'iso-8859-1', 'windows-1252']
+        encodings = ['utf-16', 'utf-8', 'iso-8859-1', 'windows-1252']
         df = None
         
         for encoding in encodings:
             try:
-                df = pd.read_csv(file_path, sep=';', decimal=',', encoding=encoding, dtype=str)
-                break  # If successful, exit the loop
+                df = pd.read_csv(file_path, delim_whitespace=True, decimal='.', encoding=encoding,
+                                 dtype=str, skiprows=12)
+                break
             except UnicodeDecodeError:
-                continue  # Try the next encoding
+                continue
         
         if df is None:
             raise ValueError(f"Unable to read file with any of the attempted encodings: {encodings}")
@@ -99,11 +100,12 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
 
         # Rename columns to match expected format
         column_mapping = {
-            'Time (s)': 'time',
-            'Furnace Temperature (°C)': 'temperature',
-            'Sample Temperature (°C)': 'sample_temperature',
-            'TG (mg)': 'weight',
-            'HeatFlow (mW)': 'heat_flow'
+            'Index': 'index',
+            'Time': 'time',
+            'Furnace': 'temperature',
+            'Sample': 'sample_temperature',
+            'TG ': 'weight',
+            'HeatFlow': 'heat_flow'
         }
         df = df.rename(columns=column_mapping)
 

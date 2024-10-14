@@ -111,13 +111,23 @@ def plot_kissinger(t_p: np.ndarray, beta: np.ndarray, e_a: float, a: float, r_sq
 
     plt.scatter(x_exp, y_exp, label='Experimental data')
 
-    # Generate theoretical curve
-    x_theory = np.linspace(min(x_exp), max(x_exp), 100)
-    t_theory = 1000 / x_theory
-    ln_ar_ea = np.log(a * R / e_a)
-    y_theory = kissinger_equation(t_theory, e_a, ln_ar_ea)
+    if not np.isnan(e_a) and not np.isnan(a):
+        # Generate theoretical curve
+        x_theory = np.linspace(min(x_exp), max(x_exp), 100)
+        t_theory = 1000 / x_theory
+        beta_theory = np.mean(beta)  # Use average heating rate for theoretical curve
+        y_theory = kissinger_equation(t_theory, e_a, a, np.full_like(t_theory, beta_theory))
 
-    plt.plot(x_theory, y_theory, 'r-', label='Theoretical curve')
+        plt.plot(x_theory, y_theory, 'r-', label='Theoretical curve')
+
+        # Add text box with results
+        textstr = f'E_a = {e_a / 1000:.2f} kJ/mol\nA = {a:.2e} min$^{{-1}}$\nR$^2$ = {r_squared:.4f}'
+    else:
+        textstr = "Insufficient data for Kissinger analysis"
+
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    plt.text(0.05, 0.95, textstr, transform=plt.gca().transAxes, fontsize=9,
+             verticalalignment='top', bbox=props)
 
     plt.xlabel('1000/T (K$^{-1}$)')
     plt.ylabel('ln(β/T$_p^2$) (K$^{-1}$·min$^{-1}$)')
@@ -125,18 +135,12 @@ def plot_kissinger(t_p: np.ndarray, beta: np.ndarray, e_a: float, a: float, r_sq
     plt.legend()
     plt.grid(True)
 
-    # Add text box with results
-    textstr = f'E_a = {e_a / 1000:.2f} kJ/mol\nA = {a:.2e} min$^{{-1}}$\nR$^2$ = {r_squared:.4f}'
-    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-    plt.text(0.05, 0.95, textstr, transform=plt.gca().transAxes, fontsize=9,
-             verticalalignment='top', bbox=props)
-
     plt.show()
 
 
 def plot_jmak_results(time: np.ndarray, transformed_fraction: np.ndarray,
                       fitted_curve: np.ndarray, n: float, k: float,
-                      r_squared: float, t_half: float):
+                      r_squared: float):
     """
     Plot the results of JMAK (Johnson-Mehl-Avrami-Kolmogorov) analysis.
 
@@ -147,14 +151,12 @@ def plot_jmak_results(time: np.ndarray, transformed_fraction: np.ndarray,
         n (float): Fitted JMAK exponent
         k (float): Fitted rate constant
         r_squared (float): R-squared value of the fit
-        t_half (float): Half-time of transformation
     """
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
 
     # Data and fitted curve
     ax1.scatter(time, transformed_fraction, label='Experimental data', alpha=0.5)
     ax1.plot(time, fitted_curve, 'r-', label='Fitted curve')
-    ax1.axvline(x=t_half, color='g', linestyle='--', label=f'Half-time ({t_half:.2f})')
     ax1.set_xlabel('Time')
     ax1.set_ylabel('Transformed Fraction')
     ax1.set_title('JMAK Analysis of Phase Transformation')
@@ -178,6 +180,45 @@ def plot_jmak_results(time: np.ndarray, transformed_fraction: np.ndarray,
     ax2.set_title('JMAK Plot')
     ax2.legend()
     ax2.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_modified_jmak_results(temperature: np.ndarray, transformed_fraction: np.ndarray,
+                               fitted_curve: np.ndarray, k0: float, n: float, E: float,
+                               r_squared: float):
+    """
+    Plot the results of modified JMAK analysis.
+
+    Args:
+        temperature (np.ndarray): Temperature data
+        transformed_fraction (np.ndarray): Experimental transformed fraction data
+        fitted_curve (np.ndarray): Fitted modified JMAK curve
+        k0 (float): Pre-exponential factor
+        n (float): Modified JMAK exponent
+        E (float): Activation energy in J/mol
+        r_squared (float): R-squared value of the fit
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Plot experimental data
+    ax.scatter(temperature, transformed_fraction, label='Experimental data', alpha=0.5)
+
+    # Plot fitted curve
+    ax.plot(temperature, fitted_curve, 'r-', label='Modified JMAK fit')
+
+    ax.set_xlabel('Temperature (K)')
+    ax.set_ylabel('Transformed Fraction')
+    ax.set_title('Modified JMAK Analysis of Non-Isothermal Transformation')
+    ax.legend()
+    ax.grid(True)
+
+    # Add text box with results
+    textstr = f'k0 = {k0:.2e}\nn = {n:.3f}\nE = {E / 1000:.2f} kJ/mol\nR² = {r_squared:.4f}'
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=10,
+            verticalalignment='top', bbox=props)
 
     plt.tight_layout()
     plt.show()

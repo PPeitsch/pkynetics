@@ -5,6 +5,7 @@ from scipy import stats
 from scipy.optimize import fsolve
 from typing import Tuple
 import logging
+import warnings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -72,10 +73,20 @@ def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, f
     if np.any(t_p <= 0) or np.any(beta <= 0):
         raise ValueError("Peak temperatures and heating rates must be positive")
 
+    if len(t_p) < 2 or len(beta) < 2:
+        warnings.warn("Kissinger analysis requires at least two data points. Results may not be reliable.", UserWarning)
+        return np.nan, np.nan, np.nan, np.nan, np.nan
+
     x = 1 / t_p
     y = np.log(beta / t_p ** 2)
 
-    slope, intercept, r_value, _, stderr = stats.linregress(x, y)
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', category=RuntimeWarning)
+        slope, intercept, r_value, p_value, stderr = stats.linregress(x, y)
+
+    if np.isnan(slope) or np.isnan(intercept):
+        warnings.warn("Linear regression failed. Check your input data.", UserWarning)
+        return np.nan, np.nan, np.nan, np.nan, np.nan
 
     e_a = -R * slope
     a = np.exp(intercept + np.log(e_a / R))
