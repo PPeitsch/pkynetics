@@ -8,6 +8,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def kas_method(temperature_data: List[np.ndarray],
                conversion_data: List[np.ndarray],
                heating_rates: List[float]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -49,7 +50,7 @@ def kas_method(temperature_data: List[np.ndarray],
 
     # Determine the range of conversion to analyze
     conversion_range = np.linspace(0.1, 0.9, 100)
-    
+
     activation_energy = []
     pre_exp_factor = []
     r_squared_values = []
@@ -57,24 +58,24 @@ def kas_method(temperature_data: List[np.ndarray],
     for alpha in conversion_range:
         y_data = []
         x_data = []
-        
+
         for temp, conv, beta in zip(temperature_data, conversion_data, heating_rates):
             # Find the temperature at the closest conversion value
             idx = np.argmin(np.abs(conv - alpha))
             T = temp[idx]
-            
-            y_data.append(np.log(beta / T**2))
+
+            y_data.append(np.log(beta / T ** 2))
             x_data.append(1 / (T * 8.314))  # 1 / (R * T), where R is the gas constant
 
         # Perform linear regression
         slope, intercept, r_value, _, _ = linregress(x_data, y_data)
-        
+
         # Calculate activation energy and pre-exponential factor
         E_a = -slope * 8.314  # E_a = -slope * R
         A = np.exp(intercept + np.log(E_a / 8.314))  # Approximation for A
-        
+
         activation_energy.append(E_a)
         pre_exp_factor.append(A)
-        r_squared_values.append(r_value**2)
+        r_squared_values.append(r_value ** 2)
 
     return np.array(activation_energy), np.array(pre_exp_factor), conversion_range, np.array(r_squared_values)
