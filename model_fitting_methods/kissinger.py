@@ -44,7 +44,7 @@ def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
     for i, b in enumerate(beta):
         try:
             t_p[i] = fsolve(kissinger_nonlinear_eq, x0=e_a / (R * 20), args=(e_a, a, b))[0]
-        except RuntimeError:
+        except (RuntimeError, ValueError):
             logger.warning(f"Failed to converge for heating rate {b}. Using initial guess.")
             t_p[i] = e_a / (R * 20)
     return t_p
@@ -105,5 +105,12 @@ def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, f
 
     logger.info(f"Kissinger analysis completed. E_a = {e_a / 1000:.2f} ± {se_e_a / 1000:.2f} kJ/mol, "
                 f"A = {a:.2e} min^-1, R^2 = {r_squared:.4f}")
+
+    adjusted_r_squared = model.rsquared_adj
+    f_statistic = model.fvalue
+    p_values = model.pvalues
+
+    logger.info(f"Adjusted R^2 = {adjusted_r_squared:.4f}, F-statistic = {f_statistic:.2f}")
+    logger.info(f"P-values: {p_values}")
 
     return e_a, a, se_e_a, se_ln_a, r_squared
