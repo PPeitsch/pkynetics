@@ -2,7 +2,7 @@
 
 import numpy as np
 from scipy.optimize import fsolve
-from typing import Tuple, Union, Any, Callable
+from typing import Tuple
 import logging
 import statsmodels.api as sm
 
@@ -64,8 +64,7 @@ def kissinger_equation(t_p: np.ndarray, beta: np.ndarray) -> np.ndarray:
     return np.log(beta / t_p ** 2)
 
 
-def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[
-    Union[float, Any], Any, Union[float, Any], Any, Callable[[], Any]]:
+def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, float, float, float]:
     """
     Perform Kissinger analysis for non-isothermal kinetics.
 
