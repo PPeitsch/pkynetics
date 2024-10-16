@@ -2,20 +2,22 @@ from setuptools import setup, find_packages
 
 setup(
     name="pkynetics",
-    version="0.1.0",
+    version="0.2.1",
     packages=find_packages(),
     install_requires=[
-        "numpy>=1.20.0",
-        "pandas>=1.2.0",
-        "scipy>=1.6.0",
+        "numpy~=1.24.3",
+        "matplotlib~=3.7.5",
+        "pandas~=2.0.3",
+        "scipy~=1.10.1",
+        "statsmodels~=0.14.1",
         "scikit-learn>=0.24.0",
-        "matplotlib>=3.3.0",
         "seaborn>=0.11.0",
-        "tensorflow>=2.5.0",
-        "torch>=1.8.0",
     ],
     extras_require={
-        "dev": ["pytest>=6.2.0", "pylint>=2.7.0"],
+        "dev": [
+            "pytest>=6.2.0",
+            "pylint>=2.7.0",
+        ],
     },
     entry_points={
         "console_scripts": [
