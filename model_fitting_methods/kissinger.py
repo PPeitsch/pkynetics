@@ -25,30 +25,28 @@ def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
         np.ndarray: Calculated peak temperatures in K.
     """
 
-    def kissinger_equation(t, b):
+    def kissinger_nonlinear_eq(t, b):
         return (e_a * b) / (R * t ** 2) - a * np.exp(-e_a / (R * t))
 
     t_p = np.zeros_like(beta)
     for i, b in enumerate(beta):
-        t_p[i] = fsolve(kissinger_equation, x0=e_a / (R * 20), args=(b,))[0]
+        t_p[i] = fsolve(kissinger_nonlinear_eq, x0=e_a / (R * 20), args=(b,))[0]
 
     return t_p
 
 
-def kissinger_equation(t_p: np.ndarray, e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
+def kissinger_equation(t_p: np.ndarray, beta: np.ndarray) -> np.ndarray:
     """
     Kissinger equation for non-isothermal kinetics.
 
     Args:
         t_p (np.ndarray): Peak temperatures in K.
-        e_a (float): Activation energy in J/mol.
-        a (float): Pre-exponential factor in min^-1.
         beta (np.ndarray): Heating rates in K/min.
 
     Returns:
         np.ndarray: ln(β/T_p^2) values.
     """
-    return np.log(beta / t_p ** 2)  # Removed the additional terms
+    return np.log(beta / t_p ** 2)
 
 
 def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, float, float, float]:
@@ -73,12 +71,12 @@ def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, f
         raise ValueError("Peak temperatures and heating rates must be positive")
 
     x = 1 / t_p
-    y = np.log(beta / t_p ** 2)
+    y = kissinger_equation(beta, t_p)
 
     slope, intercept, r_value, _, stderr = stats.linregress(x, y)
 
     e_a = -R * slope
-    a = np.exp(intercept + np.log(e_a / R))  # Corrected calculation of 'a'
+    a = np.exp(intercept + np.log(e_a / R))
 
     se_e_a = R * stderr
     se_ln_a = np.sqrt((stderr / slope) ** 2 + (se_e_a / e_a) ** 2)
