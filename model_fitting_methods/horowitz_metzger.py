@@ -26,7 +26,8 @@ def horowitz_metzger_equation(theta: np.ndarray, e_a: float, r: float, t_s: floa
     return e_a * theta / (r * t_s ** 2)
 
 
-def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float = 1) -> Tuple[float, float, float, float]:
+def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float = 1) -> Tuple[
+    float, float, float, float]:
     """
     Perform Horowitz-Metzger analysis to determine kinetic parameters.
 
@@ -57,7 +58,8 @@ def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float
         # Find temperature of maximum decomposition rate
         SAVGOL_WINDOW = 21
         SAVGOL_POLY_ORDER = 3
-        d_alpha = savgol_filter(np.gradient(alpha, temperature), SAVGOL_WINDOW, SAVGOL_POLY_ORDER)  # Smooth the derivative
+        d_alpha = savgol_filter(np.gradient(alpha, temperature), SAVGOL_WINDOW,
+                                SAVGOL_POLY_ORDER)  # Smooth the derivative
         t_s = temperature[np.argmax(d_alpha)]
 
         # Calculate theta
@@ -87,6 +89,7 @@ def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float
     except (ValueError, RuntimeError) as e:  # Specify expected exception types
         logger.error(f"Error in Horowitz-Metzger analysis: {str(e)}")
         raise
+
 
 def select_linear_region(theta: np.ndarray, y: np.ndarray, alpha: np.ndarray,
                          min_conversion: float = 0.2, max_conversion: float = 0.8) -> Tuple[np.ndarray, np.ndarray]:
