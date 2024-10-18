@@ -95,46 +95,42 @@ def plot_activation_energy_vs_conversion(conversions: np.ndarray, activation_ene
 
 def plot_kissinger(t_p: np.ndarray, beta: np.ndarray, e_a: float, a: float, r_squared: float):
     """
-    Create a Kissinger plot.
+    Create a Kissinger plot with legend and text outside the plotted area.
 
     Args:
-        t_p (np.ndarray): Peak temperatures for different heating rates in K
-        beta (np.ndarray): Heating rates in K/min
+        t_p (np.ndarray): Peak temperatures for different heating rates in °C
+        beta (np.ndarray): Heating rates in °C/s
         e_a (float): Activation energy in J/mol
         a (float): Pre-exponential factor in min^-1
         r_squared (float): R-squared value of the fit
     """
-    plt.figure(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(12, 8))
 
-    x_exp = 1000 / t_p
-    y_exp = np.log(beta / t_p ** 2)
+    x_exp = 1000 / (t_p + 273.15)  # Convert °C to K
+    y_exp = np.log((beta * 60) / (t_p + 273.15) ** 2)  # Convert °C/s to K/min
 
-    plt.scatter(x_exp, y_exp, label='Experimental data')
+    ax.scatter(x_exp, y_exp, label='Experimental data')
 
     if not np.isnan(e_a) and not np.isnan(a):
-        # Generate theoretical curve
         x_theory = np.linspace(min(x_exp), max(x_exp), 100)
-        t_theory = 1000 / x_theory
-        beta_theory = np.mean(beta)  # Use average heating rate for theoretical curve
-        y_theory = kissinger_equation(t_theory, e_a, a, np.full_like(t_theory, beta_theory))
+        y_theory = -e_a / (R * 1000) * x_theory + np.log(a * R / e_a)
 
-        plt.plot(x_theory, y_theory, 'r-', label='Theoretical curve')
+        ax.plot(x_theory, y_theory, 'r-', label='Theoretical curve')
 
-        # Add text box with results
-        textstr = f'E_a = {e_a / 1000:.2f} kJ/mol\nA = {a:.2e} min$^{{-1}}$\nR$^2$ = {r_squared:.4f}'
+        textstr = f'E_a = {e_a/1000:.2f} kJ/mol\nA = {a:.2e} min$^{{-1}}$\nR$^2$ = {r_squared:.4f}'
     else:
         textstr = "Insufficient data for Kissinger analysis"
 
-    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-    plt.text(0.05, 0.95, textstr, transform=plt.gca().transAxes, fontsize=9,
-             verticalalignment='top', bbox=props)
+    ax.set_xlabel('1000/T (K$^{-1}$)')
+    ax.set_ylabel('ln(β/T$_p^2$) (K$^{-1}$·min$^{-1}$)')
+    ax.set_title('Kissinger Plot')
+    ax.grid(True)
 
-    plt.xlabel('1000/T (K$^{-1}$)')
-    plt.ylabel('ln(β/T$_p^2$) (K$^{-1}$·min$^{-1}$)')
-    plt.title('Kissinger Plot')
-    plt.legend()
-    plt.grid(True)
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    ax.text(1.05, 0.5, textstr, transform=ax.transAxes, fontsize=9,
+            verticalalignment='center', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
+    plt.tight_layout()
     plt.show()
 
 

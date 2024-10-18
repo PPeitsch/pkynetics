@@ -69,24 +69,25 @@ def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, f
     Perform Kissinger analysis for non-isothermal kinetics.
 
     Args:
-        t_p (np.ndarray): Peak temperatures for different heating rates in K.
-        beta (np.ndarray): Heating rates corresponding to the peak temperatures in K/min.
+        t_p (np.ndarray): Peak temperatures for different heating rates in °C.
+        beta (np.ndarray): Heating rates corresponding to the peak temperatures in °C/s.
 
     Returns:
         Tuple[float, float, float, float, float]:
-            Activation energy (e_a) in J/mol,
-            Pre-exponential factor (a) in min^-1,
-            Standard error of E_a in J/mol,
+            Activation energy (e_a) in J,
+            Pre-exponential factor (a) in s^-1,
+            Standard error of E_a in J,
             Standard error of ln(A),
             Coefficient of determination (r_squared).
     """
-    logger.info("Performing Kissinger analysis")
+    # Convert temperatures to Kelvin
+    t_p_k = t_p + 273.15
 
-    if np.any(t_p <= 0) or np.any(beta <= 0):
-        raise ValueError("Peak temperatures and heating rates must be positive")
+    # Convert heating rates to K/min
+    beta_k = beta * 60
 
-    x = 1 / t_p
-    y = kissinger_equation(t_p, beta)
+    x = 1 / t_p_k
+    y = np.log(beta_k / t_p_k ** 2)
 
     X = sm.add_constant(x)
     model = sm.OLS(y, X).fit()
@@ -103,14 +104,7 @@ def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, f
 
     r_squared = model.rsquared
 
-    logger.info(f"Kissinger analysis completed. E_a = {e_a / 1000:.2f} ± {se_e_a / 1000:.2f} kJ/mol, "
+    logger.info(f"Kissinger analysis completed. E_a = {e_a:.2f} ± {se_e_a:.2f} J/mol, "
                 f"A = {a:.2e} min^-1, R^2 = {r_squared:.4f}")
-
-    adjusted_r_squared = model.rsquared_adj
-    f_statistic = model.fvalue
-    p_values = model.pvalues
-
-    logger.info(f"Adjusted R^2 = {adjusted_r_squared:.4f}, F-statistic = {f_statistic:.2f}")
-    logger.info(f"P-values: {p_values}")
 
     return e_a, a, se_e_a, se_ln_a, r_squared

@@ -1,65 +1,20 @@
+import sys
 import os
+
+# Add the project root directory to the Python path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, project_root)
+
+
 import numpy as np
 import matplotlib.pyplot as plt
-from model_fitting_methods import jmak_method, jmak_equation, fit_modified_jmak, modified_jmak_equation
 from model_fitting_methods.kissinger import kissinger_method
 from data_import.dsc_importer import dsc_importer
-from data_preprocessing import calculate_transformed_fraction
-from result_visualization.kinetic_plot import plot_kissinger, plot_jmak_results, plot_modified_jmak_results
+from result_visualization.kinetic_plot import plot_kissinger
+import logging
 
-
-def perform_kissinger_analysis(folder_path: str):
-    """
-    Perform Kissinger analysis on multiple DSC files in a folder.
-
-    Args:
-        folder_path (str): Path to the folder containing DSC files.
-    """
-    peak_temperatures = []
-    heating_rates = []
-
-    # Iterate through files in the folder
-    for filename in os.listdir(folder_path):
-        if filename.endswith(".txt"):  # Adjust this if your files have a different extension
-            file_path = os.path.join(folder_path, filename)
-
-            try:
-                # Import DSC data
-                data = dsc_importer(file_path=file_path, manufacturer='Setaram')
-
-                # Separate heating and cooling
-                temp_heating = data['temperature'][:np.argmax(data['temperature'])]
-                hf_heating = data['heat_flow'][:np.argmax(data['temperature'])]
-
-                # Calculate heating rate
-                time_heating = data['time'][:np.argmax(data['temperature'])]
-                heating_rate = (temp_heating[-1] - temp_heating[0]) / (time_heating[-1] - time_heating[0])
-
-                # Find peak temperature (you might need to adjust this depending on your data)
-                peak_temp = temp_heating[np.argmax(np.gradient(hf_heating))]
-
-                peak_temperatures.append(peak_temp)
-                heating_rates.append(heating_rate)
-
-                print(
-                    f"Processed {filename}: Peak Temperature = {peak_temp:.2f} K, Heating Rate = {heating_rate:.2f} K/min")
-
-            except Exception as e:
-                print(f"Error processing {filename}: {str(e)}")
-
-    # Perform Kissinger analysis
-    if len(peak_temperatures) > 1:
-        e_a, a, se_e_a, se_ln_a, r_squared = kissinger_method(np.array(peak_temperatures), np.array(heating_rates))
-
-        # Plot Kissinger results
-        plot_kissinger(np.array(peak_temperatures), np.array(heating_rates), e_a, a, r_squared)
-
-        print(f"\nKissinger Analysis Results:")
-        print(f"Activation Energy (E_a) = {e_a / 1000:.2f} ± {se_e_a / 1000:.2f} kJ/mol")
-        print(f"Pre-exponential Factor (A) = {a:.2e} min^-1")
-        print(f"R-squared = {r_squared:.4f}")
-    else:
-        print("\nInsufficient data for Kissinger analysis. At least two different heating rates are required.")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def separate_heating_cooling(temperature, time, heat_flow):
@@ -71,90 +26,147 @@ def separate_heating_cooling(temperature, time, heat_flow):
     )
 
 
-def plot_full_dsc_curve(temp_heating, hf_heating, temp_cooling, hf_cooling):
-    """Plot the full DSC curve."""
+def remove_isotherms(temperature, time, heat_flow, threshold=0.1):
+    """Remove isothermal segments from the DSC data."""
+    temp_rate = np.gradient(temperature, time)
+    non_isothermal = np.abs(temp_rate) > threshold
+    return temperature[non_isothermal], time[non_isothermal], heat_flow[non_isothermal]
+
+
+def manual_peak_selection(temperature, heat_flow, filename, temp_range):
+    """Allow manual selection of peak temperature."""
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.plot(temperature, heat_flow)
+    ax.set_xlabel('Temperature (K)')
+    ax.set_ylabel('Heat Flow')
+    ax.set_title(f'DSC Curve - {filename}\nClick to select peak, close window to skip')
+    if temp_range:
+        ax.axvspan(temp_range[0], temp_range[1], color='yellow', alpha=0.3, label='Selected Range')
+    ax.legend()
+
+    peak_temp = [None]
+    selection_made = [False]
+
+    def onclick(event):
+        if event.xdata is not None:
+            peak_temp[0] = event.xdata
+            selection_made[0] = True
+            ax.axvline(x=event.xdata, color='r', linestyle='--', label='Selected Peak')
+            ax.legend()
+            plt.draw()
+
+    cid = fig.canvas.mpl_connect('button_press_event', onclick)
+
+    while not selection_made[0]:
+        plt.pause(0.1)
+        if not plt.fignum_exists(fig.number):
+            break
+
+    plt.close(fig)
+
+    if peak_temp[0] is not None:
+        logger.info(f"Manually selected peak temperature: {peak_temp[0]:.2f} K")
+    else:
+        logger.warning("No peak temperature selected")
+
+    return peak_temp[0]
+
+
+def plot_full_dsc_curve(temperature, heat_flow, filename):
+    """Plot full DSC curve for initial visualization."""
     plt.figure(figsize=(12, 6))
-    plt.plot(temp_heating, hf_heating, label='Heating')
-    plt.plot(temp_cooling, hf_cooling, label='Cooling')
+    plt.plot(temperature, heat_flow)
     plt.xlabel('Temperature (K)')
     plt.ylabel('Heat Flow')
-    plt.title('Full DSC Curve')
-    plt.legend()
+    plt.title(f'Full DSC Curve - {filename}')
     plt.grid(True)
     plt.show()
 
 
-def main():
-    file_path = "C:/Users/Pablo/Desktop/Mercedes Duran/2024-JUL/MS/MAC250-MS20.txt"
-    try:
-        data = dsc_importer(file_path=file_path, manufacturer='Setaram')
-    except Exception as e:
-        print(f"Error importing Setaram data: {str(e)}")
-        return
+def process_dsc_file(file_path, temp_range=None):
+    """Process a single DSC file and return peak temperature and heating rate."""
+    logger.info(f"Processing file: {file_path}")
+    data = dsc_importer(file_path=file_path, manufacturer='Setaram')
 
-    # Separate heating and cooling
-    temp_heating, time_heating, hf_heating, temp_cooling, time_cooling, hf_cooling = separate_heating_cooling(
+    # Separate heating portion
+    temp_heating, time_heating, hf_heating, _, _, _ = separate_heating_cooling(
         data['temperature'], data['time'], data['heat_flow']
     )
 
-    # Plot full DSC curve
-    plot_full_dsc_curve(temp_heating, hf_heating, temp_cooling, hf_cooling)
+    # Remove isothermal segments
+    temp_heating, time_heating, hf_heating = remove_isotherms(temp_heating, time_heating, hf_heating)
 
-    # Ask user to select temperature range for analysis
-    temp_min = float(input("Enter minimum temperature for analysis: "))
-    temp_max = float(input("Enter maximum temperature for analysis: "))
-    mask = (temp_heating >= temp_min) & (temp_heating <= temp_max)
+    if temp_range:
+        mask = (temp_heating >= temp_range[0]) & (temp_heating <= temp_range[1])
+        temp_heating = temp_heating[mask]
+        time_heating = time_heating[mask]
+        hf_heating = hf_heating[mask]
 
-    temp_analysis = temp_heating[mask]
-    time_analysis = time_heating[mask]
-    hf_analysis = hf_heating[mask]
+    heating_rate = (temp_heating[-1] - temp_heating[0]) / (time_heating[-1] - time_heating[0]) * 60
 
-    # Calculate heating rate
-    heating_rate = (temp_analysis[-1] - temp_analysis[0]) / (time_analysis[-1] - time_analysis[0])
+    filename = os.path.basename(file_path)
+    peak_temp = manual_peak_selection(temp_heating, hf_heating, filename, temp_range)
 
-    # Calculate transformed fraction for the selected range
-    transformed_fraction = calculate_transformed_fraction(hf_analysis, time_analysis)
+    return peak_temp, heating_rate, temp_heating, hf_heating
 
-    try:
-        # Kissinger analysis
-        t_p = temp_analysis[np.argmax(np.gradient(transformed_fraction))]  # Estimate peak temperature
-        e_a, a, se_e_a, se_ln_a, r_squared_kissinger = kissinger_method(np.array([t_p]), np.array([heating_rate]))
 
-        plot_kissinger(np.array([t_p]), np.array([heating_rate]), e_a, a, r_squared_kissinger)
+def perform_kissinger_analysis(folder_path, temp_range):
+    """Perform Kissinger analysis on multiple DSC files in a folder."""
+    peak_temperatures = []
+    heating_rates = []
+    total_files = len([f for f in os.listdir(folder_path) if f.endswith(".txt")])
+    processed_files = 0
 
-        # JMAK analysis
-        n_jmak, k_jmak, r_squared_jmak = jmak_method(time_analysis, transformed_fraction)
-        fitted_curve_jmak = jmak_equation(time_analysis, k_jmak, n_jmak)
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".txt"):
+            processed_files += 1
+            logger.info(f"Processing file {processed_files} of {total_files}: {filename}")
+            file_path = os.path.join(folder_path, filename)
+            try:
+                peak_temp, heating_rate, temp_heating, hf_heating = process_dsc_file(file_path, temp_range)
+                if peak_temp:
+                    peak_temperatures.append(peak_temp)
+                    heating_rates.append(heating_rate)
+                    logger.info(
+                        f"Processed {filename}: Peak Temperature = {peak_temp:.2f} K, Heating Rate = {heating_rate:.2f} K/min")
+                else:
+                    logger.warning(f"No peak selected in {filename}")
+            except Exception as e:
+                logger.error(f"Error processing {filename}: {str(e)}")
 
-        plot_jmak_results(time_analysis, transformed_fraction, fitted_curve_jmak, n_jmak, k_jmak, r_squared_jmak)
+    if peak_temperatures and heating_rates:
+        try:
+            e_a, a, se_e_a, se_ln_a, r_squared = kissinger_method(np.array(peak_temperatures), np.array(heating_rates))
+            logger.info(f"Kissinger analysis results:")
+            logger.info(f"Activation Energy: {e_a / 1000:.2f} ± {se_e_a / 1000:.2f} kJ/mol")
+            logger.info(f"Pre-exponential factor: {a:.2e} min^-1")
+            logger.info(f"R-squared: {r_squared:.4f}")
+            plot_kissinger(np.array(peak_temperatures), np.array(heating_rates), e_a, a, r_squared)
+        except Exception as e:
+            logger.error(f"Error in Kissinger analysis: {str(e)}")
+    else:
+        logger.warning("Not enough data for Kissinger analysis")
 
-        # Modified JMAK analysis
-        k0, n_mod, r_squared_mod = fit_modified_jmak(temp_analysis, transformed_fraction, temp_analysis[0],
-                                                     heating_rate, e_a)
-        fitted_curve_mod = modified_jmak_equation(temp_analysis, k0, n_mod, e_a, temp_analysis[0], heating_rate)
 
-        plot_modified_jmak_results(temp_analysis, transformed_fraction, fitted_curve_mod, k0, n_mod, e_a, r_squared_mod)
+def main():
+    # folder_path = input("Enter the path to the folder containing DSC files: ")
+    # folder_path = "C:/Users/Pablo/Desktop/Mercedes Duran/procesado/kissinger/MS"
+    # folder_path = "C:/Users/Pablo/Desktop/Mercedes Duran/procesado/kissinger/ZAC"
+    folder_path = "C:/Users/Pablo/Desktop/Mercedes Duran/procesado/kissinger/ZAC2"
 
-        # Print results
-        print(
-            f"Kissinger analysis: E_a = {e_a / 1000:.2f} ± {se_e_a / 1000:.2f} kJ/mol, A = {a:.2e} min^-1, R^2 = {r_squared_kissinger:.4f}")
-        print(f"JMAK analysis: n = {n_jmak:.3f}, k = {k_jmak:.3e}, R^2 = {r_squared_jmak:.4f}")
-        print(
-            f"Modified JMAK analysis: k0 = {k0:.3e}, n = {n_mod:.3f}, E_a = {e_a / 1000:.2f} kJ/mol, R^2 = {r_squared_mod:.4f}")
+    # Plot a sample curve for user to select temperature range
+    sample_file = next(f for f in os.listdir(folder_path) if f.endswith('.txt'))
+    sample_path = os.path.join(folder_path, sample_file)
+    _, _, temp, hf = process_dsc_file(sample_path)
+    plot_full_dsc_curve(temp, hf, sample_file)
 
-        # Plot original DSC curve with analyzed region highlighted
-        plt.figure(figsize=(10, 6))
-        plt.plot(temp_heating, hf_heating, label='Heating')
-        plt.plot(temp_cooling, hf_cooling, label='Cooling')
-        plt.axvspan(temp_min, temp_max, color='yellow', alpha=0.3, label='Analyzed region')
-        plt.xlabel('Temperature (K)')
-        plt.ylabel('Heat Flow')
-        plt.title('DSC Curve with Analyzed Region')
-        plt.legend()
-        plt.show()
+    # User selects temperature range
+    temp_min = float(input("Enter minimum temperature for analysis (K): "))
+    temp_max = float(input("Enter maximum temperature for analysis (K): "))
+    temp_range = (temp_min, temp_max)
 
-    except ValueError as e:
-        print(f"Error in analysis: {str(e)}")
+    # Perform Kissinger analysis
+    perform_kissinger_analysis(folder_path, temp_range)
 
 
 if __name__ == "__main__":
