@@ -1,16 +1,31 @@
 """Kissinger method for non-isothermal kinetics analysis."""
 
 import numpy as np
-from scipy import stats
 from scipy.optimize import fsolve
 from typing import Tuple
 import logging
-import warnings
+import statsmodels.api as sm
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 R = 8.314  # Gas constant in J/(mol·K)
+
+
+def kissinger_nonlinear_eq(t: float, e_a: float, a: float, b: float) -> float:
+    """
+    Kissinger nonlinear equation for peak temperature calculation.
+
+    Args:
+        t (float): Temperature in K.
+        e_a (float): Activation energy in J/mol.
+        a (float): Pre-exponential factor in min^-1.
+        b (float): Heating rate in K/min.
+
+    Returns:
+        float: Value of the Kissinger equation at the given temperature.
+    """
+    return (e_a * b) / (R * t ** 2) - a * np.exp(-e_a / (R * t))
 
 
 def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
@@ -25,25 +40,22 @@ def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: Calculated peak temperatures in K.
     """
-
-    def kissinger_equation(t, b):
-        return (e_a * b) / (R * t ** 2) - a * np.exp(-e_a / (R * t))
-
     t_p = np.zeros_like(beta)
     for i, b in enumerate(beta):
-        t_p[i] = fsolve(kissinger_equation, x0=e_a / (R * 20), args=(b,))[0]
-
+        try:
+            t_p[i] = fsolve(kissinger_nonlinear_eq, x0=e_a / (R * 20), args=(e_a, a, b))[0]
+        except (RuntimeError, ValueError) as e:
+            logger.warning(f"Failed to converge for heating rate {b}: {e}. Using initial guess.")
+            t_p[i] = e_a / (R * 20)
     return t_p
 
 
-def kissinger_equation(t_p: np.ndarray, e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
+def kissinger_equation(t_p: np.ndarray, beta: np.ndarray) -> np.ndarray:
     """
     Kissinger equation for non-isothermal kinetics.
 
     Args:
         t_p (np.ndarray): Peak temperatures in K.
-        e_a (float): Activation energy in J/mol.
-        a (float): Pre-exponential factor in min^-1.
         beta (np.ndarray): Heating rates in K/min.
 
     Returns:
@@ -73,30 +85,32 @@ def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, f
     if np.any(t_p <= 0) or np.any(beta <= 0):
         raise ValueError("Peak temperatures and heating rates must be positive")
 
-    if len(t_p) < 2 or len(beta) < 2:
-        warnings.warn("Kissinger analysis requires at least two data points. Results may not be reliable.", UserWarning)
-        return np.nan, np.nan, np.nan, np.nan, np.nan
-
     x = 1 / t_p
-    y = np.log(beta / t_p ** 2)
+    y = kissinger_equation(t_p, beta)
 
-    with warnings.catch_warnings():
-        warnings.filterwarnings('ignore', category=RuntimeWarning)
-        slope, intercept, r_value, p_value, stderr = stats.linregress(x, y)
+    X = sm.add_constant(x)
+    model = sm.OLS(y, X).fit()
 
-    if np.isnan(slope) or np.isnan(intercept):
-        warnings.warn("Linear regression failed. Check your input data.", UserWarning)
-        return np.nan, np.nan, np.nan, np.nan, np.nan
+    slope = model.params[1]
+    intercept = model.params[0]
+    se_slope = model.bse[1]
+    se_intercept = model.bse[0]
 
     e_a = -R * slope
+    se_e_a = R * se_slope
     a = np.exp(intercept + np.log(e_a / R))
+    se_ln_a = np.sqrt(se_intercept ** 2 + (se_e_a / e_a) ** 2)
 
-    se_e_a = R * stderr
-    se_ln_a = np.sqrt((stderr / slope) ** 2 + (se_e_a / e_a) ** 2)
-
-    r_squared = r_value ** 2
+    r_squared = model.rsquared
 
     logger.info(f"Kissinger analysis completed. E_a = {e_a / 1000:.2f} ± {se_e_a / 1000:.2f} kJ/mol, "
                 f"A = {a:.2e} min^-1, R^2 = {r_squared:.4f}")
+
+    adjusted_r_squared = model.rsquared_adj
+    f_statistic = model.fvalue
+    p_values = model.pvalues
+
+    logger.info(f"Adjusted R^2 = {adjusted_r_squared:.4f}, F-statistic = {f_statistic:.2f}")
+    logger.info(f"P-values: {p_values}")
 
     return e_a, a, se_e_a, se_ln_a, r_squared

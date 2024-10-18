@@ -6,7 +6,7 @@ methods (model-fitting, model-free, and advanced techniques), machine learning
 approaches, and result visualization for thermal analysis data.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.1"
 
 from . import data_preprocessing
 from . import data_import
@@ -19,10 +19,9 @@ from . import statistical_analysis
 from . import parallel_processing
 from . import utility_functions
 
-# Convenience imports for commonly used functions
 from .data_preprocessing import smooth_data
 from .data_import import tga_importer, dsc_importer
-from .result_visualization import plot_activation_energy
+from .model_fitting_methods import kissinger_method
 
 __all__ = [
     "data_preprocessing",
@@ -38,6 +37,5 @@ __all__ = [
     "smooth_data",
     "tga_importer",
     "dsc_importer",
-    "synthetic_data",
-    "plot_activation_energy",
+    "kissinger_method",
 ]
