@@ -87,7 +87,7 @@ def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, f
     beta_k = beta * 60
 
     x = 1 / t_p_k
-    y = np.log(beta_k / t_p_k ** 2)
+    y = kissinger_equation(t_p=t_p_k, beta=beta_k)
 
     X = sm.add_constant(x)
     model = sm.OLS(y, X).fit()
