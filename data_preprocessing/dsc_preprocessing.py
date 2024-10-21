@@ -1,7 +1,8 @@
 import numpy as np
+from .common_preprocessing import smooth_data
 
 
-def calculate_transformed_fraction(heat_flow: np.ndarray, time: np.ndarray) -> np.ndarray:
+def calculate_dsc_transformed_fraction(heat_flow: np.ndarray, time: np.ndarray) -> np.ndarray:
     """
     Calculate the transformed fraction from DSC heat flow data.
 
@@ -12,6 +13,7 @@ def calculate_transformed_fraction(heat_flow: np.ndarray, time: np.ndarray) -> n
     Returns:
         np.ndarray: Transformed fraction (normalized from 0 to 1).
     """
-    cumulative_heat = np.cumsum(heat_flow)
+    smoothed_heat_flow = smooth_data(heat_flow)
+    cumulative_heat = np.cumsum(smoothed_heat_flow)
     transformed_fraction = (cumulative_heat - cumulative_heat.min()) / (cumulative_heat.max() - cumulative_heat.min())
     return transformed_fraction
