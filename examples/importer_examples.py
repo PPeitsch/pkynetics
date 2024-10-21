@@ -2,6 +2,7 @@
 
 import os
 from data_import import tga_importer, dsc_importer, dilatometry_importer
+import time
 
 # Get the absolute path of the project root directory
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -11,7 +12,7 @@ def tga_import_example():
     """Example of using tga_importer function."""
     tga_file_path = os.path.join(PROJECT_ROOT, 'data', 'sample_tga_data.csv')
     try:
-        tga_data = tga_importer(tga_file_path)
+        tga_data = tga_importer(file_path=tga_file_path, manufacturer="Setaram")
         print("TGA data imported successfully.")
         print("Available keys:", tga_data.keys())
         print("Temperature data shape:", tga_data['temperature'].shape)
@@ -64,7 +65,9 @@ def dilatometry_import_example():
 if __name__ == "__main__":
     print("Running TGA import example:")
     tga_import_example()
+    time.sleep(1)
     print("\nRunning DSC import example:")
     dsc_import_example()
+    time.sleep(1)
     print("\nRunning Dilatometry import example:")
     dilatometry_import_example()
