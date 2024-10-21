@@ -7,7 +7,6 @@ import chardet
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 def dilatometry_importer(file_path: str) -> Dict[str, np.ndarray]:
     """
     Import dilatometry data from the specified file format.
@@ -35,7 +34,7 @@ def dilatometry_importer(file_path: str) -> Dict[str, np.ndarray]:
 
         # Read the file with detected encoding
         df = pd.read_csv(file_path, sep=r'\s+', encoding=encoding, engine='python',
-                         skiprows=lambda x: x < 2 or (2 < x < 5))
+                         skiprows=lambda x: x < 2 or (2 < x < 5), index_col=0)
 
         # Clean column names and rename
         df.columns = df.columns.str.strip()
