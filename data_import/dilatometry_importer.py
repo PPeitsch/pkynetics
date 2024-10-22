@@ -7,6 +7,7 @@ import chardet
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def dilatometry_importer(file_path: str) -> Dict[str, np.ndarray]:
     """
     Import dilatometry data from the specified file format.
