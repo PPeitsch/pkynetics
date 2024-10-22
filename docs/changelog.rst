@@ -6,6 +6,26 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[0.2.2] - 2024-10-22
+--------------------
+
+Added
+^^^^^
+- New ``kissinger_nonlinear_eq`` function for enhanced non-isothermal kinetics analysis
+- Enhanced calculations in the Kissinger method for improved accuracy and robustness
+- Five new plotting functions for better visualization of kinetic analysis data
+
+Changed
+^^^^^^^
+- Updated dependency specifications for improved functionality
+- Removed dependencies on tensorflow and torch
+- Improved data handling and filtering processes within kinetic analysis methods
+
+Fixed
+^^^^^
+- Improved error handling in the Kissinger method to ensure positive peak temperatures and heating rates
+- Minor formatting improvements in test files for better readability
+
 [0.2.1] - 2024-09-18
 --------------------
 
