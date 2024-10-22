@@ -7,7 +7,7 @@ from .noise_generators import add_gaussian_noise
 
 
 def generate_coats_redfern_data(e_a: float, a: float, heating_rate: float,
-                                t_range: Tuple[float, float], n: float = 1,
+                                t_range: Tuple[float, float],
                                 noise_level: float = 0) -> Tuple[np.ndarray, np.ndarray]:
     """
     Generate data specific to Coats-Redfern analysis.
@@ -17,7 +17,6 @@ def generate_coats_redfern_data(e_a: float, a: float, heating_rate: float,
         a (float): Pre-exponential factor in 1/s
         heating_rate (float): Heating rate in K/min
         t_range (Tuple[float, float]): Temperature range (start, end) in K
-        n (float): Reaction order
         noise_level (float): Standard deviation of Gaussian noise to add
     
     Returns:
@@ -39,7 +38,6 @@ def generate_freeman_carroll_data(e_a: float, a: float, heating_rate: float,
         a (float): Pre-exponential factor in 1/s
         heating_rate (float): Heating rate in K/min
         t_range (Tuple[float, float]): Temperature range (start, end) in K
-        n (float): Reaction order
         noise_level (float): Standard deviation of Gaussian noise to add
     
     Returns:
@@ -51,20 +49,20 @@ def generate_freeman_carroll_data(e_a: float, a: float, heating_rate: float,
     return temp_data[0], conv_data[0], time_data
 
 
-def generate_avrami_data(time: np.ndarray, n: float, k: float, noise_level: float = 0.01) -> np.ndarray:
+def generate_jmak_data(time: np.ndarray, n: float, k: float, noise_level: float = 0.01) -> np.ndarray:
     """
-    Generate Avrami data with optional noise.
+    Generate JMAK (Johnson-Mehl-Avrami-Kolmogorov) data with optional noise.
 
     Args:
         time (np.ndarray): Time array
-        n (float): Avrami exponent
-        k (float): Crystallization rate constant
+        n (float): JMAK exponent
+        k (float): Rate constant
         noise_level (float): Standard deviation of Gaussian noise to add
 
     Returns:
-        np.ndarray: Relative crystallinity data
+        np.ndarray: Transformed fraction data
     """
-    relative_crystallinity = 1 - np.exp(-(k * time) ** n)
+    transformed_fraction = 1 - np.exp(-(k * time) ** n)
     if noise_level > 0:
-        relative_crystallinity = add_gaussian_noise(relative_crystallinity, noise_level)
-    return relative_crystallinity
+        transformed_fraction = add_gaussian_noise(transformed_fraction, noise_level)
+    return transformed_fraction
