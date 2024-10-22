@@ -13,7 +13,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 
 def dilatometry_analysis_example():
-    """Example of importing and analyzing dilatometry data with enhanced visualizations."""
+    """Example of importing and analyzing dilatometry data with improved visualization."""
     dilatometry_file_path = os.path.join(PROJECT_ROOT, 'data', 'sample_dilatometry_data.asc')
 
     try:
@@ -33,21 +33,23 @@ def dilatometry_analysis_example():
 
         fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(12, 20))
 
-        # Plot 1: Raw and smoothed strain data
+        # Plot 1: Raw and smoothed strain data with inflection points
         ax1.plot(temperature, strain, label='Raw data', alpha=0.5)
         ax1.plot(temperature, smooth_strain, label='Smoothed data', color='r')
+        ax1.axvline(results['inflection_points'][0], color='g', linestyle='--', label='Initial inflection points')
+        ax1.axvline(results['inflection_points'][1], color='g', linestyle='--')
         ax1.set_xlabel('Temperature (°C)')
         ax1.set_ylabel('Relative Change')
-        ax1.set_title('Raw and Smoothed Dilatometry Data')
+        ax1.set_title('Raw and Smoothed Dilatometry Data with Initial Inflection Points')
         ax1.legend()
 
         # Plot 2: Strain data with transformation points and extrapolation lines
         ax2.plot(temperature, smooth_strain, label='Strain')
         ax2.plot(temperature, results['before_extrapolation'], '--', label='Before extrapolation')
         ax2.plot(temperature, results['after_extrapolation'], '--', label='After extrapolation')
-        ax2.axvline(results['start_temperature'], color='g', linestyle='--', label='Start')
-        ax2.axvline(results['end_temperature'], color='r', linestyle='--', label='End')
-        ax2.axvline(results['mid_temperature'], color='b', linestyle='--', label='Mid')
+        ax2.axvline(results['start_temperature'], color='g', linestyle='-', label='Start')
+        ax2.axvline(results['end_temperature'], color='r', linestyle='-', label='End')
+        ax2.axvline(results['mid_temperature'], color='b', linestyle='-', label='Mid')
         ax2.set_xlabel('Temperature (°C)')
         ax2.set_ylabel('Relative Change')
         ax2.set_title('Dilatometry Curve with Transformation Points and Extrapolations')
