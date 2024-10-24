@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 def generate_basic_kinetic_data(
         e_a: float,
         a: float,
-        heating_rates: List[float],
+        heating_rates: np.array,
         t_range: Tuple[float, float],
         reaction_model: str = 'first_order',
         noise_level: float = 0,

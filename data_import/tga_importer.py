@@ -1,9 +1,8 @@
-"""TGA data importer for Pkynetics."""
-
 import pandas as pd
 import numpy as np
 from typing import Dict, Union
 import logging
+import chardet
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,32 +23,21 @@ def tga_importer(file_path: str, manufacturer: str = "auto") -> Dict[str, np.nda
     Raises:
         ValueError: If the file format is not recognized or supported.
         FileNotFoundError: If the specified file does not exist.
-
-    Examples:
-        >>> data = tga_importer("path/to/tga_data.csv")
-        >>> print(data.keys())
-        dict_keys(['temperature', 'time', 'weight', 'weight_percent'])
     """
     logger.info(f"Importing TGA data from {file_path}")
 
     try:
         if manufacturer == "auto":
             manufacturer = _detect_manufacturer(file_path)
-
-        if manufacturer == "TA":
+            logger.info(f"Detected manufacturer: {manufacturer}")
+        elif manufacturer == "TA":
             data = _import_ta_instruments(file_path)
         elif manufacturer == "Mettler":
             data = _import_mettler_toledo(file_path)
         elif manufacturer == "Netzsch":
             data = _import_netzsch(file_path)
         elif manufacturer == "Setaram":
-            setaram_data = import_setaram(file_path)
-            return {
-                "temperature": setaram_data['temperature'],
-                "time": setaram_data['time'],
-                "weight": setaram_data['weight'],
-                "weight_percent": (setaram_data['weight'] / setaram_data['weight'][0]) * 100 if setaram_data['weight'] is not None else None
-            }
+            data = import_setaram(file_path)
         else:
             raise ValueError(f"Unsupported manufacturer: {manufacturer}")
 
@@ -70,7 +58,7 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
         file_path (str): Path to the Setaram data file.
 
     Returns:
-        Dict[str, Union[np.ndarray, None]]: Dictionary containing time, temperature, 
+        Dict[str, Union[np.ndarray, None]]: Dictionary containing time, temperature,
         sample_temperature, weight, and heat_flow (if available) data.
 
     Raises:
@@ -80,19 +68,16 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
     logger.info(f"Importing Setaram data from {file_path}")
 
     try:
-        # Try different encodings
-        encodings = ['utf-8', 'iso-8859-1', 'windows-1252']
-        df = None
-        
-        for encoding in encodings:
-            try:
-                df = pd.read_csv(file_path, sep=';', decimal=',', encoding=encoding, dtype=str)
-                break  # If successful, exit the loop
-            except UnicodeDecodeError:
-                continue  # Try the next encoding
-        
-        if df is None:
-            raise ValueError(f"Unable to read file with any of the attempted encodings: {encodings}")
+        # Detect file encoding
+        with open(file_path, 'rb') as file:
+            raw_data = file.read()
+            result = chardet.detect(raw_data)
+            encoding = result['encoding']
+
+        logger.info(f"Detected file encoding: {encoding}")
+
+        # Read the file with detected encoding
+        df = pd.read_csv(file_path, sep=';', decimal=',', encoding=encoding, dtype=str)
 
         # Clean column names
         df.columns = df.columns.str.strip()
@@ -152,19 +137,16 @@ def _detect_manufacturer(file_path: str) -> str:
         FileNotFoundError: If the specified file does not exist.
     """
     try:
-        encodings = ['utf-8', 'iso-8859-1', 'windows-1252']
-        header = None
-        
-        for encoding in encodings:
-            try:
-                with open(file_path, 'r', encoding=encoding) as f:
-                    header = f.read(1000)  # Read first 1000 characters
-                break  # If successful, exit the loop
-            except UnicodeDecodeError:
-                continue  # Try the next encoding
-        
-        if header is None:
-            raise ValueError(f"Unable to read file with any of the attempted encodings: {encodings}")
+        # Detect file encoding
+        with open(file_path, 'rb') as file:
+            raw_data = file.read()
+            result = chardet.detect(raw_data)
+            encoding = result['encoding']
+
+        logger.info(f"Detected file encoding: {encoding}")
+
+        with open(file_path, 'r', encoding=encoding) as f:
+            header = f.read(1000)  # Read first 1000 characters
 
         if "TA Instruments" in header:
             return "TA"
@@ -172,13 +154,16 @@ def _detect_manufacturer(file_path: str) -> str:
             return "Mettler"
         elif "NETZSCH" in header:
             return "Netzsch"
-        elif "Time (s)" in header and "Furnace Temperature (°C)" in header:
+        elif "Setaram" in header or ("Time (s)" in header and "Furnace Temperature (°C)" in header):
             return "Setaram"
         else:
             raise ValueError("Unable to detect manufacturer automatically. Please specify manually.")
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")
         raise
+    except Exception as e:
+        logger.error(f"Error detecting manufacturer: {str(e)}")
+        raise ValueError(f"Unable to detect manufacturer. Error: {str(e)}")
 
 
 def _import_ta_instruments(file_path: str) -> Dict[str, np.ndarray]:

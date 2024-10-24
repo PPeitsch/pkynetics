@@ -6,6 +6,7 @@ from .kinetic_plot import (
     plot_derivative_thermogravimetry,
     plot_activation_energy_vs_conversion,
     plot_jmak_results,
+    plot_modified_jmak_results,
     plot_kissinger
 )
 from .model_specific_plots import (
@@ -19,6 +20,7 @@ __all__ = [
     'plot_derivative_thermogravimetry',
     'plot_activation_energy_vs_conversion',
     'plot_jmak_results',
+    'plot_modified_jmak_results',
     'plot_coats_redfern',
     'plot_freeman_carroll',
     'plot_kissinger'

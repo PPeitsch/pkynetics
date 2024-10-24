@@ -8,13 +8,14 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class CustomImporter:
     """
     A flexible importer for custom data formats.
     """
 
-    def __init__(self, file_path: str, column_names: List[str], 
-                 separator: str = ',', decimal: str = '.', 
+    def __init__(self, file_path: str, column_names: List[str],
+                 separator: str = ',', decimal: str = '.',
                  encoding: str = 'utf-8', skiprows: int = 0):
         """
         Initialize the CustomImporter.
@@ -48,8 +49,8 @@ class CustomImporter:
         logger.info(f"Importing data from {self.file_path}")
 
         try:
-            df = pd.read_csv(self.file_path, sep=self.separator, decimal=self.decimal, 
-                             encoding=self.encoding, skiprows=self.skiprows, 
+            df = pd.read_csv(self.file_path, sep=self.separator, decimal=self.decimal,
+                             encoding=self.encoding, skiprows=self.skiprows,
                              names=self.column_names)
 
             # Create result dictionary
@@ -80,15 +81,15 @@ class CustomImporter:
             ValueError: If unable to detect the delimiter.
         """
         common_delimiters = [',', ';', '\t', '|']
-        
+
         try:
             with open(file_path, 'r') as file:
                 lines = file.readlines()[:num_lines]
-            
+
             for delimiter in common_delimiters:
                 if all(delimiter in line for line in lines):
                     return delimiter
-            
+
             raise ValueError("Unable to detect delimiter")
         except Exception as e:
             logger.error(f"Error detecting delimiter: {str(e)}")
@@ -112,10 +113,10 @@ class CustomImporter:
         try:
             if delimiter is None:
                 delimiter = CustomImporter.detect_delimiter(file_path)
-            
+
             with open(file_path, 'r') as file:
                 first_line = file.readline().strip()
-            
+
             return first_line.split(delimiter)
         except Exception as e:
             logger.error(f"Error suggesting column names: {str(e)}")
