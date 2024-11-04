@@ -11,7 +11,6 @@ from .dilatometry_importer import dilatometry_importer
 
 __all__ = [
     "tga_importer",
-    "tga_importer",
     "dsc_importer",
     "CustomImporter",
     "import_setaram",
