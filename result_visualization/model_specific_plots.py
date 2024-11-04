@@ -2,7 +2,6 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
-from model_fitting_methods import kissinger_equation
 
 
 def plot_coats_redfern(x: np.ndarray, y: np.ndarray, x_fit: np.ndarray, y_fit: np.ndarray,
@@ -66,5 +65,3 @@ def plot_freeman_carroll(x: np.ndarray, y: np.ndarray, x_fit: np.ndarray, y_fit:
     plt.text(0.05, 0.95, textstr, transform=plt.gca().transAxes, fontsize=9,
              verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
     plt.show()
-
-# Add more model-specific plotting functions as needed

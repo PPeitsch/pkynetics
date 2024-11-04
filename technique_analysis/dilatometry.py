@@ -121,11 +121,17 @@ def analyze_dilatometry_curve(temperature: np.ndarray, strain: np.ndarray,
 def tangent_method(temperature: np.ndarray, strain: np.ndarray,
                    window_size: int = 20, deviation_threshold: float = 0.001) -> Dict:
     """
-    Analyze dilatometry curve using the tangent method.
+    Analyze dilatometry curve using the tangent method to find transformation points.
 
-    [Previous tangent method implementation remains the same]
+    Args:
+        temperature: Temperature data in °C
+        strain: Relative length change data
+        window_size: Size of window for calculating local tangents
+        deviation_threshold: Threshold for identifying significant deviations
+
+    Returns:
+        Dict containing analysis results including transformation temperatures and fractions
     """
-    # [Previous implementation continues...]
     temperature = np.asarray(temperature)
     strain = np.asarray(strain)
 
