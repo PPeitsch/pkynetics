@@ -1,5 +1,5 @@
 """
-Technique-specific analysis module for Pkynetics.
+Technique-specific analysis module.
 
 This module provides comprehensive analysis tools for various thermal analysis techniques:
 
@@ -13,7 +13,7 @@ This module provides comprehensive analysis tools for various thermal analysis t
 3. TGA Analysis (Planned)
 """
 
-from .dilatometry import (
+from technique_analysis.dilatometry import (
     # Main analysis functions
     analyze_dilatometry_curve,
 
