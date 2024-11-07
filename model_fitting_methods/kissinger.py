@@ -70,24 +70,21 @@ def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, f
 
     Args:
         t_p (np.ndarray): Peak temperatures for different heating rates in °C.
-        beta (np.ndarray): Heating rates corresponding to the peak temperatures in °C/s.
+        beta (np.ndarray): Heating rates in K/min.
 
     Returns:
         Tuple[float, float, float, float, float]:
-            Activation energy (e_a) in J,
-            Pre-exponential factor (a) in s^-1,
-            Standard error of E_a in J,
+            Activation energy (e_a) in J/mol,
+            Pre-exponential factor (a) in min^-1,
+            Standard error of E_a in J/mol,
             Standard error of ln(A),
             Coefficient of determination (r_squared).
     """
     # Convert temperatures to Kelvin
     t_p_k = t_p + 273.15
 
-    # Convert heating rates to K/min
-    beta_k = beta * 60
-
     x = 1 / t_p_k
-    y = kissinger_equation(t_p=t_p_k, beta=beta_k)
+    y = kissinger_equation(t_p=t_p_k, beta=beta)
 
     X = sm.add_constant(x)
     model = sm.OLS(y, X).fit()
