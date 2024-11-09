@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="pkynetics",
-    version="0.2.1",
+    version="0.2.3",
     packages=find_packages(),
     install_requires=[
         "numpy~=1.24.3",

@@ -6,6 +6,31 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[0.2.3] - 2024-11-09
+--------------------
+
+Added
+^^^^^
+- New technique_analysis module for specific thermal analysis methods
+- Comprehensive dilatometry analysis capabilities
+- Enhanced visualization with detailed annotations
+- Automatic margin optimization for linear fitting
+- Quality metrics for analysis validation
+
+Changed
+^^^^^^^
+- Reorganized code structure for better modularity
+- Improved separation of preprocessing and analysis functions
+- Enhanced error handling and input validation
+- Better organization of helper functions
+- Improved visualization capabilities
+
+Fixed
+^^^^^
+- Better handling of edge cases in analysis methods
+- Improved accuracy in transformation point detection
+- Enhanced robustness of linear segment fitting
+
 [0.2.2] - 2024-10-22
 --------------------
 
