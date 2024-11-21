@@ -1,136 +1,132 @@
 import numpy as np
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Union
+from dataclasses import dataclass
 from data_preprocessing.common_preprocessing import smooth_data
 
 
-def calculate_specific_heat_two_step(
-        sample_heat_flow: np.ndarray,
-        baseline_heat_flow: np.ndarray,
-        temperature: np.ndarray,
-        time: np.ndarray,
-        sample_mass: float,
-        heating_rate: Optional[float] = None,
-) -> Tuple[np.ndarray, Dict]:
-    """
-    Calculate specific heat using the two-step method.
+@dataclass
+class DSCExperiment:
+    """Class to hold DSC experiment data and parameters."""
+    temperature: np.ndarray
+    heat_flow: np.ndarray
+    time: np.ndarray
+    mass: float
+    heating_rate: Optional[float] = None
+    name: str = "sample"
 
-    Args:
-        sample_heat_flow: Heat flow data from sample measurement
-        baseline_heat_flow: Heat flow data from empty pan (baseline)
-        temperature: Temperature data in Kelvin
-        time: Time data
-        sample_mass: Mass of the sample in mg
-        heating_rate: Heating rate in K/min. If None, calculated from data.
-
-    Returns:
-        Tuple containing:
-        - Array of specific heat values
-        - Dictionary with calculation metadata
-    """
-    # Calculate heating rate if not provided
-    if heating_rate is None:
-        heating_rate = np.mean(np.gradient(temperature, time)) * 60  # Convert to K/min
-
-    # Smooth heat flow signals
-    sample_heat_flow_smooth = smooth_data(sample_heat_flow)
-    baseline_heat_flow_smooth = smooth_data(baseline_heat_flow)
-
-    # Calculate net heat flow
-    net_heat_flow = sample_heat_flow_smooth - baseline_heat_flow_smooth
-
-    # Convert units and calculate Cp
-    # Heat flow in mW, mass in mg, heating rate in K/min
-    # Result in J/(g·K)
-    specific_heat = (net_heat_flow * 60) / (sample_mass * heating_rate)
-
-    metadata = {
-        'heating_rate': heating_rate,
-        'mean_cp': np.mean(specific_heat),
-        'std_cp': np.std(specific_heat)
-    }
-
-    return specific_heat, metadata
+    def __post_init__(self):
+        """Calculate heating rate if not provided."""
+        if self.heating_rate is None:
+            self.heating_rate = np.mean(np.gradient(self.temperature, self.time)) * 60
 
 
-def calculate_specific_heat_three_step(
-        sample_heat_flow: np.ndarray,
-        reference_heat_flow: np.ndarray,
-        baseline_heat_flow: np.ndarray,
-        temperature: np.ndarray,
-        time: np.ndarray,
-        sample_mass: float,
-        reference_mass: float,
-        reference_cp: np.ndarray,
-        heating_rate: Optional[float] = None,
-) -> Tuple[np.ndarray, Dict]:
-    """
-    Calculate specific heat using the three-step method with a reference material.
+class SpecificHeatCalculator:
+    """Class for specific heat calculations using DSC data."""
 
-    Args:
-        sample_heat_flow: Heat flow data from sample measurement
-        reference_heat_flow: Heat flow data from reference material (e.g., sapphire)
-        baseline_heat_flow: Heat flow data from empty pan (baseline)
-        temperature: Temperature data in Kelvin
-        time: Time data
-        sample_mass: Mass of the sample in mg
-        reference_mass: Mass of the reference material in mg
-        reference_cp: Known specific heat values of reference material
-        heating_rate: Heating rate in K/min. If None, calculated from data.
+    def __init__(self, temperature_range: Optional[Tuple[float, float]] = None):
+        """
+        Initialize calculator with optional temperature range.
 
-    Returns:
-        Tuple containing:
-        - Array of specific heat values
-        - Dictionary with calculation metadata
-    """
-    # Calculate heating rate if not provided
-    if heating_rate is None:
-        heating_rate = np.mean(np.gradient(temperature, time)) * 60  # Convert to K/min
+        Args:
+            temperature_range: Optional tuple of (min_temp, max_temp) in Kelvin
+        """
+        self.temperature_range = temperature_range
 
-    # Smooth heat flow signals
-    sample_heat_flow_smooth = smooth_data(sample_heat_flow)
-    reference_heat_flow_smooth = smooth_data(reference_heat_flow)
-    baseline_heat_flow_smooth = smooth_data(baseline_heat_flow)
+    def _validate_data(self, *experiments: DSCExperiment) -> bool:
+        """Validate experiment data."""
+        lengths = [len(exp.temperature) for exp in experiments]
+        if len(set(lengths)) != 1:
+            raise ValueError("All experiments must have the same number of points")
 
-    # Calculate net heat flows
-    net_sample = sample_heat_flow_smooth - baseline_heat_flow_smooth
-    net_reference = reference_heat_flow_smooth - baseline_heat_flow_smooth
+        if self.temperature_range:
+            min_temp, max_temp = self.temperature_range
+            for exp in experiments:
+                if exp.temperature.min() > min_temp or exp.temperature.max() < max_temp:
+                    raise ValueError(f"Temperature range {self.temperature_range} outside data range")
+        return True
 
-    # Calculate specific heat using reference material method
-    # (HFsample / msample) = (HFreference / mreference) * (Cpsample / Cpreference)
-    specific_heat = (net_sample * reference_mass * reference_cp) / (net_reference * sample_mass)
+    def calculate_two_step(self,
+                           sample: DSCExperiment,
+                           baseline: DSCExperiment) -> Tuple[np.ndarray, Dict]:
+        """
+        Calculate specific heat using two-step method.
 
-    metadata = {
-        'heating_rate': heating_rate,
-        'mean_cp': np.mean(specific_heat),
-        'std_cp': np.std(specific_heat),
-        'reference_ratio': np.mean(net_sample / net_reference)
-    }
+        Args:
+            sample: Sample experiment data
+            baseline: Baseline experiment data
 
-    return specific_heat, metadata
+        Returns:
+            Tuple of (specific heat array, metadata dictionary)
+        """
+        self._validate_data(sample, baseline)
+
+        # Smooth heat flow signals
+        sample_hf_smooth = smooth_data(sample.heat_flow)
+        baseline_hf_smooth = smooth_data(baseline.heat_flow)
+
+        # Calculate net heat flow
+        net_heat_flow = sample_hf_smooth - baseline_hf_smooth
+
+        # Convert units and calculate Cp (J/(g·K))
+        specific_heat = (net_heat_flow * 60) / (sample.mass * sample.heating_rate)
+
+        metadata = {
+            'heating_rate': sample.heating_rate,
+            'mean_cp': np.mean(specific_heat),
+            'std_cp': np.std(specific_heat),
+            'temperature_range': self.temperature_range
+        }
+
+        return specific_heat, metadata
+
+    def calculate_three_step(self,
+                             sample: DSCExperiment,
+                             reference: DSCExperiment,
+                             baseline: DSCExperiment,
+                             reference_cp: Union[np.ndarray, float]) -> Tuple[np.ndarray, Dict]:
+        """
+        Calculate specific heat using three-step method.
+
+        Args:
+            sample: Sample experiment data
+            reference: Reference material experiment data
+            baseline: Baseline experiment data
+            reference_cp: Known Cp values of reference material
+
+        Returns:
+            Tuple of (specific heat array, metadata dictionary)
+        """
+        self._validate_data(sample, reference, baseline)
+
+        # Smooth heat flow signals
+        sample_hf_smooth = smooth_data(sample.heat_flow)
+        reference_hf_smooth = smooth_data(reference.heat_flow)
+        baseline_hf_smooth = smooth_data(baseline.heat_flow)
+
+        # Calculate net heat flows
+        net_sample = sample_hf_smooth - baseline_hf_smooth
+        net_reference = reference_hf_smooth - baseline_hf_smooth
+
+        # Calculate specific heat
+        specific_heat = ((net_sample * reference.mass * reference_cp) /
+                         (net_reference * sample.mass))
+
+        metadata = {
+            'heating_rate': sample.heating_rate,
+            'mean_cp': np.mean(specific_heat),
+            'std_cp': np.std(specific_heat),
+            'reference_ratio': np.mean(net_sample / net_reference),
+            'temperature_range': self.temperature_range
+        }
+
+        return specific_heat, metadata
 
 
 def get_sapphire_cp(temperature: np.ndarray) -> np.ndarray:
-    """
-    Calculate the specific heat capacity of sapphire (α-Al2O3) reference material.
-    Valid for temperature range 273.15 K to 1000 K.
-
-    Args:
-        temperature: Temperature data in Kelvin
-
-    Returns:
-        Array of specific heat values in J/(g·K)
-    """
-    # Coefficients for Cp calculation (valid 273.15 K to 1000 K)
-    # From NIST Standard Reference Material 720
-    a = 1.0289
-    b = 2.3506e-4
-    c = -1.6818e-7
-
-    # Ensure temperature is within valid range
+    """Calculate sapphire specific heat capacity (273.15 K to 1000 K)."""
     if np.any(temperature < 273.15) or np.any(temperature > 1000):
         raise ValueError("Temperature must be between 273.15 K and 1000 K")
 
-    # Calculate Cp using polynomial equation
-    cp = a + b * temperature + c * temperature ** 2
-
-    return cp
+    # NIST SRM 720 coefficients
+    a, b, c = 1.0289, 2.3506e-4, -1.6818e-7
+    return a + b * temperature + c * temperature ** 2

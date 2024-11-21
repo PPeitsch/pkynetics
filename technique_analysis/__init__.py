@@ -8,45 +8,45 @@ This module provides comprehensive analysis tools for various thermal analysis t
    - Lever rule and tangent method implementations
    - Transformed fraction calculation
 
-2. DSC Analysis (Planned)
+2. DSC Analysis:
+   - Specific heat calculation (two-step and three-step methods)
+   - More features planned
 
 3. TGA Analysis (Planned)
 """
 
 from technique_analysis.dilatometry import (
-    # Main analysis functions
     analyze_dilatometry_curve,
-
-    # Core methods
     find_inflection_points,
     extrapolate_linear_segments,
     calculate_transformed_fraction_lever,
     find_optimal_margin,
-
-    # Analysis methods
     lever_method,
     tangent_method,
-
-    # Quality assessment
     calculate_fit_quality,
     calculate_r2
 )
 
-__all__ = [
-    # Main analysis function
-    'analyze_dilatometry_curve',
+from technique_analysis.dsc import (
+    DSCExperiment,
+    SpecificHeatCalculator,
+    get_sapphire_cp
+)
 
-    # Core analysis functions
+__all__ = [
+    # Dilatometry analysis
+    'analyze_dilatometry_curve',
     'find_inflection_points',
     'extrapolate_linear_segments',
     'calculate_transformed_fraction_lever',
     'find_optimal_margin',
-
-    # Analysis methods
     'lever_method',
     'tangent_method',
-
-    # Quality assessment functions
     'calculate_fit_quality',
-    'calculate_r2'
+    'calculate_r2',
+
+    # DSC analysis
+    'DSCExperiment',
+    'SpecificHeatCalculator',
+    'get_sapphire_cp'
 ]
