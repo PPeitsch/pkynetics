@@ -12,20 +12,16 @@ def dsc_analysis_example():
 
     try:
         # Import DSC data
-        sample_data = dsc_importer(
-            os.path.join(DATA_DIR, 'sample.txt'),
-            manufacturer="Setaram")
-        baseline_data = dsc_importer(
-            os.path.join(DATA_DIR, 'zero.txt'),
-            manufacturer="Setaram")
-        sapphire_data = dsc_importer(
-            os.path.join(DATA_DIR, 'sapphire.txt'),
-            manufacturer="Setaram")
-
+        sample_data = dsc_importer(os.path.join(DATA_DIR, 'sample.txt'),
+                                   manufacturer="Setaram")
+        baseline_data = dsc_importer(os.path.join(DATA_DIR, 'zero.txt'),
+                                     manufacturer="Setaram")
+        sapphire_data = dsc_importer(os.path.join(DATA_DIR, 'sapphire.txt'),
+                                     manufacturer="Setaram")
         # Create experiment objects
         sample_exp = DSCExperiment(
             temperature=sample_data['temperature'],
-            heat_flow=sample_data['heat_capacity'],
+            heat_flow=sample_data['heat_flow'],
             time=sample_data['time'],
             mass=10.0,  # mg
             name="Sample"
@@ -33,7 +29,7 @@ def dsc_analysis_example():
 
         baseline_exp = DSCExperiment(
             temperature=baseline_data['temperature'],
-            heat_flow=baseline_data['heat_capacity'],
+            heat_flow=baseline_data['heat_flow'],
             time=baseline_data['time'],
             mass=0.0,
             name="Baseline"
@@ -41,7 +37,7 @@ def dsc_analysis_example():
 
         sapphire_exp = DSCExperiment(
             temperature=sapphire_data['temperature'],
-            heat_flow=sapphire_data['heat_capacity'],
+            heat_flow=sapphire_data['heat_flow'],
             time=sapphire_data['time'],
             mass=15.0,  # mg
             name="Sapphire"
