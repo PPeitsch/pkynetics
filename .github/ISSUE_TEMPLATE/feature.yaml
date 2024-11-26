@@ -1,0 +1,75 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for Pkynetics
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest a new feature!
+        Please include the ⚡ emoji at the start of your title if you've read our contributing guidelines.
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Guidelines
+      description: By submitting this issue, you agree to follow our [Contributing Guidelines](.github/CONTRIBUTING.md)
+      options:
+        - label: I agree to follow this project's Contributing Guidelines
+          required: true
+        - label: I have searched for similar feature requests
+          required: true
+        - label: I understand that this is a request and implementation is not guaranteed
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Description
+      description: Is your feature request related to a problem? Please describe.
+      placeholder: A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like
+      placeholder: |
+        A clear and concise description of what you want to happen.
+
+        ```python
+        # Example usage of your proposed feature:
+        from pkynetics import model_fitting_methods
+
+        # Your proposed code here
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: Describe any alternative solutions you've considered
+      placeholder: What are the other approaches that could solve this?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other context, examples, or references for this feature?
+      placeholder: Add any other context, code examples, or references
+    validations:
+      required: false
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation Details
+      description: If you have ideas about how to implement this feature, share them here
+      placeholder: Technical details, API design, etc.
+    validations:
+      required: false
