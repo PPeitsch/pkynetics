@@ -5,8 +5,8 @@ import logging
 from typing import Tuple
 import numpy as np
 
-from data_import import dilatometry_importer
-from data_preprocessing import smooth_data
+from src.pkynetics.data_import import dilatometry_importer
+from src.pkynetics.data_preprocessing import smooth_data
 from src.pkynetics.technique_analysis import analyze_dilatometry_curve
 from src.pkynetics.technique_analysis.utilities import (
     analyze_range,

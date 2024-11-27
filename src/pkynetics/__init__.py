@@ -6,9 +6,7 @@ methods (model-fitting, model-free), technique-specific analysis, and result
 visualization for thermal analysis data.
 """
 
-__version__ = "0.2.3"
-
-
+from .__about__ import __version__
 from . import data_import
 from . import data_preprocessing
 from . import model_fitting_methods
