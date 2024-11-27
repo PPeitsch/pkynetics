@@ -3,7 +3,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import List
-from model_fitting_methods import kissinger_equation
+from src.pkynetics.model_fitting_methods import kissinger_equation
 
 # Constants
 R = 8.314  # Gas constant in J/(mol·K)

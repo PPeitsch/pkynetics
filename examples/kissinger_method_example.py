@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from model_fitting_methods.kissinger import kissinger_method, calculate_t_p
+from src.pkynetics.model_fitting_methods import kissinger_method, calculate_t_p
 
 # Set true values and generate sample data
 true_e_a = 150000  # J/mol

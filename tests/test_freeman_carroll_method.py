@@ -2,7 +2,7 @@
 
 import unittest
 import numpy as np
-from model_fitting_methods import freeman_carroll_method, freeman_carroll_equation
+from src.pkynetics.model_fitting_methods import freeman_carroll_method, freeman_carroll_equation
 
 
 class TestFreemanCarrollMethod(unittest.TestCase):

@@ -2,7 +2,6 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
-from model_fitting_methods import kissinger_equation
 
 
 def plot_coats_redfern(x: np.ndarray, y: np.ndarray, x_fit: np.ndarray, y_fit: np.ndarray,

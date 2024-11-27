@@ -2,7 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from model_free_methods.ofw_method import ofw_method
+from src.pkynetics.model_free_methods import ofw_method
 
 
 def generate_sample_data(e_a, a, heating_rates, t_range):

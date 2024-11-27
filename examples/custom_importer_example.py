@@ -1,7 +1,7 @@
 """Example usage of CustomImporter class."""
 
 import os
-from data_import import CustomImporter
+from src.pkynetics.data_import import CustomImporter
 import matplotlib.pyplot as plt
 
 # Get the absolute path of the project root directory

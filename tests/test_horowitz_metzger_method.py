@@ -2,7 +2,7 @@
 
 import unittest
 import numpy as np
-from model_fitting_methods import horowitz_metzger_method, horowitz_metzger_equation
+from src.pkynetics.model_fitting_methods import horowitz_metzger_method, horowitz_metzger_equation
 
 
 class TestHorowitzMetzgerMethod(unittest.TestCase):

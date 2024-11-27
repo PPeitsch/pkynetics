@@ -2,7 +2,7 @@
 
 import unittest
 import numpy as np
-from model_fitting_methods import jmak_method, jmak_equation
+from src.pkynetics.model_fitting_methods import jmak_method, jmak_equation
 
 
 class TestJMAKMethod(unittest.TestCase):

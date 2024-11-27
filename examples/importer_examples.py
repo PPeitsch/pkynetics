@@ -1,7 +1,7 @@
 """Examples for using tga_importer and dsc_importer functions."""
 
 import os
-from data_import import tga_importer, dsc_importer
+from src.pkynetics.data_import import tga_importer, dsc_importer
 
 # Get the absolute path of the project root directory
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
