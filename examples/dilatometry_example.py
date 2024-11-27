@@ -20,6 +20,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+PKG_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'src', 'pkynetics', 'data')
 
 
 def get_analysis_range(temperature: np.ndarray) -> Tuple[float, float]:
@@ -52,7 +53,7 @@ def get_analysis_range(temperature: np.ndarray) -> Tuple[float, float]:
 
 def dilatometry_analysis_example():
     """Example of importing and analyzing dilatometry data."""
-    dilatometry_file_path = os.path.join(PROJECT_ROOT, 'data', 'sample_dilatometry_data.asc')
+    dilatometry_file_path = os.path.join(PKG_DATA_DIR, 'sample_dilatometry_data.asc')
 
     try:
         # Import data

@@ -13,6 +13,13 @@ from .model_specific_plots import (
     plot_coats_redfern,
     plot_freeman_carroll
 )
+from .dilatometry_plots import (
+    plot_raw_and_smoothed,
+    plot_transformation_points,
+    plot_lever_rule,
+    plot_transformed_fraction,
+    plot_dilatometry_analysis
+)
 
 __all__ = [
     'plot_arrhenius',
@@ -23,5 +30,10 @@ __all__ = [
     'plot_modified_jmak_results',
     'plot_coats_redfern',
     'plot_freeman_carroll',
-    'plot_kissinger'
+    'plot_kissinger',
+    'plot_raw_and_smoothed',
+    'plot_transformation_points',
+    'plot_lever_rule',
+    'plot_transformed_fraction',
+    'plot_dilatometry_analysis',
 ]
