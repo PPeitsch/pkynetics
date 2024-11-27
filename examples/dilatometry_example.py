@@ -7,14 +7,14 @@ import numpy as np
 
 from data_import import dilatometry_importer
 from data_preprocessing import smooth_data
-from technique_analysis.dilatometry import analyze_dilatometry_curve
-from technique_analysis.utilities import (
+from src.pkynetics.technique_analysis import analyze_dilatometry_curve
+from src.pkynetics.technique_analysis.utilities import (
     analyze_range,
     validate_temperature_range,
     get_analysis_summary,
     get_transformation_metrics
 )
-from result_visualization.dilatometry_plots import plot_dilatometry_analysis
+from src.pkynetics.result_visualization import plot_dilatometry_analysis
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

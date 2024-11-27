@@ -1,6 +1,6 @@
 import numpy as np
 from typing import Dict, Tuple, Optional
-from data_preprocessing.common_preprocessing import smooth_data
+from src.pkynetics.data_preprocessing.common_preprocessing import smooth_data
 
 
 def extrapolate_linear_segments(temperature: np.ndarray, strain: np.ndarray,

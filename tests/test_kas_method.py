@@ -2,7 +2,7 @@
 
 import unittest
 import numpy as np
-from model_free_methods.kas_method import kas_method, kas_plot_data
+from src.pkynetics.model_free_methods import kas_method, kas_plot_data
 
 
 class TestKASMethod(unittest.TestCase):

@@ -4,10 +4,10 @@ import sys
 import os
 
 import numpy as np
-from synthetic_data import generate_freeman_carroll_data
-from model_fitting_methods import freeman_carroll_method, plot_diagnostic
-from result_visualization import plot_conversion_vs_temperature
-from result_visualization.model_specific_plots import plot_freeman_carroll
+from src.pkynetics.synthetic_data import generate_freeman_carroll_data
+from src.pkynetics.model_fitting_methods import freeman_carroll_method, plot_diagnostic
+from src.pkynetics.result_visualization import plot_conversion_vs_temperature
+from src.pkynetics.result_visualization.model_specific_plots import plot_freeman_carroll
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 

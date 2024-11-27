@@ -2,7 +2,7 @@
 
 import unittest
 import numpy as np
-from model_fitting_methods.kissinger import kissinger_method, kissinger_equation, calculate_t_p
+from src.pkynetics.model_fitting_methods.kissinger import kissinger_method, kissinger_equation, calculate_t_p
 
 
 class TestKissingerMethod(unittest.TestCase):

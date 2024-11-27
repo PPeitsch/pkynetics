@@ -8,13 +8,7 @@ visualization for thermal analysis data.
 
 __version__ = "0.2.3"
 
-from . import data_import
-from . import data_preprocessing
-from . import model_fitting_methods
-from . import model_free_methods
-from . import result_visualization
-from . import synthetic_data
-from . import technique_analysis
+from src.pkynetics import technique_analysis, model_free_methods
 
 __all__ = [
     "data_import",

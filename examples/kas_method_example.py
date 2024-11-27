@@ -3,7 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import List, Tuple
-from model_free_methods.kas_method import kas_method
+from src.pkynetics.model_free_methods import kas_method
 
 
 def generate_sample_data(e_a: float, a: float, heating_rates: List[float], t_range: Tuple[float, float]) -> Tuple[
