@@ -1,10 +1,13 @@
 """Module for generating model-specific kinetic data."""
 
-import numpy as np
 from typing import Tuple
+
+import numpy as np
+
+from src.pkynetics.model_fitting_methods import modified_jmak_equation
+
 from .basic_kinetic_data import generate_basic_kinetic_data
 from .noise_generators import add_gaussian_noise
-from src.pkynetics.model_fitting_methods import modified_jmak_equation
 
 
 def generate_coats_redfern_data(e_a: float, a: float, heating_rate: float,

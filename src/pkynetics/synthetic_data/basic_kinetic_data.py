@@ -1,6 +1,7 @@
-import numpy as np
-from typing import List, Tuple
 import logging
+from typing import List, Tuple
+
+import numpy as np
 
 # Constants
 R = 8.314  # Gas constant in J/(mol·K)

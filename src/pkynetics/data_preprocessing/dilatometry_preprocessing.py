@@ -1,6 +1,8 @@
+from typing import Dict, Optional, Tuple
+
 import numpy as np
-from typing import Dict, Tuple, Optional
-from .common_preprocessing import smooth_data, calculate_derivatives
+
+from .common_preprocessing import calculate_derivatives, smooth_data
 
 
 def preprocess_dilatometry_data(temperature: np.ndarray, strain: np.ndarray,

@@ -1,9 +1,10 @@
 """Kissinger-Akahira-Sunose (KAS) method for model-free kinetic analysis."""
 
+import logging
+from typing import List, Tuple
+
 import numpy as np
 from scipy.stats import linregress
-from typing import List, Tuple
-import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

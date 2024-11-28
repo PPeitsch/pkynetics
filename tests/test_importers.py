@@ -1,9 +1,10 @@
 """Unit tests for tga_importer and dsc_importer functions."""
 
-import unittest
 import os
+import unittest
+
 import numpy as np
-from data_import import tga_importer, dsc_importer
+from data_import import dsc_importer, tga_importer
 
 # Get the absolute path of the project root directory
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))

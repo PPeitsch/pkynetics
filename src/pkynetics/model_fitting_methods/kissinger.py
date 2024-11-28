@@ -1,10 +1,11 @@
 """Kissinger method for non-isothermal kinetics analysis."""
 
-import numpy as np
-from scipy.optimize import fsolve
-from typing import Tuple
 import logging
+from typing import Tuple
+
+import numpy as np
 import statsmodels.api as sm
+from scipy.optimize import fsolve
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

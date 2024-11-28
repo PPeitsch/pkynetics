@@ -1,8 +1,13 @@
 """Unit tests for the Freeman-Carroll method."""
 
 import unittest
+
 import numpy as np
-from src.pkynetics.model_fitting_methods import freeman_carroll_method, freeman_carroll_equation
+
+from src.pkynetics.model_fitting_methods import (
+    freeman_carroll_equation,
+    freeman_carroll_method,
+)
 
 
 class TestFreemanCarrollMethod(unittest.TestCase):

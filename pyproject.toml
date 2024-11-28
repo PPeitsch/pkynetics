@@ -42,13 +42,12 @@ requires-python = ">=3.9"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=6.2.0",
+    "pytest>=6.0.0,<8.0.0",
     "pytest-cov>=4.1.0",
     "black>=23.0.0",
     "isort>=5.0.0",
     "mypy>=1.0.0",
-    "sphinx>=4.0.0",
-    "sphinx-rtd-theme>=1.0.0",
+    "sphinx>=4.0.0,<6.0.0",
 ]
 
 [project.urls]
@@ -98,3 +97,8 @@ ignore_missing_imports = true
 addopts = "--cov=pkynetics --cov-report=term --cov-report=xml"
 testpaths = ["tests"]
 python_files = "test_*.py"
+
+[tool.sphinx]
+source-dir = "docs"
+build-dir = "docs/_build"
+config-dir = "docs"

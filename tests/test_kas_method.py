@@ -1,7 +1,9 @@
 """Unit tests for the Kissinger-Akahira-Sunose (KAS) method."""
 
 import unittest
+
 import numpy as np
+
 from src.pkynetics.model_free_methods import kas_method, kas_plot_data
 
 

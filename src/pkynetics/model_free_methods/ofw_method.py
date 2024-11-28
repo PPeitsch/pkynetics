@@ -1,9 +1,10 @@
 """Ozawa-Flynn-Wall method for model-free kinetic analysis."""
 
+import logging
+from typing import List, Tuple
+
 import numpy as np
 from scipy.stats import linregress
-import logging
-from typing import Tuple, List
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

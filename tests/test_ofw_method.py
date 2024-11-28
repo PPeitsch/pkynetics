@@ -1,7 +1,9 @@
 """Unit tests for the Ozawa-Flynn-Wall method."""
 
 import unittest
+
 import numpy as np
+
 from src.pkynetics.model_free_methods.ofw_method import ofw_method
 
 

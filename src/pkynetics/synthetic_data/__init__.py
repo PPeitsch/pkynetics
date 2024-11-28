@@ -5,7 +5,7 @@ from .model_specific_data import (
     generate_coats_redfern_data,
     generate_freeman_carroll_data,
     generate_jmak_data,
-    generate_modified_jmak_data
+    generate_modified_jmak_data,
 )
 from .noise_generators import add_gaussian_noise, add_outliers
 

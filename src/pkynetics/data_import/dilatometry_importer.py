@@ -1,8 +1,9 @@
-import pandas as pd
-import numpy as np
-from typing import Dict
 import logging
+from typing import Dict
+
 import chardet
+import numpy as np
+import pandas as pd
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

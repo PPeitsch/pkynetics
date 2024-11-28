@@ -1,10 +1,11 @@
 """Implementation of the Horowitz-Metzger method for kinetic analysis."""
 
-import numpy as np
-from scipy.stats import linregress
-from scipy.signal import savgol_filter
-from typing import Tuple
 import logging
+from typing import Tuple
+
+import numpy as np
+from scipy.signal import savgol_filter
+from scipy.stats import linregress
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

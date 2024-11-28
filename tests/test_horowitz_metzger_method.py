@@ -1,8 +1,13 @@
 """Unit tests for the Horowitz-Metzger method."""
 
 import unittest
+
 import numpy as np
-from src.pkynetics.model_fitting_methods import horowitz_metzger_method, horowitz_metzger_equation
+
+from src.pkynetics.model_fitting_methods import (
+    horowitz_metzger_equation,
+    horowitz_metzger_method,
+)
 
 
 class TestHorowitzMetzgerMethod(unittest.TestCase):

@@ -1,8 +1,9 @@
-import numpy as np
-from scipy.stats import linregress
-from scipy.signal import savgol_filter
 from typing import Tuple
+
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.signal import savgol_filter
+from scipy.stats import linregress
 
 
 def freeman_carroll_equation(x: np.ndarray, e_a: float, n: float) -> np.ndarray:

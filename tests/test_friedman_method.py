@@ -1,7 +1,9 @@
 """Unit tests for the Friedman method."""
 
 import unittest
+
 import numpy as np
+
 from src.pkynetics.model_free_methods import friedman_method
 
 

@@ -1,7 +1,7 @@
+from typing import Dict, Optional
+
 import numpy as np
 from scipy.signal import savgol_filter
-from typing import Optional
-from typing import Dict
 
 
 def smooth_data(data: np.ndarray, window_length: Optional[int] = None,

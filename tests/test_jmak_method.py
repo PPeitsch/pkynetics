@@ -1,8 +1,10 @@
 """Unit tests for the JMAK method."""
 
 import unittest
+
 import numpy as np
-from src.pkynetics.model_fitting_methods import jmak_method, jmak_equation
+
+from src.pkynetics.model_fitting_methods import jmak_equation, jmak_method
 
 
 class TestJMAKMethod(unittest.TestCase):

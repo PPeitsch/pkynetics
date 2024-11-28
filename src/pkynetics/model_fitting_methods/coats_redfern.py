@@ -1,8 +1,9 @@
 """Implementation of the Coats-Redfern method for kinetic analysis."""
 
+from typing import Tuple
+
 import numpy as np
 from scipy.stats import linregress
-from typing import Tuple
 
 
 def coats_redfern_equation(t: np.ndarray, e_a: float, ln_a: float, n: float, r: float = 8.314) -> np.ndarray:

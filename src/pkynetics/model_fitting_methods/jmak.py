@@ -1,9 +1,10 @@
 """JMAK (Johnson-Mehl-Avrami-Kolmogorov) method for phase transformation kinetics."""
 
+import logging
+from typing import Optional, Tuple
+
 import numpy as np
 from scipy.optimize import curve_fit
-import logging
-from typing import Tuple, Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

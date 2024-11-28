@@ -1,8 +1,9 @@
 """General kinetic plotting functions for Pkynetics."""
 
+from typing import List
+
 import matplotlib.pyplot as plt
 import numpy as np
-from typing import List
 
 # Constants
 R = 8.314  # Gas constant in J/(mol·K)

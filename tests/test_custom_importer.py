@@ -1,7 +1,8 @@
 """Unit tests for CustomImporter class."""
 
-import unittest
 import os
+import unittest
+
 import numpy as np
 from data_import import CustomImporter
 

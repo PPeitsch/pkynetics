@@ -1,6 +1,7 @@
-import numpy as np
-import matplotlib.pyplot as plt
 from typing import Dict
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def plot_raw_and_smoothed(ax: plt.Axes, temperature: np.ndarray, strain: np.ndarray,
