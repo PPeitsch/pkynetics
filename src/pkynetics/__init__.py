@@ -25,4 +25,5 @@ __all__ = [
     "result_visualization",
     "synthetic_data",
     "technique_analysis",
+    "__version__",
 ]
