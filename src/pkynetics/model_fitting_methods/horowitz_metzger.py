@@ -11,7 +11,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def horowitz_metzger_equation(theta: np.ndarray, e_a: float, r: float, t_s: float) -> np.ndarray:
+def horowitz_metzger_equation(
+    theta: np.ndarray, e_a: float, r: float, t_s: float
+) -> np.ndarray:
     """
     Horowitz-Metzger equation for kinetic analysis.
 
@@ -24,11 +26,12 @@ def horowitz_metzger_equation(theta: np.ndarray, e_a: float, r: float, t_s: floa
     Returns:
         np.ndarray: y values for the Horowitz-Metzger plot.
     """
-    return e_a * theta / (r * t_s ** 2)
+    return e_a * theta / (r * t_s**2)
 
 
-def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float = 1) -> Tuple[
-    float, float, float, float]:
+def horowitz_metzger_method(
+    temperature: np.ndarray, alpha: np.ndarray, n: float = 1
+) -> Tuple[float, float, float, float]:
     """
     Perform Horowitz-Metzger analysis to determine kinetic parameters.
 
@@ -59,8 +62,9 @@ def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float
         # Find temperature of maximum decomposition rate
         SAVGOL_WINDOW = 21
         SAVGOL_POLY_ORDER = 3
-        d_alpha = savgol_filter(np.gradient(alpha, temperature), SAVGOL_WINDOW,
-                                SAVGOL_POLY_ORDER)  # Smooth the derivative
+        d_alpha = savgol_filter(
+            np.gradient(alpha, temperature), SAVGOL_WINDOW, SAVGOL_POLY_ORDER
+        )  # Smooth the derivative
         t_s = temperature[np.argmax(d_alpha)]
 
         # Calculate theta
@@ -80,20 +84,26 @@ def horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float
 
         # Calculate kinetic parameters
         r = 8.314  # Gas constant in J/(mol·K)
-        e_a = slope * r * t_s ** 2  # Activation energy in J/mol
+        e_a = slope * r * t_s**2  # Activation energy in J/mol
         a = np.exp(intercept + e_a / (r * t_s))  # Pre-exponential factor in min^-1
 
         logger.info(
-            f"Horowitz-Metzger analysis completed. E_a = {e_a / 1000:.2f} kJ/mol, A = {a:.2e} min^-1, T_s = {t_s:.2f} K, R^2 = {r_value ** 2:.4f}")
-        return e_a, a, t_s, r_value ** 2
+            f"Horowitz-Metzger analysis completed. E_a = {e_a / 1000:.2f} kJ/mol, A = {a:.2e} min^-1, T_s = {t_s:.2f} K, R^2 = {r_value ** 2:.4f}"
+        )
+        return e_a, a, t_s, r_value**2
 
     except (ValueError, RuntimeError) as e:  # Specify expected exception types
         logger.error(f"Error in Horowitz-Metzger analysis: {str(e)}")
         raise
 
 
-def select_linear_region(theta: np.ndarray, y: np.ndarray, alpha: np.ndarray,
-                         min_conversion: float = 0.2, max_conversion: float = 0.8) -> Tuple[np.ndarray, np.ndarray]:
+def select_linear_region(
+    theta: np.ndarray,
+    y: np.ndarray,
+    alpha: np.ndarray,
+    min_conversion: float = 0.2,
+    max_conversion: float = 0.8,
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Select the region of the data between 20-80% conversion.
 
@@ -114,7 +124,9 @@ def select_linear_region(theta: np.ndarray, y: np.ndarray, alpha: np.ndarray,
 
     # Ensure we have enough points for meaningful analysis
     if len(theta_selected) < 20:
-        logger.warning("Not enough points in the 20-80% conversion range. Expanding range.")
+        logger.warning(
+            "Not enough points in the 20-80% conversion range. Expanding range."
+        )
         min_conversion, max_conversion = 0.1, 0.9
         mask = (alpha >= min_conversion) & (alpha <= max_conversion)
         theta_selected = theta[mask]

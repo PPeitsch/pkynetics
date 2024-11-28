@@ -10,8 +10,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def ofw_method(temperature: List[np.ndarray], conversion: List[np.ndarray],
-               heating_rate: List[float]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def ofw_method(
+    temperature: List[np.ndarray],
+    conversion: List[np.ndarray],
+    heating_rate: List[float],
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Perform Ozawa-Flynn-Wall analysis for model-free kinetics.
 
@@ -21,7 +24,7 @@ def ofw_method(temperature: List[np.ndarray], conversion: List[np.ndarray],
         heating_rate (List[float]): List of heating rates.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]: 
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
             - activation_energy for each conversion level
             - pre_exp_factor for each conversion level
             - conv_levels
@@ -44,7 +47,9 @@ def ofw_method(temperature: List[np.ndarray], conversion: List[np.ndarray],
     # Validate input data
     for temp, conv in zip(temperature, conversion):
         if len(temp) != len(conv):
-            raise ValueError("Temperature and conversion arrays must have the same length")
+            raise ValueError(
+                "Temperature and conversion arrays must have the same length"
+            )
         if np.any(temp <= 0):
             raise ValueError("Temperature values must be positive")
         if np.any((conv < 0) | (conv > 1)):
@@ -75,7 +80,7 @@ def ofw_method(temperature: List[np.ndarray], conversion: List[np.ndarray],
 
             activation_energy[i] = -slope * 1.052  # Correction factor for OFW method
             pre_exp_factor[i] = np.exp(intercept)
-            r_squared[i] = r_value ** 2
+            r_squared[i] = r_value**2
         else:
             activation_energy[i] = pre_exp_factor[i] = r_squared[i] = np.nan
 

@@ -40,5 +40,5 @@ class TestJMAKMethod(unittest.TestCase):
             jmak_method(self.time, self.transformed_fraction * 2)  # Values > 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

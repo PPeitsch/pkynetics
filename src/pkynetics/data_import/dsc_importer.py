@@ -70,50 +70,58 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
 
     try:
         # Detect file encoding
-        with open(file_path, 'rb') as file:
+        with open(file_path, "rb") as file:
             raw_data = file.read()
             result = chardet.detect(raw_data)
-            encoding = result['encoding']
+            encoding = result["encoding"]
 
         logger.info(f"Detected file encoding: {encoding}")
 
         # Read the file with detected encoding
-        df = pd.read_csv(file_path, delim_whitespace=True, decimal='.', encoding=encoding,
-                         dtype=str, skiprows=12)
+        df = pd.read_csv(
+            file_path,
+            delim_whitespace=True,
+            decimal=".",
+            encoding=encoding,
+            dtype=str,
+            skiprows=12,
+        )
 
         # Clean column names
         df.columns = df.columns.str.strip()
 
         # Rename columns to match expected format
         column_mapping = {
-            'Index': 'index',
-            'Time': 'time',
-            'Furnace': 'temperature',
-            'Sample': 'sample_temperature',
-            'TG ': 'weight',
-            'HeatFlow': 'heat_flow'
+            "Index": "index",
+            "Time": "time",
+            "Furnace": "temperature",
+            "Sample": "sample_temperature",
+            "TG ": "weight",
+            "HeatFlow": "heat_flow",
         }
         df = df.rename(columns=column_mapping)
 
         # Convert string values to float
         for col in df.columns:
-            df[col] = pd.to_numeric(df[col].str.replace(',', '.').str.strip(), errors='coerce')
+            df[col] = pd.to_numeric(
+                df[col].str.replace(",", ".").str.strip(), errors="coerce"
+            )
 
         result = {
-            'time': df['time'].values,
-            'temperature': df['temperature'].values,
-            'sample_temperature': df['sample_temperature'].values,
+            "time": df["time"].values,
+            "temperature": df["temperature"].values,
+            "sample_temperature": df["sample_temperature"].values,
         }
 
-        if 'heat_flow' in df.columns:
-            result['heat_flow'] = df['heat_flow'].values
+        if "heat_flow" in df.columns:
+            result["heat_flow"] = df["heat_flow"].values
         else:
-            result['heat_flow'] = None
+            result["heat_flow"] = None
 
-        if 'weight' in df.columns:
-            result['weight'] = df['weight'].values
+        if "weight" in df.columns:
+            result["weight"] = df["weight"].values
         else:
-            result['weight'] = None
+            result["weight"] = None
 
         return result
 
@@ -141,14 +149,14 @@ def _detect_manufacturer(file_path: str) -> str:
     """
     try:
         # Detect file encoding
-        with open(file_path, 'rb') as file:
+        with open(file_path, "rb") as file:
             raw_data = file.read()
             result = chardet.detect(raw_data)
-            encoding = result['encoding']
+            encoding = result["encoding"]
 
         logger.info(f"Detected file encoding: {encoding}")
 
-        with open(file_path, 'r', encoding=encoding) as f:
+        with open(file_path, "r", encoding=encoding) as f:
             header = f.read(1000)  # Read first 1000 characters
 
         if "TA Instruments" in header:
@@ -157,10 +165,14 @@ def _detect_manufacturer(file_path: str) -> str:
             return "Mettler"
         elif "NETZSCH" in header:
             return "Netzsch"
-        elif "Setaram" in header or ("Time (s)" in header and "Furnace Temperature (°C)" in header):
+        elif "Setaram" in header or (
+            "Time (s)" in header and "Furnace Temperature (°C)" in header
+        ):
             return "Setaram"
         else:
-            raise ValueError("Unable to detect manufacturer automatically. Please specify manually.")
+            raise ValueError(
+                "Unable to detect manufacturer automatically. Please specify manually."
+            )
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")
         raise
@@ -184,12 +196,16 @@ def _import_ta_instruments(file_path: str) -> Dict[str, np.ndarray]:
         FileNotFoundError: If the specified file does not exist.
     """
     try:
-        df = pd.read_csv(file_path, skiprows=1, encoding='iso-8859-1')
+        df = pd.read_csv(file_path, skiprows=1, encoding="iso-8859-1")
         return {
             "temperature": df["Temperature (°C)"].values,
             "time": df["Time (min)"].values,
             "heat_flow": df["Heat Flow (mW)"].values,
-            "heat_capacity": df["Heat Capacity (J/(g·°C))"].values if "Heat Capacity (J/(g·°C))" in df.columns else None
+            "heat_capacity": (
+                df["Heat Capacity (J/(g·°C))"].values
+                if "Heat Capacity (J/(g·°C))" in df.columns
+                else None
+            ),
         }
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")
@@ -214,13 +230,16 @@ def _import_mettler_toledo(file_path: str) -> Dict[str, np.ndarray]:
         FileNotFoundError: If the specified file does not exist.
     """
     try:
-        df = pd.read_csv(file_path, skiprows=2, delimiter='\t', encoding='iso-8859-1')
+        df = pd.read_csv(file_path, skiprows=2, delimiter="\t", encoding="iso-8859-1")
         return {
             "temperature": df["Temperature [°C]"].values,
             "time": df["Time [min]"].values,
             "heat_flow": df["Heat Flow [mW]"].values,
-            "heat_capacity": df[
-                "Specific Heat Capacity [J/(g·K)]"].values if "Specific Heat Capacity [J/(g·K)]" in df.columns else None
+            "heat_capacity": (
+                df["Specific Heat Capacity [J/(g·K)]"].values
+                if "Specific Heat Capacity [J/(g·K)]" in df.columns
+                else None
+            ),
         }
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")
@@ -245,13 +264,16 @@ def _import_netzsch(file_path: str) -> Dict[str, np.ndarray]:
         FileNotFoundError: If the specified file does not exist.
     """
     try:
-        df = pd.read_csv(file_path, skiprows=10, delimiter='\t', encoding='iso-8859-1')
+        df = pd.read_csv(file_path, skiprows=10, delimiter="\t", encoding="iso-8859-1")
         return {
             "temperature": df["Temperature/°C"].values,
             "time": df["Time/min"].values,
             "heat_flow": df["DSC/(mW/mg)"].values,
-            "heat_capacity": df[
-                "Specific Heat Capacity/(J/(g·K))"].values if "Specific Heat Capacity/(J/(g·K))" in df.columns else None
+            "heat_capacity": (
+                df["Specific Heat Capacity/(J/(g·K))"].values
+                if "Specific Heat Capacity/(J/(g·K))" in df.columns
+                else None
+            ),
         }
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")

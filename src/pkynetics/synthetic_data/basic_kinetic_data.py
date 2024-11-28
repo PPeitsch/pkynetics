@@ -10,18 +10,18 @@ logger = logging.getLogger(__name__)
 
 
 def generate_basic_kinetic_data(
-        e_a: float,
-        a: float,
-        heating_rates: np.array,
-        t_range: Tuple[float, float],
-        reaction_model: str = 'first_order',
-        noise_level: float = 0,
-        num_points: int = 1000,
-        n: float = 1.5
+    e_a: float,
+    a: float,
+    heating_rates: np.array,
+    t_range: Tuple[float, float],
+    reaction_model: str = "first_order",
+    noise_level: float = 0,
+    num_points: int = 1000,
+    n: float = 1.5,
 ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     """
     Generate basic kinetic data for testing various models.
-    
+
     Args:
         e_a (float): Activation energy in J/mol
         a (float): Pre-exponential factor in 1/s
@@ -31,7 +31,7 @@ def generate_basic_kinetic_data(
         noise_level (float): Standard deviation of Gaussian noise to add
         num_points (int): Number of points to generate for each heating rate
         n (float): Reaction order for 'nth_order' model
-    
+
     Returns:
         Tuple[List[np.ndarray], List[np.ndarray]]: Lists of temperature data and conversion data for each heating rate
     """
@@ -43,9 +43,9 @@ def generate_basic_kinetic_data(
         time = (t - t[0]) / beta
         k = a * np.exp(-e_a / (R * t))
 
-        if reaction_model == 'first_order':
+        if reaction_model == "first_order":
             alpha = 1 - np.exp(-k * time)
-        elif reaction_model == 'nth_order':
+        elif reaction_model == "nth_order":
             alpha = 1 - (1 + (n - 1) * k * time) ** (1 / (1 - n))
         else:
             logger.warning(f"Unsupported reaction model: {reaction_model}")

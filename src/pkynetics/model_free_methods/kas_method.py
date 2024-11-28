@@ -10,9 +10,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def kas_method(temperature_data: List[np.ndarray],
-               conversion_data: List[np.ndarray],
-               heating_rates: List[float]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def kas_method(
+    temperature_data: List[np.ndarray],
+    conversion_data: List[np.ndarray],
+    heating_rates: List[float],
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Perform Kissinger-Akahira-Sunose (KAS) analysis for model-free kinetics.
 
@@ -22,7 +24,7 @@ def kas_method(temperature_data: List[np.ndarray],
         heating_rates (List[float]): List of heating rates corresponding to the data arrays.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]: 
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
             - Activation energy for each conversion degree (E_a)
             - Pre-exponential factor for each conversion degree (A)
             - Conversion levels used for the analysis
@@ -32,15 +34,19 @@ def kas_method(temperature_data: List[np.ndarray],
         ValueError: If input data is inconsistent or invalid.
 
     Note:
-        This method assumes that the Arrhenius equation and the integral approximation used in 
+        This method assumes that the Arrhenius equation and the integral approximation used in
         the KAS method are valid for the reaction being studied.
     """
-    if len(temperature_data) != len(conversion_data) or len(temperature_data) != len(heating_rates):
+    if len(temperature_data) != len(conversion_data) or len(temperature_data) != len(
+        heating_rates
+    ):
         raise ValueError("Inconsistent number of datasets")
 
     for temp, conv in zip(temperature_data, conversion_data):
         if len(temp) != len(conv):
-            raise ValueError("Temperature and conversion data arrays must have the same length")
+            raise ValueError(
+                "Temperature and conversion data arrays must have the same length"
+            )
         if np.any(temp <= 0):
             raise ValueError("Temperature values must be positive")
         if np.any((conv < 0) | (conv > 1)):
@@ -65,7 +71,7 @@ def kas_method(temperature_data: List[np.ndarray],
             idx = np.argmin(np.abs(conv - alpha))
             T = temp[idx]
 
-            y_data.append(np.log(beta / T ** 2))
+            y_data.append(np.log(beta / T**2))
             x_data.append(1 / (T * 8.314))  # 1 / (R * T), where R is the gas constant
 
         # Perform linear regression
@@ -77,6 +83,11 @@ def kas_method(temperature_data: List[np.ndarray],
 
         activation_energy.append(E_a)
         pre_exp_factor.append(A)
-        r_squared_values.append(r_value ** 2)
+        r_squared_values.append(r_value**2)
 
-    return np.array(activation_energy), np.array(pre_exp_factor), conversion_range, np.array(r_squared_values)
+    return (
+        np.array(activation_energy),
+        np.array(pre_exp_factor),
+        conversion_range,
+        np.array(r_squared_values),
+    )

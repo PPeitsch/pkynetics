@@ -25,13 +25,16 @@ def jmak_equation(t: np.ndarray, k: float, n: float) -> np.ndarray:
     Returns:
         np.ndarray: Array of transformed fraction values corresponding to input times.
     """
-    return 1 - np.exp(-(k * t) ** n)
+    return 1 - np.exp(-((k * t) ** n))
 
 
-def jmak_method(time: np.ndarray, transformed_fraction: np.ndarray,
-                t_range: Optional[Tuple[float, float]] = None,
-                k_init: Optional[float] = None,
-                n_init: Optional[float] = None) -> Tuple[float, float, float]:
+def jmak_method(
+    time: np.ndarray,
+    transformed_fraction: np.ndarray,
+    t_range: Optional[Tuple[float, float]] = None,
+    k_init: Optional[float] = None,
+    n_init: Optional[float] = None,
+) -> Tuple[float, float, float]:
     """
     Fit the JMAK (Johnson-Mehl-Avrami-Kolmogorov) model to transformation data.
 
@@ -57,7 +60,9 @@ def jmak_method(time: np.ndarray, transformed_fraction: np.ndarray,
     # Input validation
     time, transformed_fraction = np.asarray(time), np.asarray(transformed_fraction)
     if time.shape != transformed_fraction.shape:
-        raise ValueError("Time and transformed fraction arrays must have the same shape")
+        raise ValueError(
+            "Time and transformed fraction arrays must have the same shape"
+        )
     if np.any(transformed_fraction < 0) or np.any(transformed_fraction > 1):
         raise ValueError("Transformed fraction values must be between 0 and 1")
     if np.any(time < 0):
@@ -78,8 +83,13 @@ def jmak_method(time: np.ndarray, transformed_fraction: np.ndarray,
         n_init = n_init if n_init is not None else 2.0
 
         # Non-linear fit
-        popt, pcov = curve_fit(jmak_equation, time, transformed_fraction,
-                               p0=[k_init, n_init], bounds=([0, 0], [np.inf, 10]))
+        popt, pcov = curve_fit(
+            jmak_equation,
+            time,
+            transformed_fraction,
+            p0=[k_init, n_init],
+            bounds=([0, 0], [np.inf, 10]),
+        )
         k, n = popt
 
         # Calculate R^2
@@ -88,7 +98,9 @@ def jmak_method(time: np.ndarray, transformed_fraction: np.ndarray,
         ss_tot = np.sum((transformed_fraction - np.mean(transformed_fraction)) ** 2)
         r_squared = 1 - (ss_res / ss_tot)
 
-        logger.info(f"JMAK analysis completed. n = {n:.3f}, k = {k:.3e}, R^2 = {r_squared:.3f}")
+        logger.info(
+            f"JMAK analysis completed. n = {n:.3f}, k = {k:.3e}, R^2 = {r_squared:.3f}"
+        )
         return n, k, r_squared
 
     except Exception as e:
@@ -120,7 +132,9 @@ def jmak_half_time(k: float, n: float) -> float:
     return (np.log(2) / k) ** (1 / n)
 
 
-def modified_jmak_equation(T: np.ndarray, k0: float, n: float, E: float, T0: float, phi: float) -> np.ndarray:
+def modified_jmak_equation(
+    T: np.ndarray, k0: float, n: float, E: float, T0: float, phi: float
+) -> np.ndarray:
     """
     Modified JMAK equation for non-isothermal processes.
 
@@ -136,11 +150,12 @@ def modified_jmak_equation(T: np.ndarray, k0: float, n: float, E: float, T0: flo
         np.ndarray: Transformed fraction.
     """
     R = 8.314  # Gas constant in J/(mol·K)
-    return 1 - np.exp(-(k0 / phi * (np.exp(-E / (R * T)) * (T - T0))) ** n)
+    return 1 - np.exp(-((k0 / phi * (np.exp(-E / (R * T)) * (T - T0))) ** n))
 
 
-def fit_modified_jmak(T: np.ndarray, transformed_fraction: np.ndarray, T0: float, phi: float, E: float) -> Tuple[
-    float, float, float]:
+def fit_modified_jmak(
+    T: np.ndarray, transformed_fraction: np.ndarray, T0: float, phi: float, E: float
+) -> Tuple[float, float, float]:
     """
     Fit the modified JMAK equation to experimental data.
 

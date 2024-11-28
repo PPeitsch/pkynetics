@@ -29,10 +29,13 @@ class TestOFWMethod(unittest.TestCase):
 
     def test_ofw_method_accuracy(self):
         activation_energy, pre_exp_factor, conv_levels, r_squared = ofw_method(
-            self.temperature_data, self.conversion_data, self.heating_rates)
+            self.temperature_data, self.conversion_data, self.heating_rates
+        )
 
         # Check if mean activation_energy is within a reasonable range of true e_a
-        relative_error_e_a = abs(np.nanmean(activation_energy) - self.e_a_true) / self.e_a_true
+        relative_error_e_a = (
+            abs(np.nanmean(activation_energy) - self.e_a_true) / self.e_a_true
+        )
         self.assertLess(relative_error_e_a, 0.25)  # Allow for up to 25% relative error
 
         # Check if mean ln(pre_exp_factor) is within a reasonable range of true ln(a)
@@ -63,7 +66,8 @@ class TestOFWMethod(unittest.TestCase):
             noisy_conversion_data.append(noisy_conv)
 
         activation_energy, pre_exp_factor, conv_levels, r_squared = ofw_method(
-            self.temperature_data, noisy_conversion_data, self.heating_rates)
+            self.temperature_data, noisy_conversion_data, self.heating_rates
+        )
 
         # Check if mean activation_energy is still within a reasonable range
         self.assertGreater(np.nanmean(activation_energy), self.e_a_true * 0.6)
@@ -79,7 +83,9 @@ class TestOFWMethod(unittest.TestCase):
     def test_invalid_input(self):
         # Test with inconsistent number of datasets
         with self.assertRaises(ValueError):
-            ofw_method(self.temperature_data[:-1], self.conversion_data, self.heating_rates)
+            ofw_method(
+                self.temperature_data[:-1], self.conversion_data, self.heating_rates
+            )
 
         # Test with temperature and conversion arrays of different lengths
         invalid_temp_data = self.temperature_data.copy()
@@ -100,5 +106,5 @@ class TestOFWMethod(unittest.TestCase):
             ofw_method(self.temperature_data, invalid_conv_data, self.heating_rates)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -24,5 +24,5 @@ __all__ = [
     "model_free_methods",
     "result_visualization",
     "synthetic_data",
-    "technique_analysis"
+    "technique_analysis",
 ]

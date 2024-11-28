@@ -14,5 +14,5 @@ __all__ = [
     "dsc_importer",
     "CustomImporter",
     "import_setaram",
-    "dilatometry_importer"
+    "dilatometry_importer",
 ]

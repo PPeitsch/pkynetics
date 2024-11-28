@@ -30,5 +30,5 @@ __all__ = [
     "plot_diagnostic",
     "horowitz_metzger_method",
     "horowitz_metzger_equation",
-    "kissinger_equation"
+    "kissinger_equation",
 ]

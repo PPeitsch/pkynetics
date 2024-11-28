@@ -6,7 +6,9 @@ import numpy as np
 from scipy.stats import linregress
 
 
-def coats_redfern_equation(t: np.ndarray, e_a: float, ln_a: float, n: float, r: float = 8.314) -> np.ndarray:
+def coats_redfern_equation(
+    t: np.ndarray, e_a: float, ln_a: float, n: float, r: float = 8.314
+) -> np.ndarray:
     """
     Coats-Redfern equation for kinetic analysis.
 
@@ -23,8 +25,9 @@ def coats_redfern_equation(t: np.ndarray, e_a: float, ln_a: float, n: float, r: 
     return ln_a - e_a / (r * t)
 
 
-def coats_redfern_method(temperature: np.ndarray, alpha: np.ndarray,
-                         heating_rate: float, n: float = 1) -> Tuple[float, float, float, np.ndarray, np.ndarray]:
+def coats_redfern_method(
+    temperature: np.ndarray, alpha: np.ndarray, heating_rate: float, n: float = 1
+) -> Tuple[float, float, float, np.ndarray, np.ndarray]:
     """
     Perform Coats-Redfern analysis to determine kinetic parameters.
 
@@ -64,9 +67,11 @@ def coats_redfern_method(temperature: np.ndarray, alpha: np.ndarray,
     # Calculate kinetic parameters
     r = 8.314  # Gas constant in J/(mol·K)
     e_a = -slope * r  # Activation energy in J/mol
-    a = np.exp(intercept + np.log(heating_rate / e_a))  # Pre-exponential factor in min^-1
+    a = np.exp(
+        intercept + np.log(heating_rate / e_a)
+    )  # Pre-exponential factor in min^-1
 
-    return e_a, a, r_value ** 2, x, y, x_filtered, y_filtered
+    return e_a, a, r_value**2, x, y, x_filtered, y_filtered
 
 
 def _prepare_y_data(alpha: np.ndarray, temperature: np.ndarray, n: float) -> np.ndarray:
@@ -74,11 +79,13 @@ def _prepare_y_data(alpha: np.ndarray, temperature: np.ndarray, n: float) -> np.
     Prepare y data for Coats-Redfern analysis based on reaction order.
     """
     eps = 1e-10  # Small value to avoid log(0)
-    alpha_term = np.clip(1 - alpha, eps, 1 - eps)  # Ensure we don't take log of 0 or negative values
+    alpha_term = np.clip(
+        1 - alpha, eps, 1 - eps
+    )  # Ensure we don't take log of 0 or negative values
 
     if n == 1:
-        y = np.log(-np.log(alpha_term) / temperature ** 2)
+        y = np.log(-np.log(alpha_term) / temperature**2)
     else:
-        y = np.log((1 - alpha_term ** (1 - n)) / ((1 - n) * temperature ** 2))
+        y = np.log((1 - alpha_term ** (1 - n)) / ((1 - n) * temperature**2))
 
     return y

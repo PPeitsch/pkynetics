@@ -10,8 +10,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def friedman_method(temperature: List[np.ndarray], conversion: List[np.ndarray],
-                    heating_rate: List[float]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def friedman_method(
+    temperature: List[np.ndarray],
+    conversion: List[np.ndarray],
+    heating_rate: List[float],
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Perform Friedman analysis for model-free kinetics.
 
@@ -21,7 +24,7 @@ def friedman_method(temperature: List[np.ndarray], conversion: List[np.ndarray],
         heating_rate (List[float]): List of heating rates.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]: 
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
             - activation_energy for each conversion level
             - pre_exp_factor for each conversion level
             - conv_levels
@@ -44,7 +47,9 @@ def friedman_method(temperature: List[np.ndarray], conversion: List[np.ndarray],
     # Validate input data
     for temp, conv in zip(temperature, conversion):
         if len(temp) != len(conv):
-            raise ValueError("Temperature and conversion arrays must have the same length")
+            raise ValueError(
+                "Temperature and conversion arrays must have the same length"
+            )
         if np.any(temp <= 0):
             raise ValueError("Temperature values must be positive")
         if np.any((conv < 0) | (conv > 1)):
@@ -67,7 +72,11 @@ def friedman_method(temperature: List[np.ndarray], conversion: List[np.ndarray],
 
             # Calculate the reaction rate
             if 0 < idx < len(conv) - 1:
-                da_dt = (conv[idx + 1] - conv[idx - 1]) / (temp[idx + 1] - temp[idx - 1]) * beta
+                da_dt = (
+                    (conv[idx + 1] - conv[idx - 1])
+                    / (temp[idx + 1] - temp[idx - 1])
+                    * beta
+                )
                 if da_dt > 0:  # Only include positive reaction rates
                     y_data.append(np.log(da_dt))
                     x_data.append(1 / (8.314 * temp[idx]))  # 1/RT
@@ -77,7 +86,7 @@ def friedman_method(temperature: List[np.ndarray], conversion: List[np.ndarray],
             slope, intercept, r_value, _, _ = linregress(x_data, y_data)
             activation_energy[i] = -slope
             pre_exp_factor[i] = np.exp(intercept)
-            r_squared[i] = r_value ** 2
+            r_squared[i] = r_value**2
         else:
             activation_energy[i] = pre_exp_factor[i] = r_squared[i] = np.nan
 

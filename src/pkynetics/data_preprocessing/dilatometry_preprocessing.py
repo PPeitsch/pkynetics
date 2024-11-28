@@ -5,8 +5,9 @@ import numpy as np
 from .common_preprocessing import calculate_derivatives, smooth_data
 
 
-def preprocess_dilatometry_data(temperature: np.ndarray, strain: np.ndarray,
-                                smooth: bool = True) -> Dict[str, np.ndarray]:
+def preprocess_dilatometry_data(
+    temperature: np.ndarray, strain: np.ndarray, smooth: bool = True
+) -> Dict[str, np.ndarray]:
     """
     Preprocess dilatometry data for analysis.
 
@@ -25,13 +26,15 @@ def preprocess_dilatometry_data(temperature: np.ndarray, strain: np.ndarray,
     derivatives = calculate_derivatives(temperature, processed_strain)
 
     return {
-        'temperature': temperature,
-        'strain': processed_strain,
-        'derivatives': derivatives
+        "temperature": temperature,
+        "strain": processed_strain,
+        "derivatives": derivatives,
     }
 
 
-def normalize_strain(strain: np.ndarray, reference_temp_idx: Optional[int] = None) -> np.ndarray:
+def normalize_strain(
+    strain: np.ndarray, reference_temp_idx: Optional[int] = None
+) -> np.ndarray:
     """
     Normalize strain data relative to a reference point.
 
@@ -60,16 +63,19 @@ def detect_noise_level(strain: np.ndarray, window_size: int = 20) -> float:
     Returns:
         Estimated noise level (standard deviation)
     """
-    local_std = np.array([
-        np.std(strain[i:i + window_size])
-        for i in range(0, len(strain) - window_size, window_size)
-    ])
+    local_std = np.array(
+        [
+            np.std(strain[i : i + window_size])
+            for i in range(0, len(strain) - window_size, window_size)
+        ]
+    )
 
     return np.median(local_std)
 
 
-def remove_outliers(temperature: np.ndarray, strain: np.ndarray,
-                    threshold: float = 3.0) -> Tuple[np.ndarray, np.ndarray]:
+def remove_outliers(
+    temperature: np.ndarray, strain: np.ndarray, threshold: float = 3.0
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Remove outliers from strain data using z-score method.
 

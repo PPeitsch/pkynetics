@@ -29,10 +29,13 @@ class TestFriedmanMethod(unittest.TestCase):
 
     def test_friedman_method_accuracy(self):
         activation_energy, pre_exp_factor, conv_levels, r_squared = friedman_method(
-            self.temperature_data, self.conversion_data, self.heating_rates)
+            self.temperature_data, self.conversion_data, self.heating_rates
+        )
 
         # Check if mean activation_energy is close to true e_a
-        relative_error_e_a = abs(np.nanmean(activation_energy) - self.e_a_true) / self.e_a_true
+        relative_error_e_a = (
+            abs(np.nanmean(activation_energy) - self.e_a_true) / self.e_a_true
+        )
         self.assertLess(relative_error_e_a, 0.1)  # Allow for up to 10% relative error
 
         # Check if mean ln(pre_exp_factor) is within a reasonable range of true ln(a)
@@ -63,7 +66,8 @@ class TestFriedmanMethod(unittest.TestCase):
             noisy_conversion_data.append(noisy_conv)
 
         activation_energy, pre_exp_factor, conv_levels, r_squared = friedman_method(
-            self.temperature_data, noisy_conversion_data, self.heating_rates)
+            self.temperature_data, noisy_conversion_data, self.heating_rates
+        )
 
         # Check if mean activation_energy is still within a reasonable range
         self.assertGreater(np.nanmean(activation_energy), self.e_a_true * 0.7)
@@ -79,7 +83,9 @@ class TestFriedmanMethod(unittest.TestCase):
     def test_invalid_input(self):
         # Test with inconsistent number of datasets
         with self.assertRaises(ValueError):
-            friedman_method(self.temperature_data[:-1], self.conversion_data, self.heating_rates)
+            friedman_method(
+                self.temperature_data[:-1], self.conversion_data, self.heating_rates
+            )
 
         # Test with temperature and conversion arrays of different lengths
         invalid_temp_data = self.temperature_data.copy()
@@ -97,8 +103,10 @@ class TestFriedmanMethod(unittest.TestCase):
         invalid_conv_data = self.conversion_data.copy()
         invalid_conv_data[0][0] = 1.1
         with self.assertRaises(ValueError):
-            friedman_method(self.temperature_data, invalid_conv_data, self.heating_rates)
+            friedman_method(
+                self.temperature_data, invalid_conv_data, self.heating_rates
+            )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

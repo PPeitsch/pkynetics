@@ -4,14 +4,14 @@ import numpy as np
 def add_gaussian_noise(data: np.ndarray, std_dev: float) -> np.ndarray:
     """
     Add Gaussian noise to the data.
-    
+
     Args:
         data (np.ndarray): Input data
         std_dev (float): Standard deviation of the Gaussian noise
-    
+
     Returns:
         np.ndarray: Data with added Gaussian noise
-    
+
     Raises:
         ValueError: If std_dev is negative
     """
@@ -22,18 +22,20 @@ def add_gaussian_noise(data: np.ndarray, std_dev: float) -> np.ndarray:
     return np.clip(data + noise, 0, 1)
 
 
-def add_outliers(data: np.ndarray, outlier_fraction: float, outlier_std_dev: float) -> np.ndarray:
+def add_outliers(
+    data: np.ndarray, outlier_fraction: float, outlier_std_dev: float
+) -> np.ndarray:
     """
     Add outliers to the data.
-    
+
     Args:
         data (np.ndarray): Input data
         outlier_fraction (float): Fraction of data points to be outliers (0 to 1)
         outlier_std_dev (float): Standard deviation for generating outliers
-    
+
     Returns:
         np.ndarray: Data with added outliers
-    
+
     Raises:
         ValueError: If outlier_fraction is not between 0 and 1, or if outlier_std_dev is negative
     """

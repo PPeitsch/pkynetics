@@ -3,8 +3,9 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 
 
-def analyze_range(temperature: np.ndarray, strain: np.ndarray,
-                  start_temp: float, end_temp: float) -> Tuple[np.ndarray, np.ndarray]:
+def analyze_range(
+    temperature: np.ndarray, strain: np.ndarray, start_temp: float, end_temp: float
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Extract and return data within specified temperature range.
 
@@ -32,9 +33,11 @@ def analyze_range(temperature: np.ndarray, strain: np.ndarray,
     return temperature[mask], strain[mask]
 
 
-def validate_temperature_range(temperature: np.ndarray,
-                               start_temp: Optional[float] = None,
-                               end_temp: Optional[float] = None) -> bool:
+def validate_temperature_range(
+    temperature: np.ndarray,
+    start_temp: Optional[float] = None,
+    end_temp: Optional[float] = None,
+) -> bool:
     """
     Validate if temperature range is valid for analysis.
 
@@ -75,8 +78,8 @@ def get_analysis_summary(results: Dict) -> str:
     summary.append(f"End temperature: {results['end_temperature']:.2f}°C")
     summary.append(f"Mid temperature: {results['mid_temperature']:.2f}°C")
 
-    if 'fit_quality' in results:
-        fit_quality = results['fit_quality']
+    if "fit_quality" in results:
+        fit_quality = results["fit_quality"]
         summary.append("\nFit Quality Metrics:")
         summary.append(f"R² (start): {fit_quality['r2_start']:.4f}")
         summary.append(f"R² (end): {fit_quality['r2_end']:.4f}")
@@ -85,7 +88,9 @@ def get_analysis_summary(results: Dict) -> str:
     return "\n".join(summary)
 
 
-def estimate_heating_rate(temperature: np.ndarray, time: Optional[np.ndarray] = None) -> float:
+def estimate_heating_rate(
+    temperature: np.ndarray, time: Optional[np.ndarray] = None
+) -> float:
     """
     Estimate heating rate from temperature data.
 
@@ -119,16 +124,20 @@ def get_transformation_metrics(results: Dict) -> Dict:
     metrics = {}
 
     # Temperature range
-    metrics['temperature_range'] = results['end_temperature'] - results['start_temperature']
+    metrics["temperature_range"] = (
+        results["end_temperature"] - results["start_temperature"]
+    )
 
     # Mid-point position (normalized)
-    temp_range = results['end_temperature'] - results['start_temperature']
-    mid_position = (results['mid_temperature'] - results['start_temperature']) / temp_range
-    metrics['normalized_mid_position'] = mid_position
+    temp_range = results["end_temperature"] - results["start_temperature"]
+    mid_position = (
+        results["mid_temperature"] - results["start_temperature"]
+    ) / temp_range
+    metrics["normalized_mid_position"] = mid_position
 
     # Transformation rate estimation
-    if 'transformed_fraction' in results and len(results['transformed_fraction']) > 1:
-        max_rate = np.max(np.gradient(results['transformed_fraction']))
-        metrics['max_transformation_rate'] = max_rate
+    if "transformed_fraction" in results and len(results["transformed_fraction"]) > 1:
+        max_rate = np.max(np.gradient(results["transformed_fraction"]))
+        metrics["max_transformation_rate"] = max_rate
 
     return metrics

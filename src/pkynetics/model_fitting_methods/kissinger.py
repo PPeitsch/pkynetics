@@ -26,7 +26,7 @@ def kissinger_nonlinear_eq(t: float, e_a: float, a: float, b: float) -> float:
     Returns:
         float: Value of the Kissinger equation at the given temperature.
     """
-    return (e_a * b) / (R * t ** 2) - a * np.exp(-e_a / (R * t))
+    return (e_a * b) / (R * t**2) - a * np.exp(-e_a / (R * t))
 
 
 def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
@@ -44,9 +44,13 @@ def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
     t_p = np.zeros_like(beta)
     for i, b in enumerate(beta):
         try:
-            t_p[i] = fsolve(kissinger_nonlinear_eq, x0=e_a / (R * 20), args=(e_a, a, b))[0]
+            t_p[i] = fsolve(
+                kissinger_nonlinear_eq, x0=e_a / (R * 20), args=(e_a, a, b)
+            )[0]
         except (RuntimeError, ValueError) as e:
-            logger.warning(f"Failed to converge for heating rate {b}: {e}. Using initial guess.")
+            logger.warning(
+                f"Failed to converge for heating rate {b}: {e}. Using initial guess."
+            )
             t_p[i] = e_a / (R * 20)
     return t_p
 
@@ -62,10 +66,12 @@ def kissinger_equation(t_p: np.ndarray, beta: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: ln(β/T_p^2) values.
     """
-    return np.log(beta / t_p ** 2)
+    return np.log(beta / t_p**2)
 
 
-def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, float, float, float]:
+def kissinger_method(
+    t_p: np.ndarray, beta: np.ndarray
+) -> Tuple[float, float, float, float, float]:
     """
     Perform Kissinger analysis for non-isothermal kinetics.
 
@@ -98,11 +104,13 @@ def kissinger_method(t_p: np.ndarray, beta: np.ndarray) -> Tuple[float, float, f
     e_a = -R * slope
     se_e_a = R * se_slope
     a = np.exp(intercept + np.log(e_a / R))
-    se_ln_a = np.sqrt(se_intercept ** 2 + (se_e_a / e_a) ** 2)
+    se_ln_a = np.sqrt(se_intercept**2 + (se_e_a / e_a) ** 2)
 
     r_squared = model.rsquared
 
-    logger.info(f"Kissinger analysis completed. E_a = {e_a:.2f} ± {se_e_a:.2f} J/mol, "
-                f"A = {a:.2e} min^-1, R^2 = {r_squared:.4f}")
+    logger.info(
+        f"Kissinger analysis completed. E_a = {e_a:.2f} ± {se_e_a:.2f} J/mol, "
+        f"A = {a:.2e} min^-1, R^2 = {r_squared:.4f}"
+    )
 
     return e_a, a, se_e_a, se_ln_a, r_squared

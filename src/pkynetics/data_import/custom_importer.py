@@ -15,9 +15,15 @@ class CustomImporter:
     A flexible importer for custom data formats.
     """
 
-    def __init__(self, file_path: str, column_names: List[str],
-                 separator: str = ',', decimal: str = '.',
-                 encoding: str = 'utf-8', skiprows: int = 0):
+    def __init__(
+        self,
+        file_path: str,
+        column_names: List[str],
+        separator: str = ",",
+        decimal: str = ".",
+        encoding: str = "utf-8",
+        skiprows: int = 0,
+    ):
         """
         Initialize the CustomImporter.
 
@@ -50,9 +56,14 @@ class CustomImporter:
         logger.info(f"Importing data from {self.file_path}")
 
         try:
-            df = pd.read_csv(self.file_path, sep=self.separator, decimal=self.decimal,
-                             encoding=self.encoding, skiprows=self.skiprows,
-                             names=self.column_names)
+            df = pd.read_csv(
+                self.file_path,
+                sep=self.separator,
+                decimal=self.decimal,
+                encoding=self.encoding,
+                skiprows=self.skiprows,
+                names=self.column_names,
+            )
 
             # Create result dictionary
             result = {col: df[col].values for col in df.columns}
@@ -81,10 +92,10 @@ class CustomImporter:
         Raises:
             ValueError: If unable to detect the delimiter.
         """
-        common_delimiters = [',', ';', '\t', '|']
+        common_delimiters = [",", ";", "\t", "|"]
 
         try:
-            with open(file_path, 'r') as file:
+            with open(file_path, "r") as file:
                 lines = file.readlines()[:num_lines]
 
             for delimiter in common_delimiters:
@@ -97,7 +108,9 @@ class CustomImporter:
             raise
 
     @staticmethod
-    def suggest_column_names(file_path: str, delimiter: Optional[str] = None) -> List[str]:
+    def suggest_column_names(
+        file_path: str, delimiter: Optional[str] = None
+    ) -> List[str]:
         """
         Suggest column names based on the first row of the file.
 
@@ -115,7 +128,7 @@ class CustomImporter:
             if delimiter is None:
                 delimiter = CustomImporter.detect_delimiter(file_path)
 
-            with open(file_path, 'r') as file:
+            with open(file_path, "r") as file:
                 first_line = file.readline().strip()
 
             return first_line.split(delimiter)

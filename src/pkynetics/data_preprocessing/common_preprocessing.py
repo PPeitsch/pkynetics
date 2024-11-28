@@ -4,8 +4,9 @@ import numpy as np
 from scipy.signal import savgol_filter
 
 
-def smooth_data(data: np.ndarray, window_length: Optional[int] = None,
-                polyorder: int = 3) -> np.ndarray:
+def smooth_data(
+    data: np.ndarray, window_length: Optional[int] = None, polyorder: int = 3
+) -> np.ndarray:
     """
     Smooth data using Savitzky-Golay filter.
 
@@ -36,7 +37,9 @@ def smooth_data(data: np.ndarray, window_length: Optional[int] = None,
     return savgol_filter(data, window_length, polyorder)
 
 
-def calculate_derivatives(x: np.ndarray, y: np.ndarray, smooth: bool = True) -> Dict[str, np.ndarray]:
+def calculate_derivatives(
+    x: np.ndarray, y: np.ndarray, smooth: bool = True
+) -> Dict[str, np.ndarray]:
     """
     Calculate first and second derivatives of y with respect to x.
 
@@ -55,10 +58,7 @@ def calculate_derivatives(x: np.ndarray, y: np.ndarray, smooth: bool = True) -> 
     dy = np.gradient(y)
     d2y = np.gradient(dy)
 
-    return {
-        'first': dy / dx,
-        'second': d2y / dx ** 2
-    }
+    return {"first": dy / dx, "second": d2y / dx**2}
 
 
 def baseline_correct(data: np.ndarray, reference_indices: slice) -> np.ndarray:

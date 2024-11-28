@@ -27,19 +27,16 @@ from src.pkynetics.technique_analysis.dilatometry import (  # Main analysis func
 
 __all__ = [
     # Main analysis function
-    'analyze_dilatometry_curve',
-
+    "analyze_dilatometry_curve",
     # Core analysis functions
-    'find_inflection_points',
-    'extrapolate_linear_segments',
-    'calculate_transformed_fraction_lever',
-    'find_optimal_margin',
-
+    "find_inflection_points",
+    "extrapolate_linear_segments",
+    "calculate_transformed_fraction_lever",
+    "find_optimal_margin",
     # Analysis methods
-    'lever_method',
-    'tangent_method',
-
+    "lever_method",
+    "tangent_method",
     # Quality assessment functions
-    'calculate_fit_quality',
-    'calculate_r2'
+    "calculate_fit_quality",
+    "calculate_r2",
 ]
