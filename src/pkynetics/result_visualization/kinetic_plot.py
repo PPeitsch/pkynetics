@@ -11,7 +11,7 @@ R = 8.314  # Gas constant in J/(mol·K)
 
 def plot_arrhenius(
     temperatures: np.ndarray, rate_constants: np.ndarray, e_a: float, a: float
-):
+) -> None:
     """
     Create an Arrhenius plot.
 
@@ -38,7 +38,7 @@ def plot_conversion_vs_temperature(
     temperatures: List[np.ndarray],
     conversions: List[np.ndarray],
     heating_rates: List[float],
-):
+) -> None:
     """
     Plot conversion vs temperature for multiple heating rates.
 
@@ -62,7 +62,7 @@ def plot_derivative_thermogravimetry(
     temperatures: List[np.ndarray],
     conversions: List[np.ndarray],
     heating_rates: List[float],
-):
+) -> None:
     """
     Plot derivative thermogravimetry (DTG) curves for multiple heating rates.
 
@@ -85,7 +85,7 @@ def plot_derivative_thermogravimetry(
 
 def plot_activation_energy_vs_conversion(
     conversions: np.ndarray, activation_energies: np.ndarray, method: str
-):
+) -> None:
     """
     Plot activation energy as a function of conversion.
 
@@ -105,7 +105,7 @@ def plot_activation_energy_vs_conversion(
 
 def plot_kissinger(
     t_p: np.ndarray, beta: np.ndarray, e_a: float, a: float, r_squared: float
-):
+) -> None:
     """
     Create a Kissinger plot with legend and text outside the plotted area.
 
@@ -160,7 +160,7 @@ def plot_jmak_results(
     n: float,
     k: float,
     r_squared: float,
-):
+) -> None:
     """
     Plot the results of JMAK (Johnson-Mehl-Avrami-Kolmogorov) analysis.
 
@@ -220,7 +220,7 @@ def plot_modified_jmak_results(
     n: float,
     E: float,
     r_squared: float,
-):
+) -> None:
     """
     Plot the results of modified JMAK analysis.
 

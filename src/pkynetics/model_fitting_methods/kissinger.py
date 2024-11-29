@@ -5,6 +5,7 @@ from typing import Tuple
 
 import numpy as np
 import statsmodels.api as sm
+from numpy.typing import NDArray
 from scipy.optimize import fsolve
 
 logging.basicConfig(level=logging.INFO)
@@ -26,7 +27,8 @@ def kissinger_nonlinear_eq(t: float, e_a: float, a: float, b: float) -> float:
     Returns:
         float: Value of the Kissinger equation at the given temperature.
     """
-    return (e_a * b) / (R * t**2) - a * np.exp(-e_a / (R * t))
+    result = (e_a * b) / (R * t**2) - a * np.exp(-e_a / (R * t))
+    return float(result)
 
 
 def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
@@ -55,7 +57,7 @@ def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
     return t_p
 
 
-def kissinger_equation(t_p: np.ndarray, beta: np.ndarray) -> np.ndarray:
+def kissinger_equation(t_p: NDArray[np.float64], beta: NDArray[np.float64]) -> NDArray[np.float64]:
     """
     Kissinger equation for non-isothermal kinetics.
 
