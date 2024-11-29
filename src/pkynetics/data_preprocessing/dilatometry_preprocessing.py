@@ -1,13 +1,16 @@
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
+from numpy.typing import NDArray
 
 from .common_preprocessing import calculate_derivatives, smooth_data
 
 
 def preprocess_dilatometry_data(
-    temperature: np.ndarray, strain: np.ndarray, smooth: bool = True
-) -> Dict[str, np.ndarray]:
+    temperature: NDArray[np.float64],
+    strain: NDArray[np.float64],
+    smooth: bool = True
+) -> Dict[str, Union[NDArray[np.float64], Dict[str, NDArray[np.float64]]]]:
     """
     Preprocess dilatometry data for analysis.
 
@@ -26,15 +29,16 @@ def preprocess_dilatometry_data(
     derivatives = calculate_derivatives(temperature, processed_strain)
 
     return {
-        "temperature": temperature,
-        "strain": processed_strain,
-        "derivatives": derivatives,
+        'temperature': np.array(temperature, dtype=np.float64),
+        'strain': np.array(processed_strain, dtype=np.float64),
+        'derivatives': derivatives
     }
 
 
 def normalize_strain(
-    strain: np.ndarray, reference_temp_idx: Optional[int] = None
-) -> np.ndarray:
+    strain: NDArray[np.float64],
+    reference_temp_idx: Optional[int] = None
+) -> NDArray[np.float64]:
     """
     Normalize strain data relative to a reference point.
 
@@ -49,10 +53,10 @@ def normalize_strain(
         reference_temp_idx = 0
 
     reference_value = strain[reference_temp_idx]
-    return (strain - reference_value) / reference_value
+    return np.array((strain - reference_value) / reference_value, dtype=np.float64)
 
 
-def detect_noise_level(strain: np.ndarray, window_size: int = 20) -> float:
+def detect_noise_level(strain: NDArray[np.float64], window_size: int = 20) -> float:
     """
     Estimate noise level in strain data.
 
@@ -70,7 +74,7 @@ def detect_noise_level(strain: np.ndarray, window_size: int = 20) -> float:
         ]
     )
 
-    return np.median(local_std)
+    return float(np.median(local_std))
 
 
 def remove_outliers(

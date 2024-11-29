@@ -3,6 +3,7 @@
 from typing import Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 
 from src.pkynetics.model_fitting_methods import modified_jmak_equation
 
@@ -17,7 +18,7 @@ def generate_coats_redfern_data(
     t_range: Tuple[float, float],
     n: float = 1.5,
     noise_level: float = 0,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Generate data specific to Coats-Redfern analysis.
 
@@ -35,7 +36,7 @@ def generate_coats_redfern_data(
     temp_data, conv_data = generate_basic_kinetic_data(
         e_a,
         a,
-        [heating_rate],
+        np.array([heating_rate], dtype=np.float64),
         t_range,
         reaction_model="nth_order",
         noise_level=noise_level,
@@ -51,7 +52,7 @@ def generate_freeman_carroll_data(
     t_range: Tuple[float, float],
     n: float = 1.5,
     noise_level: float = 0,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """
     Generate data specific to Freeman-Carroll analysis.
 
@@ -64,24 +65,27 @@ def generate_freeman_carroll_data(
         noise_level (float): Standard deviation of Gaussian noise to add
 
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray]: Temperature, conversion, and time data
+        Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]: Temperature, conversion, and time data
     """
     temp_data, conv_data = generate_basic_kinetic_data(
         e_a,
         a,
-        [heating_rate],
+        np.array([heating_rate], dtype=np.float64),
         t_range,
         reaction_model="nth_order",
         noise_level=noise_level,
         n=n,
     )
-    time_data = (temp_data[0] - temp_data[0][0]) / heating_rate
+    time_data = np.array((temp_data[0] - temp_data[0][0]) / heating_rate, dtype=np.float64)
     return temp_data[0], conv_data[0], time_data
 
 
 def generate_jmak_data(
-    time: np.ndarray, n: float, k: float, noise_level: float = 0.01
-) -> np.ndarray:
+    time: NDArray[np.float64],
+    n: float,
+    k: float,
+    noise_level: float = 0.01
+) -> NDArray[np.float64]:
     """
     Generate JMAK (Johnson-Mehl-Avrami-Kolmogorov) data with optional noise.
 
@@ -97,7 +101,7 @@ def generate_jmak_data(
     transformed_fraction = 1 - np.exp(-((k * time) ** n))
     if noise_level > 0:
         transformed_fraction = add_gaussian_noise(transformed_fraction, noise_level)
-    return transformed_fraction
+    return np.array(transformed_fraction, dtype=np.float64)
 
 
 def generate_modified_jmak_data(
