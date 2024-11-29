@@ -2,11 +2,12 @@ from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
 from scipy.signal import savgol_filter
 from scipy.stats import linregress
 
 
-def freeman_carroll_equation(x: np.ndarray, e_a: float, n: float) -> np.ndarray:
+def freeman_carroll_equation(x: NDArray[np.float64], e_a: float, n: float) -> NDArray[np.float64]:
     """
     Freeman-Carroll equation for kinetic analysis.
 
@@ -19,19 +20,19 @@ def freeman_carroll_equation(x: np.ndarray, e_a: float, n: float) -> np.ndarray:
         np.ndarray: y values for the Freeman-Carroll plot.
     """
     r = 8.314  # Gas constant in J/(mol·K)
-    return -e_a / r * x + n
+    return np.array(-e_a / r * x + n, dtype=np.float64)
 
 
 def smooth_data(
-    data: np.ndarray, window_length: int = 21, polyorder: int = 3
-) -> np.ndarray:
+    data: NDArray[np.float64], window_length: int = 21, polyorder: int = 3
+) -> NDArray[np.float64]:
     """Apply Savitzky-Golay filter to smooth data."""
-    return savgol_filter(data, window_length, polyorder)
+    return np.array(savgol_filter(data, window_length, polyorder), dtype=np.float64)
 
 
-def safe_log(x: np.ndarray, min_value: float = 1e-10) -> np.ndarray:
+def safe_log(x: NDArray[np.float64], min_value: float = 1e-10) -> NDArray[np.float64]:
     """Safely compute logarithm, avoiding log(0) and negative values."""
-    return np.log(np.maximum(x, min_value))
+    return np.array(np.log(np.maximum(x, min_value)), dtype=np.float64)
 
 
 def safe_divide(a: np.ndarray, b: np.ndarray, fill_value: float = 0.0) -> np.ndarray:
@@ -89,7 +90,7 @@ def freeman_carroll_method(
     return e_a, n, r_value**2, x, y, x_filtered, y_filtered
 
 
-def plot_diagnostic(time, alpha, temperature):
+def plot_diagnostic(time: np.ndarray, alpha: np.ndarray, temperature: np.ndarray) -> None:
     d_alpha_dt = np.gradient(alpha, time)
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))

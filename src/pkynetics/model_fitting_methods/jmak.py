@@ -4,13 +4,14 @@ import logging
 from typing import Optional, Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.optimize import curve_fit
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def jmak_equation(t: np.ndarray, k: float, n: float) -> np.ndarray:
+def jmak_equation(t: NDArray[np.float64], k: float, n: float) -> NDArray[np.float64]:
     """
     Calculate the transformed fraction using the JMAK (Johnson-Mehl-Avrami-Kolmogorov) equation.
 
@@ -25,7 +26,7 @@ def jmak_equation(t: np.ndarray, k: float, n: float) -> np.ndarray:
     Returns:
         np.ndarray: Array of transformed fraction values corresponding to input times.
     """
-    return 1 - np.exp(-((k * t) ** n))
+    return np.array(1 - np.exp(-((k * t) ** n)), dtype=np.float64)
 
 
 def jmak_method(
@@ -129,12 +130,13 @@ def jmak_half_time(k: float, n: float) -> float:
         for the rate constant k. Ensure that k and n are obtained from the same
         JMAK analysis for meaningful results.
     """
-    return (np.log(2) / k) ** (1 / n)
+    result: float = (np.log(2) / k) ** (1 / n)
+    return result
 
 
 def modified_jmak_equation(
-    T: np.ndarray, k0: float, n: float, E: float, T0: float, phi: float
-) -> np.ndarray:
+    T: NDArray[np.float64], k0: float, n: float, E: float, T0: float, phi: float
+) -> NDArray[np.float64]:
     """
     Modified JMAK equation for non-isothermal processes.
 
@@ -150,11 +152,11 @@ def modified_jmak_equation(
         np.ndarray: Transformed fraction.
     """
     R = 8.314  # Gas constant in J/(mol·K)
-    return 1 - np.exp(-((k0 / phi * (np.exp(-E / (R * T)) * (T - T0))) ** n))
+    return np.array(1 - np.exp(-((k0 / phi * (np.exp(-E / (R * T)) * (T - T0))) ** n)), dtype=np.float64)
 
 
 def fit_modified_jmak(
-    T: np.ndarray, transformed_fraction: np.ndarray, T0: float, phi: float, E: float
+    T: NDArray[np.float64], transformed_fraction: NDArray[np.float64], T0: float, phi: float, E: float
 ) -> Tuple[float, float, float]:
     """
     Fit the modified JMAK equation to experimental data.
@@ -170,7 +172,7 @@ def fit_modified_jmak(
         Tuple[float, float, float]: k0, n, and R-squared value.
     """
 
-    def objective(T, k0, n):
+    def objective(T: NDArray[np.float64], k0: float, n: float) -> NDArray[np.float64]:
         return modified_jmak_equation(T, k0, n, E, T0, phi)
 
     popt, _ = curve_fit(objective, T, transformed_fraction, p0=[1e5, 1])
