@@ -106,8 +106,8 @@ def estimate_heating_rate(
         time = np.arange(len(temperature))
 
     # Calculate average heating rate
-    temp_diff = temperature[-1] - temperature[0]
-    time_diff = time[-1] - time[0]
+    temp_diff = float(temperature[-1] - temperature[0])
+    time_diff = float(time[-1] - time[0])
     return temp_diff / time_diff
 
 

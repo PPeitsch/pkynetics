@@ -2,6 +2,7 @@ import logging
 from typing import List, Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 
 # Constants
 R = 8.314  # Gas constant in J/(mol·K)
@@ -12,13 +13,13 @@ logger = logging.getLogger(__name__)
 def generate_basic_kinetic_data(
     e_a: float,
     a: float,
-    heating_rates: np.array,
+    heating_rates: NDArray[np.float64],
     t_range: Tuple[float, float],
     reaction_model: str = "first_order",
     noise_level: float = 0,
     num_points: int = 1000,
     n: float = 1.5,
-) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+) -> Tuple[List[NDArray[np.float64]], List[NDArray[np.float64]]]:
     """
     Generate basic kinetic data for testing various models.
 
