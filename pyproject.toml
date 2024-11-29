@@ -48,6 +48,7 @@ dev = [
     "isort>=5.0.0",
     "mypy>=1.0.0",
     "sphinx>=4.0.0,<6.0.0",
+    "pandas-stubs>=2.0.0",
 ]
 
 [project.urls]
@@ -88,9 +89,11 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
+explicit_package_bases = true
+namespace_packages = true
 
 [[tool.mypy.overrides]]
-module = ["scipy.*", "matplotlib.*", "seaborn.*", "statsmodels.*"]
+module = ["scipy.*", "matplotlib.*", "seaborn.*", "statsmodels.*", "pandas.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
