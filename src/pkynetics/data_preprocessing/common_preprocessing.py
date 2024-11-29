@@ -1,12 +1,15 @@
 from typing import Dict, Optional
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.signal import savgol_filter
 
 
 def smooth_data(
-    data: np.ndarray, window_length: Optional[int] = None, polyorder: int = 3
-) -> np.ndarray:
+    data: NDArray[np.float64],
+    window_length: Optional[int] = None,
+    polyorder: int = 3
+) -> NDArray[np.float64]:
     """
     Smooth data using Savitzky-Golay filter.
 
@@ -34,7 +37,7 @@ def smooth_data(
     if window_length >= len(data):
         raise ValueError("Window length must be less than data length")
 
-    return savgol_filter(data, window_length, polyorder)
+    return np.array(savgol_filter(data, window_length, polyorder), dtype=np.float64)
 
 
 def calculate_derivatives(
@@ -61,7 +64,10 @@ def calculate_derivatives(
     return {"first": dy / dx, "second": d2y / dx**2}
 
 
-def baseline_correct(data: np.ndarray, reference_indices: slice) -> np.ndarray:
+def baseline_correct(
+    data: NDArray[np.float64],
+    reference_indices: slice
+) -> NDArray[np.float64]:
     """
     Perform baseline correction using reference region.
 
@@ -73,4 +79,4 @@ def baseline_correct(data: np.ndarray, reference_indices: slice) -> np.ndarray:
         Baseline corrected data
     """
     baseline = np.mean(data[reference_indices])
-    return data - baseline
+    return np.array(data - baseline, dtype=np.float64)
