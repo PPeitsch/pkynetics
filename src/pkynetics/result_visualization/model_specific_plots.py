@@ -12,7 +12,24 @@ def plot_coats_redfern(
     e_a: float,
     a: float,
     r_squared: float,
-):
+) -> None:
+    """Generate a Coats-Redfern plot for kinetic analysis.
+
+    Args:
+        x (np.ndarray): Temperature data (1000/T in K^-1)
+        y (np.ndarray): Transformed conversion data (ln(-ln(1-α)/T^2))
+        x_fit (np.ndarray): Fitted temperature data subset
+        y_fit (np.ndarray): Fitted conversion data subset
+        e_a (float): Activation energy in J/mol
+        a (float): Pre-exponential factor in min^-1
+        r_squared (float): Coefficient of determination
+
+    Returns:
+        None: Displays the plot using matplotlib
+
+    Raises:
+        ValueError: If input arrays have different lengths or contain invalid values
+    """
     plt.figure(figsize=(10, 6))
 
     # Plot all data points
@@ -56,7 +73,24 @@ def plot_freeman_carroll(
     e_a: float,
     n: float,
     r_squared: float,
-):
+) -> None:
+    """Generate a Freeman-Carroll plot for kinetic analysis.
+
+    Args:
+        x (np.ndarray): Δ(1/T)/Δln(1-α) data
+        y (np.ndarray): Δln(dα/dt)/Δln(1-α) data
+        x_fit (np.ndarray): Fitted x data subset
+        y_fit (np.ndarray): Fitted y data subset
+        e_a (float): Activation energy in J/mol
+        n (float): Reaction order
+        r_squared (float): Coefficient of determination
+
+    Returns:
+        None: Displays the plot using matplotlib
+
+    Raises:
+        ValueError: If input arrays have different lengths or contain invalid values
+    """
     plt.figure(figsize=(10, 6))
 
     # Plot all data points
