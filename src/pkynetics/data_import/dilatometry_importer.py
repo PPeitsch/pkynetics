@@ -1,15 +1,22 @@
 import logging
-from typing import Dict
+from typing import Dict, TypedDict, Optional
 
 import chardet
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def dilatometry_importer(file_path: str) -> Dict[str, np.ndarray]:
+class DetectionResult(TypedDict):
+    encoding: str
+    confidence: float
+    language: Optional[str]
+
+
+def dilatometry_importer(file_path: str) -> Dict[str, NDArray[np.float64]]:
     """
     Import dilatometry data from the specified file format.
 
@@ -29,8 +36,8 @@ def dilatometry_importer(file_path: str) -> Dict[str, np.ndarray]:
         # Detect file encoding
         with open(file_path, "rb") as file:
             raw_data = file.read()
-            result = chardet.detect(raw_data)
-            encoding = result["encoding"]
+            detection_result: DetectionResult = chardet.detect(raw_data)
+            encoding = DetectionResult["encoding"]
 
         logger.info(f"Detected file encoding: {encoding}")
 
@@ -62,14 +69,14 @@ def dilatometry_importer(file_path: str) -> Dict[str, np.ndarray]:
                 df[col] = df[col].astype(float)
 
         # Create result dictionary
-        result = {
-            "time": df["time"].values,
-            "temperature": df["temperature"].values,
-            "relative_change": df["relative_change"].values,
-            "differential_change": df["differential_change"].values,
+        result_data: Dict[str, NDArray[np.float64]] = {
+            "time": np.array(df["time"].values, dtype=np.float64),
+            "temperature": np.array(df["temperature"].values, dtype=np.float64),
+            "relative_change": np.array(df["relative_change"].values, dtype=np.float64),
+            "differential_change": np.array(df["differential_change"].values, dtype=np.float64),
         }
 
-        return result
+        return result_data
 
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")

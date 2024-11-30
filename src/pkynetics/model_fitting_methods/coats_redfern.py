@@ -31,7 +31,7 @@ def coats_redfern_method(
     alpha: NDArray[np.float64],
     heating_rate: float,
     n: float = 1
-) -> Tuple[float, float, float, NDArray[np.float64], NDArray[np.float64]]:
+) -> Tuple[float, float, float, NDArray[np.float64], NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """
     Perform Coats-Redfern analysis to determine kinetic parameters.
 
