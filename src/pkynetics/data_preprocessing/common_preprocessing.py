@@ -6,9 +6,7 @@ from scipy.signal import savgol_filter
 
 
 def smooth_data(
-    data: NDArray[np.float64],
-    window_length: Optional[int] = None,
-    polyorder: int = 3
+    data: NDArray[np.float64], window_length: Optional[int] = None, polyorder: int = 3
 ) -> NDArray[np.float64]:
     """
     Smooth data using Savitzky-Golay filter.
@@ -65,8 +63,7 @@ def calculate_derivatives(
 
 
 def baseline_correct(
-    data: NDArray[np.float64],
-    reference_indices: slice
+    data: NDArray[np.float64], reference_indices: slice
 ) -> NDArray[np.float64]:
     """
     Perform baseline correction using reference region.

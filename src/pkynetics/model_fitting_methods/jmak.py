@@ -152,11 +152,18 @@ def modified_jmak_equation(
         np.ndarray: Transformed fraction.
     """
     R = 8.314  # Gas constant in J/(mol·K)
-    return np.array(1 - np.exp(-((k0 / phi * (np.exp(-E / (R * T)) * (T - T0))) ** n)), dtype=np.float64)
+    return np.array(
+        1 - np.exp(-((k0 / phi * (np.exp(-E / (R * T)) * (T - T0))) ** n)),
+        dtype=np.float64,
+    )
 
 
 def fit_modified_jmak(
-    T: NDArray[np.float64], transformed_fraction: NDArray[np.float64], T0: float, phi: float, E: float
+    T: NDArray[np.float64],
+    transformed_fraction: NDArray[np.float64],
+    T0: float,
+    phi: float,
+    E: float,
 ) -> Tuple[float, float, float]:
     """
     Fit the modified JMAK equation to experimental data.

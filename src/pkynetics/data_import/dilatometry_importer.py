@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, TypedDict, Optional
+from typing import Dict, Optional, TypedDict
 
 import chardet
 import numpy as np
@@ -73,7 +73,9 @@ def dilatometry_importer(file_path: str) -> Dict[str, NDArray[np.float64]]:
             "time": np.array(df["time"].values, dtype=np.float64),
             "temperature": np.array(df["temperature"].values, dtype=np.float64),
             "relative_change": np.array(df["relative_change"].values, dtype=np.float64),
-            "differential_change": np.array(df["differential_change"].values, dtype=np.float64),
+            "differential_change": np.array(
+                df["differential_change"].values, dtype=np.float64
+            ),
         }
 
         return result_data

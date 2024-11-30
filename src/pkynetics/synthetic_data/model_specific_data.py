@@ -76,15 +76,14 @@ def generate_freeman_carroll_data(
         noise_level=noise_level,
         n=n,
     )
-    time_data = np.array((temp_data[0] - temp_data[0][0]) / heating_rate, dtype=np.float64)
+    time_data = np.array(
+        (temp_data[0] - temp_data[0][0]) / heating_rate, dtype=np.float64
+    )
     return temp_data[0], conv_data[0], time_data
 
 
 def generate_jmak_data(
-    time: NDArray[np.float64],
-    n: float,
-    k: float,
-    noise_level: float = 0.01
+    time: NDArray[np.float64], n: float, k: float, noise_level: float = 0.01
 ) -> NDArray[np.float64]:
     """
     Generate JMAK (Johnson-Mehl-Avrami-Kolmogorov) data with optional noise.

@@ -5,8 +5,7 @@ from .common_preprocessing import smooth_data
 
 
 def calculate_dsc_transformed_fraction(
-    heat_flow: NDArray[np.float64],
-    time: NDArray[np.float64]
+    heat_flow: NDArray[np.float64], time: NDArray[np.float64]
 ) -> NDArray[np.float64]:
     """
     Calculate the transformed fraction from DSC heat flow data.

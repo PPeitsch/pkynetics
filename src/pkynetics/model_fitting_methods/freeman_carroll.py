@@ -7,7 +7,9 @@ from scipy.signal import savgol_filter
 from scipy.stats import linregress
 
 
-def freeman_carroll_equation(x: NDArray[np.float64], e_a: float, n: float) -> NDArray[np.float64]:
+def freeman_carroll_equation(
+    x: NDArray[np.float64], e_a: float, n: float
+) -> NDArray[np.float64]:
     """
     Freeman-Carroll equation for kinetic analysis.
 
@@ -90,7 +92,9 @@ def freeman_carroll_method(
     return e_a, n, r_value**2, x, y, x_filtered, y_filtered
 
 
-def plot_diagnostic(time: np.ndarray, alpha: np.ndarray, temperature: np.ndarray) -> None:
+def plot_diagnostic(
+    time: np.ndarray, alpha: np.ndarray, temperature: np.ndarray
+) -> None:
     d_alpha_dt = np.gradient(alpha, time)
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))

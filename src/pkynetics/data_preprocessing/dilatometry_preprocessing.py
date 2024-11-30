@@ -7,9 +7,7 @@ from .common_preprocessing import calculate_derivatives, smooth_data
 
 
 def preprocess_dilatometry_data(
-    temperature: NDArray[np.float64],
-    strain: NDArray[np.float64],
-    smooth: bool = True
+    temperature: NDArray[np.float64], strain: NDArray[np.float64], smooth: bool = True
 ) -> Dict[str, Union[NDArray[np.float64], Dict[str, NDArray[np.float64]]]]:
     """
     Preprocess dilatometry data for analysis.
@@ -29,15 +27,14 @@ def preprocess_dilatometry_data(
     derivatives = calculate_derivatives(temperature, processed_strain)
 
     return {
-        'temperature': np.array(temperature, dtype=np.float64),
-        'strain': np.array(processed_strain, dtype=np.float64),
-        'derivatives': derivatives
+        "temperature": np.array(temperature, dtype=np.float64),
+        "strain": np.array(processed_strain, dtype=np.float64),
+        "derivatives": derivatives,
     }
 
 
 def normalize_strain(
-    strain: NDArray[np.float64],
-    reference_temp_idx: Optional[int] = None
+    strain: NDArray[np.float64], reference_temp_idx: Optional[int] = None
 ) -> NDArray[np.float64]:
     """
     Normalize strain data relative to a reference point.

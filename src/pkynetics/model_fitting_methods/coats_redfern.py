@@ -30,8 +30,16 @@ def coats_redfern_method(
     temperature: NDArray[np.float64],
     alpha: NDArray[np.float64],
     heating_rate: float,
-    n: float = 1
-) -> Tuple[float, float, float, NDArray[np.float64], NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+    n: float = 1,
+) -> Tuple[
+    float,
+    float,
+    float,
+    NDArray[np.float64],
+    NDArray[np.float64],
+    NDArray[np.float64],
+    NDArray[np.float64],
+]:
     """
     Perform Coats-Redfern analysis to determine kinetic parameters.
 
@@ -78,12 +86,17 @@ def coats_redfern_method(
     return e_a, a, r_value**2, x, y, x_filtered, y_filtered
 
 
-def _prepare_y_data(temperature: NDArray[np.float64], alpha: NDArray[np.float64], n: float) -> NDArray[np.float64]:
+def _prepare_y_data(
+    temperature: NDArray[np.float64], alpha: NDArray[np.float64], n: float
+) -> NDArray[np.float64]:
     """Prepare y data for Coats-Redfern analysis."""
     eps = 1e-10
     alpha_term = np.clip(1 - alpha, eps, 1 - eps)
 
     if n == 1:
-        return np.array(np.log(-np.log(alpha_term) / temperature ** 2), dtype=np.float64)
+        return np.array(np.log(-np.log(alpha_term) / temperature**2), dtype=np.float64)
     else:
-        return np.array(np.log((1 - alpha_term ** (1 - n)) / ((1 - n) * temperature ** 2)), dtype=np.float64)
+        return np.array(
+            np.log((1 - alpha_term ** (1 - n)) / ((1 - n) * temperature**2)),
+            dtype=np.float64,
+        )

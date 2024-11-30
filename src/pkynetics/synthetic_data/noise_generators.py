@@ -2,7 +2,9 @@ import numpy as np
 from numpy.typing import NDArray
 
 
-def add_gaussian_noise(data: NDArray[np.float64], std_dev: float) -> NDArray[np.float64]:
+def add_gaussian_noise(
+    data: NDArray[np.float64], std_dev: float
+) -> NDArray[np.float64]:
     """
     Add Gaussian noise to the data.
 

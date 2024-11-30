@@ -57,7 +57,9 @@ def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
     return t_p
 
 
-def kissinger_equation(t_p: NDArray[np.float64], beta: NDArray[np.float64]) -> NDArray[np.float64]:
+def kissinger_equation(
+    t_p: NDArray[np.float64], beta: NDArray[np.float64]
+) -> NDArray[np.float64]:
     """
     Kissinger equation for non-isothermal kinetics.
 
