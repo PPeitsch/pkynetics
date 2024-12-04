@@ -37,7 +37,7 @@ def dilatometry_importer(file_path: str) -> Dict[str, NDArray[np.float64]]:
         with open(file_path, "rb") as file:
             raw_data = file.read()
             detection_result: DetectionResult = chardet.detect(raw_data)
-            encoding = DetectionResult["encoding"]
+            encoding = detection_result["encoding"]
 
         logger.info(f"Detected file encoding: {encoding}")
 
