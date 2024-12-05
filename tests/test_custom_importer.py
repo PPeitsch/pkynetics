@@ -13,8 +13,12 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 class TestCustomImporter(unittest.TestCase):
     def setUp(self):
+        # Create data directory if it doesn't exist
+        self.data_dir = os.path.join(PROJECT_ROOT, "data")
+        os.makedirs(self.data_dir, exist_ok=True)
+
         self.custom_file_path = os.path.join(
-            PROJECT_ROOT, "data", "sample_custom_data.csv"
+            self.data_dir, "sample_custom_data.csv"
         )
 
         # Create a sample custom data file for testing
@@ -27,7 +31,14 @@ class TestCustomImporter(unittest.TestCase):
 
     def tearDown(self):
         # Remove the sample file after tests
-        os.remove(self.custom_file_path)
+        if os.path.exists(self.custom_file_path):
+            os.remove(self.custom_file_path)
+
+        # Try to remove the data directory if it's empty
+        try:
+            os.rmdir(self.data_dir)
+        except (OSError, FileNotFoundError):
+            pass  # Directory not empty or already deleted
 
     def test_custom_importer(self):
         importer = CustomImporter(
