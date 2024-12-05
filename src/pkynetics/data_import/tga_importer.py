@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional, Mapping
+from typing import Dict, Mapping, Optional
 
 import chardet
 import numpy as np
@@ -9,7 +9,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def tga_importer(file_path: str, manufacturer: str = "auto") -> Mapping[str, Optional[np.ndarray]]:
+def tga_importer(
+    file_path: str, manufacturer: str = "auto"
+) -> Mapping[str, Optional[np.ndarray]]:
     """
     Import TGA data from common file formats.
 
@@ -118,7 +120,7 @@ def import_setaram(file_path: str) -> Mapping[str, Optional[np.ndarray]]:
             "temperature": df["temperature"].values,
             "sample_temperature": df["sample_temperature"].values,
             "heat_flow": None,
-            "weight": None
+            "weight": None,
         }
 
         if "heat_flow" in df.columns:

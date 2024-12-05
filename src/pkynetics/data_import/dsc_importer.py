@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional, Mapping
+from typing import Dict, Mapping, Optional
 
 import chardet
 import numpy as np
@@ -9,7 +9,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def dsc_importer(file_path: str, manufacturer: str = "auto") -> Mapping[str, Optional[np.ndarray]]:
+def dsc_importer(
+    file_path: str, manufacturer: str = "auto"
+) -> Mapping[str, Optional[np.ndarray]]:
     """
     Import DSC data from common file formats.
 
@@ -125,7 +127,7 @@ def import_setaram(file_path: str) -> Mapping[str, Optional[np.ndarray]]:
             "temperature": df["temperature"].values,
             "sample_temperature": df["sample_temperature"].values,
             "heat_flow": None,
-            "weight": None
+            "weight": None,
         }
 
         if "heat_flow" in df.columns:
@@ -212,7 +214,7 @@ def _import_ta_instruments(file_path: str) -> Dict[str, Optional[np.ndarray]]:
             "temperature": df["Temperature (°C)"].values,
             "time": df["Time (min)"].values,
             "heat_flow": df["Heat Flow (mW)"].values,
-            "heat_capacity": None
+            "heat_capacity": None,
         }
         if "Heat Capacity (J/(g·°C))" in df.columns:
             data["heat_capacity"] = df["Heat Capacity (J/(g·°C))"].values
@@ -245,7 +247,7 @@ def _import_mettler_toledo(file_path: str) -> Dict[str, Optional[np.ndarray]]:
             "temperature": df["Temperature [°C]"].values,
             "time": df["Time [min]"].values,
             "heat_flow": df["Heat Flow [mW]"].values,
-            "heat_capacity": None
+            "heat_capacity": None,
         }
         if "Specific Heat Capacity [J/(g·K)]" in df.columns:
             data["heat_capacity"] = df["Specific Heat Capacity [J/(g·K)]"].values
@@ -278,7 +280,7 @@ def _import_netzsch(file_path: str) -> Dict[str, Optional[np.ndarray]]:
             "temperature": df["Temperature/°C"].values,
             "time": df["Time/min"].values,
             "heat_flow": df["DSC/(mW/mg)"].values,
-            "heat_capacity": None
+            "heat_capacity": None,
         }
         if "Specific Heat Capacity/(J/(g·K))" in df.columns:
             data["heat_capacity"] = df["Specific Heat Capacity/(J/(g·K))"].values
