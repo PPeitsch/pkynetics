@@ -1,7 +1,7 @@
 import numpy as np
-from model_fitting_methods import jmak_method, jmak_equation
-from synthetic_data.model_specific_data import generate_jmak_data
-from result_visualization.kinetic_plot import plot_jmak_results
+from src.pkynetics.model_fitting_methods import jmak_method, jmak_equation
+from src.pkynetics.synthetic_data import generate_jmak_data
+from src.pkynetics.result_visualization import plot_jmak_results
 
 
 def main():

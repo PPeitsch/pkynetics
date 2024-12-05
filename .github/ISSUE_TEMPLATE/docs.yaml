@@ -1,0 +1,71 @@
+name: Documentation Issue
+description: Report issues with Pkynetics documentation
+title: "[Docs]: "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping us improve our documentation!
+        Please include the ⚡ emoji at the start of your title if you've read our contributing guidelines.
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Guidelines
+      description: By submitting this issue, you agree to follow our [Contributing Guidelines](https://github.com/PPeitsch/pkynetics/blob/main/.github/CONTRIBUTING.md)
+      options:
+        - label: I agree to follow this project's Contributing Guidelines
+          required: true
+        - label: I have checked that this issue hasn't been reported before
+          required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Issue Type
+      description: What type of documentation issue is this?
+      options:
+        - Missing documentation
+        - Incorrect documentation
+        - Unclear documentation
+        - Outdated documentation
+        - Example code issue
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Documentation Location
+      description: Where is the documentation issue located?
+      placeholder: "URL, file path, or section name"
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current Documentation
+      description: What does the current documentation say?
+      placeholder: Quote the current documentation here
+    validations:
+      required: false
+
+  - type: textarea
+    id: suggested
+    attributes:
+      label: Suggested Changes
+      description: How should the documentation be improved?
+      placeholder: Describe your suggested changes or additions
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context about the documentation issue?
+      placeholder: Add any other relevant information here
+    validations:
+      required: false

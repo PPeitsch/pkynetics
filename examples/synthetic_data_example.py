@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from synthetic_data import (
+from src.pkynetics.synthetic_data import (
     generate_basic_kinetic_data,
     add_gaussian_noise,
     add_outliers

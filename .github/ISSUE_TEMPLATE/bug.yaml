@@ -1,0 +1,109 @@
+name: Bug Report
+description: Report an issue you encountered with Pkynetics
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+        Please include the ⚡ emoji at the start of your title if you've read our contributing guidelines.
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Guidelines
+      description: By submitting this issue, you agree to follow our [Contributing Guidelines](https://github.com/PPeitsch/pkynetics/blob/main/.github/CONTRIBUTING.md)
+      options:
+        - label: I agree to follow this project's Contributing Guidelines
+          required: true
+        - label: I have searched for similar issues before creating this one
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Pkynetics Version
+      description: What version of Pkynetics are you using?
+      placeholder: "0.2.3"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python Version
+      description: Which Python version(s) have you tested with?
+      placeholder: "Python 3.9, 3.10, 3.11"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      description: Which OS are you using?
+      placeholder: "Ubuntu 22.04, Windows 11, macOS 13.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: Clearly and concisely describe the bug
+      placeholder: Tell us what went wrong
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      value: |
+        ```python
+        # Include a minimal code example that demonstrates the issue
+        from pkynetics import model_fitting_methods
+
+        # Your code here
+        ```
+
+        1. 
+        2. 
+        3. 
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: error
+    attributes:
+      label: Error Message & Stack Trace
+      description: If applicable, paste the full error message and stack trace
+      render: python
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other relevant context about the problem
+      placeholder: "Dependency versions, environment details, related issues, etc."
+    validations:
+      required: false

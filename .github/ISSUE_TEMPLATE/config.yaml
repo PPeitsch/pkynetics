@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📚 Documentation
+    url: https://pkynetics.readthedocs.io/
+    about: Check our documentation before creating an issue
+  - name: 💬 Discussions
+    url: https://github.com/PPeitsch/pkynetics/discussions
+    about: Please ask and answer questions here
+  - name: 🔒 Security Issues
+    url: https://github.com/PPeitsch/pkynetics/security/policy
+    about: Please report security vulnerabilities directly to the maintainers
