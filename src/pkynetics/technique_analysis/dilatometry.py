@@ -260,9 +260,7 @@ def tangent_method(
         strain,
         pred_start,
         pred_end,
-        final_deviation_threshold,
-        start_mask,
-        end_mask,
+        final_deviation_threshold
     )
 
     transformed_fraction = calculate_transformed_fraction(
@@ -363,10 +361,19 @@ def find_transformation_points(
         pred_start: NDArray[np.float64],
         pred_end: NDArray[np.float64],
         deviation_threshold: float,
-        start_mask: NDArray[np.bool_],
-        end_mask: NDArray[np.bool_],
 ) -> Tuple[int, int]:
-    """Find transformation start and end points."""
+    """Find transformation start and end points.
+
+    Args:
+        temperature: Array of temperature values
+        strain: Array of strain values
+        pred_start: Predicted values from start linear fit
+        pred_end: Predicted values from end linear fit
+        deviation_threshold: Threshold for detecting significant deviations
+
+    Returns:
+        Tuple containing start and end indices of the transformation region
+    """
     dev_start = np.abs(strain - pred_start)
     dev_end = np.abs(strain - pred_end)
 
