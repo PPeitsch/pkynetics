@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Union
+from typing import Dict, Optional, Mapping
 
 import chardet
 import numpy as np
@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def dsc_importer(file_path: str, manufacturer: str = "auto") -> Dict[str, np.ndarray]:
+def dsc_importer(file_path: str, manufacturer: str = "auto") -> Mapping[str, Optional[np.ndarray]]:
     """
     Import DSC data from common file formats.
 
@@ -19,7 +19,7 @@ def dsc_importer(file_path: str, manufacturer: str = "auto") -> Dict[str, np.nda
             Default is "auto" for automatic detection.
 
     Returns:
-        Dict[str, np.ndarray]: Dictionary containing temperature, time, heat_flow, and heat_capacity data.
+        Dict[str, Optional[np.ndarray]]: Dictionary containing temperature, time, heat_flow, and heat_capacity data.
 
     Raises:
         ValueError: If the file format is not recognized or supported.
@@ -28,17 +28,30 @@ def dsc_importer(file_path: str, manufacturer: str = "auto") -> Dict[str, np.nda
     logger.info(f"Importing DSC data from {file_path}")
 
     try:
+        data: Dict[str, Optional[np.ndarray]]
         if manufacturer == "auto":
             manufacturer = _detect_manufacturer(file_path)
             logger.info(f"Detected manufacturer: {manufacturer}")
+            if manufacturer == "TA":
+                data_raw = _import_ta_instruments(file_path)
+            elif manufacturer == "Mettler":
+                data_raw = _import_mettler_toledo(file_path)
+            elif manufacturer == "Netzsch":
+                data_raw = _import_netzsch(file_path)
+            else:  # Setaram
+                return import_setaram(file_path)
+            data = {k: v for k, v in data_raw.items()}
         elif manufacturer == "TA":
-            data = _import_ta_instruments(file_path)
+            data_raw = _import_ta_instruments(file_path)
+            data = {k: v for k, v in data_raw.items()}
         elif manufacturer == "Mettler":
-            data = _import_mettler_toledo(file_path)
+            data_raw = _import_mettler_toledo(file_path)
+            data = {k: v for k, v in data_raw.items()}
         elif manufacturer == "Netzsch":
-            data = _import_netzsch(file_path)
+            data_raw = _import_netzsch(file_path)
+            data = {k: v for k, v in data_raw.items()}
         elif manufacturer == "Setaram":
-            data = import_setaram(file_path)
+            return import_setaram(file_path)
         else:
             raise ValueError(f"Unsupported manufacturer: {manufacturer}")
 
@@ -51,7 +64,7 @@ def dsc_importer(file_path: str, manufacturer: str = "auto") -> Dict[str, np.nda
         raise
 
 
-def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
+def import_setaram(file_path: str) -> Mapping[str, Optional[np.ndarray]]:
     """
     Import Setaram DSC or simultaneous DSC-TGA data.
 
@@ -59,7 +72,7 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
         file_path (str): Path to the Setaram data file.
 
     Returns:
-        Dict[str, Union[np.ndarray, None]]: Dictionary containing time, temperature,
+        Dict[str, Optional[np.ndarray]]: Dictionary containing time, temperature,
         sample_temperature, heat_flow, and weight (if available) data.
 
     Raises:
@@ -72,8 +85,8 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
         # Detect file encoding
         with open(file_path, "rb") as file:
             raw_data = file.read()
-            result = chardet.detect(raw_data)
-            encoding = result["encoding"]
+            detection_result = chardet.detect(raw_data)
+            encoding = detection_result["encoding"]
 
         logger.info(f"Detected file encoding: {encoding}")
 
@@ -107,23 +120,21 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
                 df[col].str.replace(",", ".").str.strip(), errors="coerce"
             )
 
-        result = {
+        data: Dict[str, Optional[np.ndarray]] = {
             "time": df["time"].values,
             "temperature": df["temperature"].values,
             "sample_temperature": df["sample_temperature"].values,
+            "heat_flow": None,
+            "weight": None
         }
 
         if "heat_flow" in df.columns:
-            result["heat_flow"] = df["heat_flow"].values
-        else:
-            result["heat_flow"] = None
+            data["heat_flow"] = df["heat_flow"].values
 
         if "weight" in df.columns:
-            result["weight"] = df["weight"].values
-        else:
-            result["weight"] = None
+            data["weight"] = df["weight"].values
 
-        return result
+        return data
 
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")
@@ -181,7 +192,7 @@ def _detect_manufacturer(file_path: str) -> str:
         raise ValueError(f"Unable to detect manufacturer. Error: {str(e)}")
 
 
-def _import_ta_instruments(file_path: str) -> Dict[str, np.ndarray]:
+def _import_ta_instruments(file_path: str) -> Dict[str, Optional[np.ndarray]]:
     """
     Import DSC data from TA Instruments format.
 
@@ -189,7 +200,7 @@ def _import_ta_instruments(file_path: str) -> Dict[str, np.ndarray]:
         file_path (str): Path to the TA Instruments data file.
 
     Returns:
-        Dict[str, np.ndarray]: Dictionary containing temperature, time, heat_flow, and heat_capacity data.
+        Dict[str, Optional[np.ndarray]]: Dictionary containing temperature, time, heat_flow, and heat_capacity data.
 
     Raises:
         ValueError: If the file format is not recognized as a valid TA Instruments format.
@@ -197,16 +208,15 @@ def _import_ta_instruments(file_path: str) -> Dict[str, np.ndarray]:
     """
     try:
         df = pd.read_csv(file_path, skiprows=1, encoding="iso-8859-1")
-        return {
+        data: Dict[str, Optional[np.ndarray]] = {
             "temperature": df["Temperature (°C)"].values,
             "time": df["Time (min)"].values,
             "heat_flow": df["Heat Flow (mW)"].values,
-            "heat_capacity": (
-                df["Heat Capacity (J/(g·°C))"].values
-                if "Heat Capacity (J/(g·°C))" in df.columns
-                else None
-            ),
+            "heat_capacity": None
         }
+        if "Heat Capacity (J/(g·°C))" in df.columns:
+            data["heat_capacity"] = df["Heat Capacity (J/(g·°C))"].values
+        return data
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")
         raise
@@ -215,7 +225,7 @@ def _import_ta_instruments(file_path: str) -> Dict[str, np.ndarray]:
         raise ValueError(f"Unable to read TA Instruments file. Error: {str(e)}")
 
 
-def _import_mettler_toledo(file_path: str) -> Dict[str, np.ndarray]:
+def _import_mettler_toledo(file_path: str) -> Dict[str, Optional[np.ndarray]]:
     """
     Import DSC data from Mettler Toledo format.
 
@@ -223,7 +233,7 @@ def _import_mettler_toledo(file_path: str) -> Dict[str, np.ndarray]:
         file_path (str): Path to the Mettler Toledo data file.
 
     Returns:
-        Dict[str, np.ndarray]: Dictionary containing temperature, time, heat_flow, and heat_capacity data.
+        Dict[str, Optional[np.ndarray]]: Dictionary containing temperature, time, heat_flow, and heat_capacity data.
 
     Raises:
         ValueError: If the file format is not recognized as a valid Mettler Toledo format.
@@ -231,16 +241,15 @@ def _import_mettler_toledo(file_path: str) -> Dict[str, np.ndarray]:
     """
     try:
         df = pd.read_csv(file_path, skiprows=2, delimiter="\t", encoding="iso-8859-1")
-        return {
+        data: Dict[str, Optional[np.ndarray]] = {
             "temperature": df["Temperature [°C]"].values,
             "time": df["Time [min]"].values,
             "heat_flow": df["Heat Flow [mW]"].values,
-            "heat_capacity": (
-                df["Specific Heat Capacity [J/(g·K)]"].values
-                if "Specific Heat Capacity [J/(g·K)]" in df.columns
-                else None
-            ),
+            "heat_capacity": None
         }
+        if "Specific Heat Capacity [J/(g·K)]" in df.columns:
+            data["heat_capacity"] = df["Specific Heat Capacity [J/(g·K)]"].values
+        return data
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")
         raise
@@ -249,7 +258,7 @@ def _import_mettler_toledo(file_path: str) -> Dict[str, np.ndarray]:
         raise ValueError(f"Unable to read Mettler Toledo file. Error: {str(e)}")
 
 
-def _import_netzsch(file_path: str) -> Dict[str, np.ndarray]:
+def _import_netzsch(file_path: str) -> Dict[str, Optional[np.ndarray]]:
     """
     Import DSC data from Netzsch format.
 
@@ -257,7 +266,7 @@ def _import_netzsch(file_path: str) -> Dict[str, np.ndarray]:
         file_path (str): Path to the Netzsch data file.
 
     Returns:
-        Dict[str, np.ndarray]: Dictionary containing temperature, time, heat_flow, and heat_capacity data.
+        Dict[str, Optional[np.ndarray]]: Dictionary containing temperature, time, heat_flow, and heat_capacity data.
 
     Raises:
         ValueError: If the file format is not recognized as a valid Netzsch format.
@@ -265,16 +274,15 @@ def _import_netzsch(file_path: str) -> Dict[str, np.ndarray]:
     """
     try:
         df = pd.read_csv(file_path, skiprows=10, delimiter="\t", encoding="iso-8859-1")
-        return {
+        data: Dict[str, Optional[np.ndarray]] = {
             "temperature": df["Temperature/°C"].values,
             "time": df["Time/min"].values,
             "heat_flow": df["DSC/(mW/mg)"].values,
-            "heat_capacity": (
-                df["Specific Heat Capacity/(J/(g·K))"].values
-                if "Specific Heat Capacity/(J/(g·K))" in df.columns
-                else None
-            ),
+            "heat_capacity": None
         }
+        if "Specific Heat Capacity/(J/(g·K))" in df.columns:
+            data["heat_capacity"] = df["Specific Heat Capacity/(J/(g·K))"].values
+        return data
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")
         raise
