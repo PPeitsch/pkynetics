@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from src.pkynetics.model_free_methods import kas_method, kas_plot_data
+from src.pkynetics.model_free_methods import kas_method
 
 
 class TestKASMethod(unittest.TestCase):
@@ -66,23 +66,6 @@ class TestKASMethod(unittest.TestCase):
 
         # Check if R-squared values are still relatively high, but lower due to noise
         self.assertGreater(np.mean(r_squared), 0.9)
-
-    def test_kas_plot_data(self):
-        x_data, y_data = kas_plot_data(
-            self.temperature_data, self.conversion_data, self.heating_rates
-        )
-
-        # Check if the returned data has the correct shape
-        self.assertEqual(len(x_data), len(self.heating_rates))
-        self.assertEqual(len(y_data), len(self.heating_rates))
-
-        # Check if x_data is in the correct range (1000/T)
-        for x in x_data:
-            self.assertTrue(np.all(x >= 1000 / 800) and np.all(x <= 1000 / 400))
-
-        # Check if y_data is finite
-        for y in y_data:
-            self.assertTrue(np.all(np.isfinite(y)))
 
     def test_invalid_input(self):
         # Test with inconsistent number of datasets
