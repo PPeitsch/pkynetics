@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Union
+from typing import Dict, Optional, Mapping
 
 import chardet
 import numpy as np
@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def tga_importer(file_path: str, manufacturer: str = "auto") -> Dict[str, np.ndarray]:
+def tga_importer(file_path: str, manufacturer: str = "auto") -> Mapping[str, Optional[np.ndarray]]:
     """
     Import TGA data from common file formats.
 
@@ -19,7 +19,7 @@ def tga_importer(file_path: str, manufacturer: str = "auto") -> Dict[str, np.nda
             Default is "auto" for automatic detection.
 
     Returns:
-        Dict[str, np.ndarray]: Dictionary containing temperature, time, weight, and weight_percent data.
+        Dict[str, Optional[np.ndarray]]: Dictionary containing temperature, time, weight, and weight_percent data.
 
     Raises:
         ValueError: If the file format is not recognized or supported.
@@ -28,17 +28,31 @@ def tga_importer(file_path: str, manufacturer: str = "auto") -> Dict[str, np.nda
     logger.info(f"Importing TGA data from {file_path}")
 
     try:
+        data: Dict[str, Optional[np.ndarray]]
         if manufacturer == "auto":
             manufacturer = _detect_manufacturer(file_path)
             logger.info(f"Detected manufacturer: {manufacturer}")
+            if manufacturer == "TA":
+                data_raw = _import_ta_instruments(file_path)
+            elif manufacturer == "Mettler":
+                data_raw = _import_mettler_toledo(file_path)
+            elif manufacturer == "Netzsch":
+                data_raw = _import_netzsch(file_path)
+            else:  # Setaram
+                return import_setaram(file_path)
+            # Convert non-optional arrays to optional
+            data = {k: v for k, v in data_raw.items()}
         elif manufacturer == "TA":
-            data = _import_ta_instruments(file_path)
+            data_raw = _import_ta_instruments(file_path)
+            data = {k: v for k, v in data_raw.items()}
         elif manufacturer == "Mettler":
-            data = _import_mettler_toledo(file_path)
+            data_raw = _import_mettler_toledo(file_path)
+            data = {k: v for k, v in data_raw.items()}
         elif manufacturer == "Netzsch":
-            data = _import_netzsch(file_path)
+            data_raw = _import_netzsch(file_path)
+            data = {k: v for k, v in data_raw.items()}
         elif manufacturer == "Setaram":
-            data = import_setaram(file_path)
+            return import_setaram(file_path)
         else:
             raise ValueError(f"Unsupported manufacturer: {manufacturer}")
 
@@ -51,7 +65,7 @@ def tga_importer(file_path: str, manufacturer: str = "auto") -> Dict[str, np.nda
         raise
 
 
-def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
+def import_setaram(file_path: str) -> Mapping[str, Optional[np.ndarray]]:
     """
     Import Setaram TGA or simultaneous DSC-TGA data.
 
@@ -59,7 +73,7 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
         file_path (str): Path to the Setaram data file.
 
     Returns:
-        Dict[str, Union[np.ndarray, None]]: Dictionary containing time, temperature,
+        Dict[str, Optional[np.ndarray]]: Dictionary containing time, temperature,
         sample_temperature, weight, and heat_flow (if available) data.
 
     Raises:
@@ -72,8 +86,8 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
         # Detect file encoding
         with open(file_path, "rb") as file:
             raw_data = file.read()
-            result = chardet.detect(raw_data)
-            encoding = result["encoding"]
+            detection_result = chardet.detect(raw_data)
+            encoding = detection_result["encoding"]
 
         logger.info(f"Detected file encoding: {encoding}")
 
@@ -99,23 +113,21 @@ def import_setaram(file_path: str) -> Dict[str, Union[np.ndarray, None]]:
                 df[col].str.replace(",", ".").str.strip(), errors="coerce"
             )
 
-        result = {
+        data: Dict[str, Optional[np.ndarray]] = {
             "time": df["time"].values,
             "temperature": df["temperature"].values,
             "sample_temperature": df["sample_temperature"].values,
+            "heat_flow": None,
+            "weight": None
         }
 
         if "heat_flow" in df.columns:
-            result["heat_flow"] = df["heat_flow"].values
-        else:
-            result["heat_flow"] = None
+            data["heat_flow"] = df["heat_flow"].values
 
         if "weight" in df.columns:
-            result["weight"] = df["weight"].values
-        else:
-            result["weight"] = None
+            data["weight"] = df["weight"].values
 
-        return result
+        return data
 
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")
