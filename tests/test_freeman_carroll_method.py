@@ -1,9 +1,7 @@
 """Unit tests for the Freeman-Carroll method."""
 
 import unittest
-
 import numpy as np
-
 from src.pkynetics.model_fitting_methods import (
     freeman_carroll_equation,
     freeman_carroll_method,
@@ -28,9 +26,10 @@ class TestFreemanCarrollMethod(unittest.TestCase):
         )  # Ensure alpha is within valid range
 
     def test_freeman_carroll_method_accuracy(self):
-        e_a, n, r_squared = freeman_carroll_method(
+        results = freeman_carroll_method(
             self.temperature, self.alpha, self.time
         )
+        e_a, n, r_squared = results[:3]  # Get first three values
 
         self.assertGreater(e_a, 0)  # Activation energy should be positive
         self.assertLess(
@@ -48,9 +47,10 @@ class TestFreemanCarrollMethod(unittest.TestCase):
         noise = np.random.normal(0, 0.005, len(self.alpha))
         noisy_alpha = np.clip(self.alpha + noise, 0.001, 0.999)
 
-        e_a, n, r_squared = freeman_carroll_method(
+        results = freeman_carroll_method(
             self.temperature, noisy_alpha, self.time
         )
+        e_a, n, r_squared = results[:3]  # Get first three values
 
         self.assertGreater(e_a, 0)  # Activation energy should be positive
         self.assertLess(
