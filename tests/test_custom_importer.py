@@ -4,7 +4,8 @@ import os
 import unittest
 
 import numpy as np
-from data_import import CustomImporter
+from pkynetics.data_import import CustomImporter
+
 
 # Get the absolute path of the project root directory
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
