@@ -4,6 +4,7 @@ import os
 import unittest
 
 import numpy as np
+
 from src.pkynetics.data_import import dsc_importer, tga_importer
 
 # Get the absolute path of the project root directory
