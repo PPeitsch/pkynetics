@@ -37,6 +37,7 @@ dependencies = [
     "statsmodels~=0.14.1",
     "scikit-learn>=0.24.0",
     "seaborn>=0.11.0",
+    "chardet>=5.0.0",
 ]
 requires-python = ">=3.9"
 
@@ -93,7 +94,7 @@ explicit_package_bases = true
 namespace_packages = true
 
 [[tool.mypy.overrides]]
-module = ["scipy.*", "matplotlib.*", "seaborn.*", "statsmodels.*", "pandas.*"]
+module = ["scipy.*", "matplotlib.*", "seaborn.*", "statsmodels.*", "pandas.*", "chardet"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
