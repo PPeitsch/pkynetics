@@ -24,7 +24,8 @@ def dilatometry_importer(file_path: str) -> Dict[str, NDArray[np.float64]]:
         file_path (str): Path to the dilatometry data file.
 
     Returns:
-        Dict[str, np.ndarray]: Dictionary containing time, temperature, relative_change, and differential_change data.
+        Dict[str, NDArray[np.float64]]: Dictionary containing time, temperature,
+        relative_change, and differential_change data.
 
     Raises:
         ValueError: If the file format is not recognized or supported.
@@ -36,7 +37,7 @@ def dilatometry_importer(file_path: str) -> Dict[str, NDArray[np.float64]]:
         # Detect file encoding
         with open(file_path, "rb") as file:
             raw_data = file.read()
-            detection_result: DetectionResult = chardet.detect(raw_data)
+            detection_result = chardet.detect(raw_data)  # Use chardet's type
             encoding = detection_result["encoding"]
 
         logger.info(f"Detected file encoding: {encoding}")
