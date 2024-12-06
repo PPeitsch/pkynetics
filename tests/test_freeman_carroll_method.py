@@ -77,10 +77,10 @@ class TestFreemanCarrollMethod(unittest.TestCase):
             )  # Different lengths
 
         with self.assertRaises(ValueError):
-            alpha_invalid = np.ones_like(self.alpha) * 0.999999  # Very close to 1
+            invalid_alpha = np.zeros_like(self.alpha)  # Todos ceros
             freeman_carroll_method(
-                self.temperature, alpha_invalid, self.time
-            )  # Alpha values too close to 1
+                self.temperature, invalid_alpha, self.time
+            )  # Alpha values all zero
 
         with self.assertRaises(ValueError):
             freeman_carroll_method(
