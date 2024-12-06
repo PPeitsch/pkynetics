@@ -46,11 +46,45 @@ def safe_divide(a: np.ndarray, b: np.ndarray, fill_value: float = 0.0) -> np.nda
 
 
 def freeman_carroll_method(
-    temperature: np.ndarray, alpha: np.ndarray, time: np.ndarray
+        temperature: np.ndarray, alpha: np.ndarray, time: np.ndarray
 ) -> Tuple[float, float, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Perform Freeman-Carroll analysis to determine kinetic parameters.
+
+    Args:
+        temperature (np.ndarray): Temperature data in K
+        alpha (np.ndarray): Conversion data
+        time (np.ndarray): Time data
+
+    Returns:
+        Tuple containing:
+        - Activation energy (J/mol)
+        - Reaction order
+        - R-squared value
+        - x values for plotting
+        - y values for plotting
+        - filtered x values
+        - filtered y values
+
+    Raises:
+        ValueError: If inputs have different lengths or contain invalid values
     """
+    # Input validation
+    if not (len(temperature) == len(alpha) == len(time)):
+        raise ValueError("All input arrays must have the same length")
+
+    if np.any(temperature <= 0):
+        raise ValueError("Temperature values must be positive")
+
+    if np.any(time < 0):
+        raise ValueError("Time values must be non-negative")
+
+    if np.any((alpha < 0) | (alpha > 1)):
+        raise ValueError("Conversion values must be between 0 and 1")
+
+    if np.all(alpha == 0) or np.all(alpha == 1):
+        raise ValueError("Conversion values cannot be all zeros or ones")
+
     # Smooth the data
     alpha_smooth = smooth_data(alpha)
     temp_smooth = smooth_data(temperature)
@@ -67,12 +101,19 @@ def freeman_carroll_method(
     y = safe_divide(np.gradient(safe_log(d_alpha_dt), time), d_ln_1_minus_alpha)
     x = safe_divide(d_1_T, d_ln_1_minus_alpha)
 
-    # Focus on the most relevant part of the data (e.g., 5% to 95% conversion)
+    # Focus on the most relevant part of the data
     reaction_mask = (
-        (alpha_smooth >= 0.2) & (alpha_smooth <= 0.8) & np.isfinite(x) & np.isfinite(y)
+            (alpha_smooth >= 0.2)
+            & (alpha_smooth <= 0.8)
+            & np.isfinite(x)
+            & np.isfinite(y)
     )
+
     x_filtered = x[reaction_mask]
     y_filtered = y[reaction_mask]
+
+    if len(x_filtered) < 2:
+        raise ValueError("Insufficient valid data points for analysis")
 
     # Remove outliers using IQR method
     q1, q3 = np.percentile(y_filtered, [25, 75])
@@ -89,7 +130,7 @@ def freeman_carroll_method(
     e_a = -slope * r  # Activation energy in J/mol
     n = intercept  # Reaction order
 
-    return e_a, n, r_value**2, x, y, x_filtered, y_filtered
+    return e_a, n, r_value ** 2, x, y, x_filtered, y_filtered
 
 
 def plot_diagnostic(
