@@ -44,15 +44,19 @@ class TestKissingerMethod(unittest.TestCase):
             t_p_short = self.t_p[:-1]
             kissinger_method(t_p_short, self.beta)
 
-        # Test zero temperature values
+        # Test negative temperature values (physically impossible)
         with self.assertRaises(ValueError):
-            t_p_zero = np.zeros_like(self.t_p)
-            kissinger_method(t_p_zero, self.beta)
+            t_p_negative = -np.abs(self.t_p)
+            kissinger_method(t_p_negative, self.beta)
 
-        # Test zero heating rates
+        # Test zero or negative heating rates (physically impossible)
         with self.assertRaises(ValueError):
             beta_zero = np.zeros_like(self.beta)
             kissinger_method(self.t_p, beta_zero)
+
+        # Test single value array (need at least two points for regression)
+        with self.assertRaises(ValueError):
+            kissinger_method(np.array([300]), np.array([10]))
 
 
 if __name__ == "__main__":
