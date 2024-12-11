@@ -115,19 +115,31 @@ def import_setaram(file_path: str) -> Mapping[str, Optional[np.ndarray]]:
                 df[col].str.replace(",", ".").str.strip(), errors="coerce"
             )
 
+        # Initialize all fields as None
         data: Dict[str, Optional[np.ndarray]] = {
-            "time": df["time"].values,
-            "temperature": df["temperature"].values,
-            "sample_temperature": df["sample_temperature"].values,
+            "time": None,
+            "temperature": None,
+            "sample_temperature": None,
             "heat_flow": None,
             "weight": None,
+            "weight_percent": None  # Adicional para TGA
         }
 
+        # Fill in available data
+        if "time" in df.columns:
+            data["time"] = df["time"].values
+        if "temperature" in df.columns:
+            data["temperature"] = df["temperature"].values
+        if "sample_temperature" in df.columns:
+            data["sample_temperature"] = df["sample_temperature"].values
         if "heat_flow" in df.columns:
             data["heat_flow"] = df["heat_flow"].values
-
         if "weight" in df.columns:
             data["weight"] = df["weight"].values
+            # Calculate weight percent if weight is available
+            if data["weight"] is not None:
+                initial_weight = data["weight"][0]
+                data["weight_percent"] = (data["weight"] / initial_weight) * 100
 
         return data
 
