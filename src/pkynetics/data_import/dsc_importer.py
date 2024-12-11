@@ -89,52 +89,43 @@ def import_setaram(file_path: str) -> Mapping[str, Optional[np.ndarray]]:
             raw_data = file.read()
             detection_result = chardet.detect(raw_data)
             encoding = detection_result["encoding"]
+            confidence = detection_result["confidence"]
 
-        logger.info(f"Detected file encoding: {encoding}")
+        logger.info(f"File content preview: {raw_data[:100]}")
+        logger.info(f"Detected encoding: {encoding} with confidence: {confidence}")
+        logger.info(f"Full detection result: {detection_result}")
 
         # Read the file with detected encoding
         df = pd.read_csv(
             file_path,
-            delim_whitespace=True,
-            decimal=".",
+            sep=";",
+            decimal=",",
             encoding=encoding,
             dtype=str,
-            skiprows=12,
+            skiprows=13 if file_path.lower().endswith(".txt") else 0,
         )
 
-        # Clean column names
-        df.columns = df.columns.str.strip()
-
-        # Rename columns to match expected format
-        column_mapping = {
-            "Index": "index",
-            "Time": "time",
-            "Furnace": "temperature",
-            "Sample": "sample_temperature",
-            "TG ": "weight",
-            "HeatFlow": "heat_flow",
-        }
-        df = df.rename(columns=column_mapping)
+        # Print column names for debugging
+        logger.info(f"Available columns: {df.columns.tolist()}")
 
         # Convert string values to float
         for col in df.columns:
-            df[col] = pd.to_numeric(
-                df[col].str.replace(",", ".").str.strip(), errors="coerce"
-            )
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
+        # Create data dictionary using original column names
         data: Dict[str, Optional[np.ndarray]] = {
-            "time": df["time"].values,
-            "temperature": df["temperature"].values,
-            "sample_temperature": df["sample_temperature"].values,
-            "heat_flow": None,
-            "weight": None,
+            "time": df["Time (s)"].values,
+            "temperature": df["Furnace Temperature (°C)"].values,
+            "sample_temperature": (
+                df["Sample Temperature (°C)"].values
+                if "Sample Temperature (°C)" in df.columns
+                else None
+            ),
+            "heat_flow": (
+                df["HeatFlow (mW)"].values if "HeatFlow (mW)" in df.columns else None
+            ),
+            "weight": df["TG (mg)"].values if "TG (mg)" in df.columns else None,
         }
-
-        if "heat_flow" in df.columns:
-            data["heat_flow"] = df["heat_flow"].values
-
-        if "weight" in df.columns:
-            data["weight"] = df["weight"].values
 
         return data
 
