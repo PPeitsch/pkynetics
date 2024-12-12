@@ -49,10 +49,10 @@ jobs:
         python-version: ["3.9", "3.10", "3.11"]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -65,7 +65,7 @@ jobs:
 
     - name: Run tests with coverage
       run: |
-        python -m pytest tests/ --cov=pkynetics --cov-report=xml --junitxml=junit.xml
+        python -m pytest tests/ --cov=src/pkynetics --cov-report=xml --junitxml=junit.xml
 
     - name: Upload test results to Codecov
       if: ${{ !cancelled() }}
@@ -74,9 +74,9 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
-        files: ./coverage.xml
+        files: coverage.xml
         fail_ci_if_error: true
         token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -93,10 +93,10 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
