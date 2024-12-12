@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 from pandas.core.arrays import ExtensionArray
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Type aliases

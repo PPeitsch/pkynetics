@@ -8,7 +8,6 @@ import statsmodels.api as sm
 from numpy.typing import NDArray
 from scipy.optimize import fsolve
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 R = 8.314  # Gas constant in J/(mol·K)

@@ -7,7 +7,6 @@ import numpy as np
 from scipy.signal import savgol_filter
 from scipy.stats import linregress
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

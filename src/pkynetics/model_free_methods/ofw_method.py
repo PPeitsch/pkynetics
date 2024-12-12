@@ -6,7 +6,6 @@ from typing import List, Tuple
 import numpy as np
 from scipy.stats import linregress
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

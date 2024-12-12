@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

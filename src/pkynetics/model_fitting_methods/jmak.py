@@ -7,7 +7,6 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.optimize import curve_fit
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
