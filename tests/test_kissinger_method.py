@@ -1,7 +1,9 @@
 """Unit tests for the Kissinger method."""
 
 import unittest
+
 import numpy as np
+
 from src.pkynetics.model_fitting_methods.kissinger import (
     calculate_t_p,
     kissinger_equation,

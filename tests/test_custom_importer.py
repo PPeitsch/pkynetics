@@ -17,9 +17,7 @@ class TestCustomImporter(unittest.TestCase):
         self.data_dir = os.path.join(PROJECT_ROOT, "data")
         os.makedirs(self.data_dir, exist_ok=True)
 
-        self.custom_file_path = os.path.join(
-            self.data_dir, "sample_custom_data.csv"
-        )
+        self.custom_file_path = os.path.join(self.data_dir, "sample_custom_data.csv")
 
         # Create a sample custom data file for testing
         with open(self.custom_file_path, "w") as f:

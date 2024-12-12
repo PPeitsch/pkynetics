@@ -1,8 +1,9 @@
 """Unit tests for tga_importer and dsc_importer functions."""
 
 import os
-import unittest
 import tempfile
+import unittest
+
 import numpy as np
 import pandas as pd
 
@@ -16,33 +17,47 @@ class TestImporters(unittest.TestCase):
 
         # Create sample TGA data
         self.tga_file_path = os.path.join(self.temp_dir, "sample_tga_data.csv")
-        tga_data = pd.DataFrame({
-            'Time (s)': np.linspace(0, 10, 100),
-            'Furnace Temperature (°C)': np.linspace(25, 800, 100),
-            'TG (mg)': np.linspace(100, 50, 100),
-        })
-        tga_data.to_csv(self.tga_file_path, sep=';', decimal=',', index=False, encoding='utf-16le')
+        tga_data = pd.DataFrame(
+            {
+                "Time (s)": np.linspace(0, 10, 100),
+                "Furnace Temperature (°C)": np.linspace(25, 800, 100),
+                "TG (mg)": np.linspace(100, 50, 100),
+            }
+        )
+        tga_data.to_csv(
+            self.tga_file_path, sep=";", decimal=",", index=False, encoding="utf-16le"
+        )
 
         # Create sample DSC CSV data
         self.dsc_file_path_csv = os.path.join(self.temp_dir, "sample_dsc_data.csv")
-        dsc_data = pd.DataFrame({
-            'Time (s)': np.linspace(0, 10, 100),
-            'Furnace Temperature (°C)': np.linspace(25, 800, 100),
-            'Sample Temperature (°C)': np.linspace(25, 790, 100),
-            'HeatFlow (mW)': np.random.normal(0, 1, 100)
-        })
-        dsc_data.to_csv(self.dsc_file_path_csv, sep=';', decimal=',', index=False, encoding='utf-16le')
+        dsc_data = pd.DataFrame(
+            {
+                "Time (s)": np.linspace(0, 10, 100),
+                "Furnace Temperature (°C)": np.linspace(25, 800, 100),
+                "Sample Temperature (°C)": np.linspace(25, 790, 100),
+                "HeatFlow (mW)": np.random.normal(0, 1, 100),
+            }
+        )
+        dsc_data.to_csv(
+            self.dsc_file_path_csv,
+            sep=";",
+            decimal=",",
+            index=False,
+            encoding="utf-16le",
+        )
 
         # Create sample DSC TXT data (with header)
         self.dsc_file_path_txt = os.path.join(self.temp_dir, "sample_dsc_data.txt")
-        with open(self.dsc_file_path_txt, 'w', encoding='utf-16le') as f:
+        with open(self.dsc_file_path_txt, "w", encoding="utf-16le") as f:
             # Write 12 header lines
             for i in range(12):
                 f.write(f"Header line {i + 1}\n")
             # Write column names
-            f.write("Index;Time (s);Furnace Temperature (°C);Sample Temperature (°C);TG (mg);HeatFlow (mW)\n")
+            f.write(
+                "Index;Time (s);Furnace Temperature (°C);Sample Temperature (°C);TG (mg);HeatFlow (mW)\n"
+            )
             # Write data
-            dsc_data.to_csv(f, sep=';', decimal=',', index=True)
+            dsc_data.to_csv(f, sep=";", decimal=",", index=True)
 
     def tearDown(self):
         # Clean up temporary files
