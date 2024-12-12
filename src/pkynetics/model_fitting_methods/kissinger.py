@@ -74,7 +74,7 @@ def kissinger_equation(
 
 
 def kissinger_method(
-        t_p: np.ndarray, beta: np.ndarray
+    t_p: np.ndarray, beta: np.ndarray
 ) -> Tuple[float, float, float, float, float]:
     """
     Perform Kissinger analysis for non-isothermal kinetics.
@@ -96,7 +96,9 @@ def kissinger_method(
     """
     # Input validation
     if len(t_p) != len(beta):
-        raise ValueError("Temperature and heating rate arrays must have the same length")
+        raise ValueError(
+            "Temperature and heating rate arrays must have the same length"
+        )
 
     if len(t_p) < 2:
         raise ValueError("At least two data points are required for Kissinger analysis")
@@ -124,7 +126,7 @@ def kissinger_method(
     e_a = -R * slope
     se_e_a = R * se_slope
     a = np.exp(intercept + np.log(e_a / R))
-    se_ln_a = np.sqrt(se_intercept ** 2 + (se_e_a / e_a) ** 2)
+    se_ln_a = np.sqrt(se_intercept**2 + (se_e_a / e_a) ** 2)
 
     r_squared = model.rsquared
 

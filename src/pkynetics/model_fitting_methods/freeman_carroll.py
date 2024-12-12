@@ -46,7 +46,7 @@ def safe_divide(a: np.ndarray, b: np.ndarray, fill_value: float = 0.0) -> np.nda
 
 
 def freeman_carroll_method(
-        temperature: np.ndarray, alpha: np.ndarray, time: np.ndarray
+    temperature: np.ndarray, alpha: np.ndarray, time: np.ndarray
 ) -> Tuple[float, float, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Perform Freeman-Carroll analysis to determine kinetic parameters.
@@ -103,10 +103,7 @@ def freeman_carroll_method(
 
     # Focus on the most relevant part of the data
     reaction_mask = (
-            (alpha_smooth >= 0.2)
-            & (alpha_smooth <= 0.8)
-            & np.isfinite(x)
-            & np.isfinite(y)
+        (alpha_smooth >= 0.2) & (alpha_smooth <= 0.8) & np.isfinite(x) & np.isfinite(y)
     )
 
     x_filtered = x[reaction_mask]
@@ -130,7 +127,7 @@ def freeman_carroll_method(
     e_a = -slope * r  # Activation energy in J/mol
     n = intercept  # Reaction order
 
-    return e_a, n, r_value ** 2, x, y, x_filtered, y_filtered
+    return e_a, n, r_value**2, x, y, x_filtered, y_filtered
 
 
 def plot_diagnostic(

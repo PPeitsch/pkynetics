@@ -122,7 +122,7 @@ def import_setaram(file_path: str) -> Mapping[str, Optional[np.ndarray]]:
             "sample_temperature": None,
             "heat_flow": None,
             "weight": None,
-            "weight_percent": None  # Adicional para TGA
+            "weight_percent": None,  # Adicional para TGA
         }
 
         # Fill in available data
