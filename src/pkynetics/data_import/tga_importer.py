@@ -1,17 +1,22 @@
+"""Import functions for TGA data."""
+
 import logging
-from typing import Dict, Mapping, Optional
+from typing import Dict, Optional, Union
 
 import chardet
 import numpy as np
 import pandas as pd
+from pandas.core.arrays import ExtensionArray
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Type aliases
+DataArray = Union[np.ndarray, ExtensionArray]
+ReturnDict = Dict[str, Optional[DataArray]]
 
-def tga_importer(
-    file_path: str, manufacturer: str = "auto"
-) -> Mapping[str, Optional[np.ndarray]]:
+
+def tga_importer(file_path: str, manufacturer: str = "auto") -> ReturnDict:
     """
     Import TGA data from common file formats.
 
@@ -30,29 +35,23 @@ def tga_importer(
     logger.info(f"Importing TGA data from {file_path}")
 
     try:
-        data: Dict[str, Optional[np.ndarray]]
         if manufacturer == "auto":
             manufacturer = _detect_manufacturer(file_path)
             logger.info(f"Detected manufacturer: {manufacturer}")
             if manufacturer == "TA":
-                data_raw = _import_ta_instruments(file_path)
+                data = _import_ta_instruments(file_path)
             elif manufacturer == "Mettler":
-                data_raw = _import_mettler_toledo(file_path)
+                data = _import_mettler_toledo(file_path)
             elif manufacturer == "Netzsch":
-                data_raw = _import_netzsch(file_path)
+                data = _import_netzsch(file_path)
             else:  # Setaram
                 return import_setaram(file_path)
-            # Convert non-optional arrays to optional
-            data = {k: v for k, v in data_raw.items()}
         elif manufacturer == "TA":
-            data_raw = _import_ta_instruments(file_path)
-            data = {k: v for k, v in data_raw.items()}
+            data = _import_ta_instruments(file_path)
         elif manufacturer == "Mettler":
-            data_raw = _import_mettler_toledo(file_path)
-            data = {k: v for k, v in data_raw.items()}
+            data = _import_mettler_toledo(file_path)
         elif manufacturer == "Netzsch":
-            data_raw = _import_netzsch(file_path)
-            data = {k: v for k, v in data_raw.items()}
+            data = _import_netzsch(file_path)
         elif manufacturer == "Setaram":
             return import_setaram(file_path)
         else:
@@ -67,7 +66,7 @@ def tga_importer(
         raise
 
 
-def import_setaram(file_path: str) -> Mapping[str, Optional[np.ndarray]]:
+def import_setaram(file_path: str) -> ReturnDict:
     """
     Import Setaram TGA or simultaneous DSC-TGA data.
 
@@ -92,6 +91,9 @@ def import_setaram(file_path: str) -> Mapping[str, Optional[np.ndarray]]:
             encoding = detection_result["encoding"]
 
         logger.info(f"Detected file encoding: {encoding}")
+        logger.info(
+            f"File preview: {raw_data[:100].decode(encoding='utf-8', errors='ignore')}"
+        )
 
         # Read the file with detected encoding
         df = pd.read_csv(file_path, sep=";", decimal=",", encoding=encoding, dtype=str)
@@ -116,13 +118,13 @@ def import_setaram(file_path: str) -> Mapping[str, Optional[np.ndarray]]:
             )
 
         # Initialize all fields as None
-        data: Dict[str, Optional[np.ndarray]] = {
+        data: ReturnDict = {
             "time": None,
             "temperature": None,
             "sample_temperature": None,
             "heat_flow": None,
             "weight": None,
-            "weight_percent": None,  # Adicional para TGA
+            "weight_percent": None,
         }
 
         # Fill in available data
@@ -199,7 +201,7 @@ def _detect_manufacturer(file_path: str) -> str:
         raise ValueError(f"Unable to detect manufacturer. Error: {str(e)}")
 
 
-def _import_ta_instruments(file_path: str) -> Dict[str, np.ndarray]:
+def _import_ta_instruments(file_path: str) -> ReturnDict:
     """
     Import TGA data from TA Instruments format.
 
@@ -220,6 +222,8 @@ def _import_ta_instruments(file_path: str) -> Dict[str, np.ndarray]:
             "time": df["Time (min)"].values,
             "weight": df["Weight (mg)"].values,
             "weight_percent": df["Weight (%)"].values,
+            "sample_temperature": None,
+            "heat_flow": None,
         }
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")
@@ -229,7 +233,7 @@ def _import_ta_instruments(file_path: str) -> Dict[str, np.ndarray]:
         raise ValueError(f"Unable to read TA Instruments file. Error: {str(e)}")
 
 
-def _import_mettler_toledo(file_path: str) -> Dict[str, np.ndarray]:
+def _import_mettler_toledo(file_path: str) -> ReturnDict:
     """
     Import TGA data from Mettler Toledo format.
 
@@ -250,6 +254,8 @@ def _import_mettler_toledo(file_path: str) -> Dict[str, np.ndarray]:
             "time": df["Time [min]"].values,
             "weight": df["Weight [mg]"].values,
             "weight_percent": df["Weight [%]"].values,
+            "sample_temperature": None,
+            "heat_flow": None,
         }
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")
@@ -259,7 +265,7 @@ def _import_mettler_toledo(file_path: str) -> Dict[str, np.ndarray]:
         raise ValueError(f"Unable to read Mettler Toledo file. Error: {str(e)}")
 
 
-def _import_netzsch(file_path: str) -> Dict[str, np.ndarray]:
+def _import_netzsch(file_path: str) -> ReturnDict:
     """
     Import TGA data from Netzsch format.
 
@@ -280,6 +286,8 @@ def _import_netzsch(file_path: str) -> Dict[str, np.ndarray]:
             "time": df["Time/min"].values,
             "weight": df["Mass/mg"].values,
             "weight_percent": df["Mass/%"].values,
+            "sample_temperature": None,
+            "heat_flow": None,
         }
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")

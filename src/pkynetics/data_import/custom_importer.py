@@ -1,13 +1,18 @@
 """Custom data importer for Pkynetics."""
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
+from pandas.core.arrays import ExtensionArray
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Type aliases
+DataArray = Union[np.ndarray, ExtensionArray]
+ReturnDict = Dict[str, Optional[DataArray]]
 
 
 class CustomImporter:
@@ -42,12 +47,12 @@ class CustomImporter:
         self.encoding = encoding
         self.skiprows = skiprows
 
-    def import_data(self) -> Dict[str, np.ndarray]:
+    def import_data(self) -> ReturnDict:
         """
         Import data from the file.
 
         Returns:
-            Dict[str, np.ndarray]: Dictionary containing the imported data.
+            Dict[str, Optional[np.ndarray]]: Dictionary containing the imported data.
 
         Raises:
             ValueError: If the file format is not recognized or supported.
@@ -65,10 +70,14 @@ class CustomImporter:
                 names=self.column_names,
             )
 
-            # Create result dictionary
-            result = {col: df[col].values for col in df.columns}
+            # Initialize an empty dictionary with all possible fields as None
+            data: ReturnDict = {col: None for col in self.column_names}
 
-            return result
+            # Fill in the values that exist
+            for col in df.columns:
+                data[col] = df[col].values
+
+            return data
 
         except FileNotFoundError:
             logger.error(f"File not found: {self.file_path}")
