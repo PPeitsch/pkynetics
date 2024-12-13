@@ -5,21 +5,22 @@ import logging
 from typing import Tuple
 import numpy as np
 
-from data_import import dilatometry_importer
-from data_preprocessing import smooth_data
-from technique_analysis.dilatometry import analyze_dilatometry_curve
-from technique_analysis.utilities import (
+from src.pkynetics.data_import import dilatometry_importer
+from src.pkynetics.data_preprocessing import smooth_data
+from src.pkynetics.technique_analysis import analyze_dilatometry_curve
+from src.pkynetics.technique_analysis.utilities import (
     analyze_range,
     validate_temperature_range,
     get_analysis_summary,
     get_transformation_metrics
 )
-from result_visualization.dilatometry_plots import plot_dilatometry_analysis
+from src.pkynetics.result_visualization import plot_dilatometry_analysis
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+PKG_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'src', 'pkynetics', 'data')
 
 
 def get_analysis_range(temperature: np.ndarray) -> Tuple[float, float]:
@@ -52,7 +53,7 @@ def get_analysis_range(temperature: np.ndarray) -> Tuple[float, float]:
 
 def dilatometry_analysis_example():
     """Example of importing and analyzing dilatometry data."""
-    dilatometry_file_path = os.path.join(PROJECT_ROOT, 'data', 'sample_dilatometry_data.asc')
+    dilatometry_file_path = os.path.join(PKG_DATA_DIR, 'sample_dilatometry_data.asc')
 
     try:
         # Import data

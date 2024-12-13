@@ -1,0 +1,108 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pkynetics"
+dynamic = ["version"]
+description = "A comprehensive library for thermal analysis kinetic methods"
+readme = "README.md"
+authors = [
+    { name = "Pablo Peitsch", email = "pablo.peitsch@gmail.com" },
+]
+license = { file = "LICENSE" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3 :: Only",
+    "Framework :: Pytest",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Natural Language :: English",
+    "Environment :: Console",
+    "Typing :: Typed",
+]
+keywords = ["thermal-analysis", "kinetics", "thermogravimetry", "dsc", "dilatometry"]
+dependencies = [
+    "numpy~=1.24.3",
+    "matplotlib~=3.7.5",
+    "pandas~=2.0.3",
+    "scipy~=1.10.1",
+    "statsmodels~=0.14.1",
+    "scikit-learn>=0.24.0",
+    "seaborn>=0.11.0",
+    "chardet>=5.0.0",
+]
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0.0,<8.0.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "isort>=5.0.0",
+    "mypy>=1.0.0",
+    "sphinx>=4.0.0,<6.0.0",
+    "pandas-stubs>=2.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/PPeitsch/pkynetics"
+Documentation = "https://pkynetics.readthedocs.io/"
+Repository = "https://github.com/PPeitsch/pkynetics.git"
+"Bug Tracker" = "https://github.com/PPeitsch/pkynetics/issues"
+Changelog = "https://github.com/PPeitsch/pkynetics/blob/main/CHANGELOG.md"
+
+[tool.hatch.version]
+path = "src/pkynetics/__about__.py"
+
+[tool.hatch.build.hooks.version]
+path = "src/pkynetics/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pkynetics"]
+
+[tool.black]
+line-length = 88
+target-version = ["py39"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+explicit_package_bases = true
+namespace_packages = true
+
+[[tool.mypy.overrides]]
+module = ["scipy.*", "matplotlib.*", "seaborn.*", "statsmodels.*", "pandas.*", "chardet"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+addopts = "--cov=pkynetics --cov-report=term --cov-report=xml"
+testpaths = ["tests"]
+python_files = "test_*.py"
+
+[tool.sphinx]
+source-dir = "docs"
+build-dir = "docs/_build"
+config-dir = "docs"

@@ -1,8 +1,10 @@
 """Unit tests for the JMAK method."""
 
 import unittest
+
 import numpy as np
-from model_fitting_methods import jmak_method, jmak_equation
+
+from src.pkynetics.model_fitting_methods import jmak_equation, jmak_method
 
 
 class TestJMAKMethod(unittest.TestCase):
@@ -38,5 +40,5 @@ class TestJMAKMethod(unittest.TestCase):
             jmak_method(self.time, self.transformed_fraction * 2)  # Values > 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

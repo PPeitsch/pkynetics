@@ -1,16 +1,17 @@
 """Example usage of CustomImporter class."""
 
 import os
-from data_import import CustomImporter
+from src.pkynetics.data_import import CustomImporter
 import matplotlib.pyplot as plt
 
 # Get the absolute path of the project root directory
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+PKG_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'src', 'pkynetics', 'data')
 
 
 def custom_import_example():
     """Example of using CustomImporter class."""
-    custom_file_path = os.path.join(PROJECT_ROOT, 'data', 'sample_custom_data.csv')
+    custom_file_path = os.path.join(PKG_DATA_DIR, 'sample_custom_data.csv')
 
     # Create a sample custom data file
     with open(custom_file_path, 'w') as f:
