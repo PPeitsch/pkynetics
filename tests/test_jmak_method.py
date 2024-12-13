@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from src.pkynetics.model_fitting_methods import jmak_equation, jmak_method
+from pkynetics.model_fitting_methods import jmak_equation, jmak_method
 
 
 class TestJMAKMethod(unittest.TestCase):

@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from src.pkynetics.model_free_methods.ofw_method import ofw_method
+from pkynetics.model_free_methods.ofw_method import ofw_method
 
 
 class TestOFWMethod(unittest.TestCase):

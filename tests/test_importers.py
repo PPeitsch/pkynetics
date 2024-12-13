@@ -7,7 +7,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from src.pkynetics.data_import import dsc_importer, tga_importer
+from pkynetics.data_import import dsc_importer, tga_importer
 
 
 class TestImporters(unittest.TestCase):

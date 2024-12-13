@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from src.pkynetics.model_free_methods import kas_method
+from pkynetics.model_free_methods import kas_method
 
 
 class TestKASMethod(unittest.TestCase):
