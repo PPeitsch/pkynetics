@@ -4,10 +4,10 @@ import sys
 import os
 
 import numpy as np
-from src.pkynetics.synthetic_data import generate_coats_redfern_data
-from src.pkynetics.model_fitting_methods import coats_redfern_method
-from src.pkynetics.result_visualization import plot_conversion_vs_temperature
-from src.pkynetics.result_visualization.model_specific_plots import plot_coats_redfern
+from pkynetics.synthetic_data import generate_coats_redfern_data
+from pkynetics.model_fitting_methods import coats_redfern_method
+from pkynetics.result_visualization import plot_conversion_vs_temperature
+from pkynetics.result_visualization.model_specific_plots import plot_coats_redfern
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 

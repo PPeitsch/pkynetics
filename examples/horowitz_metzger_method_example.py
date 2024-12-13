@@ -2,7 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from src.pkynetics.model_fitting_methods import horowitz_metzger_method, horowitz_metzger_plot
+from pkynetics.model_fitting_methods import horowitz_metzger_method, horowitz_metzger_plot
 
 # Generate more realistic sample data
 temperature = np.linspace(300, 800, 1000)  # Temperature in Kelvin

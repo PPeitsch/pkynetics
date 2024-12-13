@@ -5,7 +5,7 @@ from typing import Tuple
 import numpy as np
 from numpy.typing import NDArray
 
-from src.pkynetics.model_fitting_methods import modified_jmak_equation
+from pkynetics.model_fitting_methods import modified_jmak_equation
 
 from .basic_kinetic_data import generate_basic_kinetic_data
 from .noise_generators import add_gaussian_noise
@@ -111,7 +111,7 @@ def generate_modified_jmak_data(
     T0: float,
     phi: float,
     noise_level: float = 0.01,
-) -> np.ndarray:
+) -> NDArray[np.float64]:
     """
     Generate synthetic data based on the modified JMAK model.
 
@@ -131,4 +131,4 @@ def generate_modified_jmak_data(
     if noise_level > 0:
         noise = np.random.normal(0, noise_level, transformed_fraction.shape)
         transformed_fraction = np.clip(transformed_fraction + noise, 0, 1)
-    return transformed_fraction
+    return np.array(transformed_fraction, dtype=np.float64)

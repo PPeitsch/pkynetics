@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from src.pkynetics.model_fitting_methods.kissinger import kissinger_method, calculate_t_p, kissinger_equation
-from src.pkynetics.synthetic_data import generate_basic_kinetic_data
+from pkynetics.model_fitting_methods.kissinger import kissinger_method, calculate_t_p, kissinger_equation
+from pkynetics.synthetic_data import generate_basic_kinetic_data
 
 # Set true values for synthetic data generation
 true_e_a = 40000  # J/mol

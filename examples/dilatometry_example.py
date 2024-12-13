@@ -5,16 +5,16 @@ import logging
 from typing import Tuple
 import numpy as np
 
-from src.pkynetics.data_import import dilatometry_importer
-from src.pkynetics.data_preprocessing import smooth_data
-from src.pkynetics.technique_analysis import analyze_dilatometry_curve
-from src.pkynetics.technique_analysis.utilities import (
+from pkynetics.data_import import dilatometry_importer
+from pkynetics.data_preprocessing import smooth_data
+from pkynetics.technique_analysis import analyze_dilatometry_curve
+from pkynetics.technique_analysis.utilities import (
     analyze_range,
     validate_temperature_range,
     get_analysis_summary,
     get_transformation_metrics
 )
-from src.pkynetics.result_visualization import plot_dilatometry_analysis
+from pkynetics.result_visualization import plot_dilatometry_analysis
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
