@@ -34,7 +34,7 @@ jobs:
         run: isort --check-only src/pkynetics tests
 
       - name: Run type checker
-        run: mypy src/pkynetics
+        run: mypy
 
   test:
     name: Tests - Python ${{ matrix.python-version }}
