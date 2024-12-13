@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from src.pkynetics.model_fitting_methods import (
+from pkynetics.model_fitting_methods import (
     horowitz_metzger_equation,
     horowitz_metzger_method,
 )
