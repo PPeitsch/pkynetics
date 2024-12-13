@@ -13,7 +13,7 @@ This module provides comprehensive analysis tools for various thermal analysis t
 3. TGA Analysis (Planned)
 """
 
-from src.pkynetics.technique_analysis.dilatometry import (  # Main analysis functions; Core methods; Analysis methods; Quality assessment
+from .dilatometry import (
     analyze_dilatometry_curve,
     calculate_fit_quality,
     calculate_r2,

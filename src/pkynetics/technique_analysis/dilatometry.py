@@ -3,7 +3,7 @@ from typing import Dict, Optional, Tuple, Union
 import numpy as np
 from numpy.typing import NDArray
 
-from src.pkynetics.data_preprocessing.common_preprocessing import smooth_data
+from pkynetics.data_preprocessing.common_preprocessing import smooth_data
 
 ReturnDict = Dict[str, Union[float, NDArray[np.float64], Dict[str, float]]]
 
