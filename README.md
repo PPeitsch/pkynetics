@@ -2,7 +2,6 @@
 
 [![PyPI version](https://badge.fury.io/py/pkynetics.svg)](https://badge.fury.io/py/pkynetics)
 [![Python Versions](https://img.shields.io/pypi/pyversions/pkynetics.svg)](https://pypi.org/project/pkynetics/)
-[![Python Support](https://img.shields.io/pypi/pyversions/pkynetics.svg)](https://pypi.org/project/pkynetics/)
 [![Documentation Status](https://readthedocs.org/projects/pkynetics/badge/?version=latest)](https://pkynetics.readthedocs.io/en/latest/?badge=latest)
 [![Tests](https://github.com/PPeitsch/pkynetics/workflows/Test%20and%20Publish/badge.svg)](https://github.com/PPeitsch/pkynetics/actions/workflows/test-and-publish.yaml)
 [![Coverage](https://codecov.io/gh/PPeitsch/pkynetics/branch/main/graph/badge.svg)](https://codecov.io/gh/PPeitsch/pkynetics)
