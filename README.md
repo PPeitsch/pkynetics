@@ -8,30 +8,30 @@
 [![License](https://img.shields.io/pypi/l/pkynetics.svg)](https://github.com/PPeitsch/pkynetics/blob/main/LICENSE)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](.github/CODE_OF_CONDUCT.md)
 
-A comprehensive Python library for thermal analysis kinetic methods, providing robust tools for data preprocessing, kinetic analysis, and result visualization.
+A Python library for thermal analysis kinetic methods, providing tools for data preprocessing, kinetic analysis, and result visualization.
 
 ## Features
 
 ### Data Import
-- Support for multiple thermal analysis instruments:
-  - TA Instruments
-  - Mettler Toledo
-  - Netzsch
-  - Setaram
+- Support for thermal analysis instruments:
 - Flexible custom importer for non-standard formats
 - Automatic manufacturer detection
 - Comprehensive data validation
 
 ### Analysis Methods
 - Model-fitting methods:
-  - Avrami method (isothermal crystallization)
-  - Kissinger method (non-isothermal kinetics)
-  - Coats-Redfern method
-  - Freeman-Carroll method
-  - Horowitz-Metzger method
-- Advanced dilatometry analysis with multiple analysis methods
-- Robust data preprocessing capabilities
-- Extensive error handling and validation
+  - Johnson-Mehl-Avrami-Kolmogorov (JMAK)
+  - Kissinger
+  - Coats-Redfern
+  - Freeman-Carroll
+  - Horowitz-Metzger
+- Model-Free methods:
+  - Friedman method
+  - Kissinger-Akahira-Sunose (KAS)
+  - Ozawa-Flynn-Wall (OFW)
+- Dilatometry analysis
+- Data preprocessing capabilities
+- Error handling and validation
 
 ### Visualization
 - Comprehensive plotting functions for:
@@ -43,7 +43,7 @@ A comprehensive Python library for thermal analysis kinetic methods, providing r
 
 ## Installation
 
-Pkynetics requires Python 3.8 or later. Install using pip:
+Pkynetics requires Python 3.9 or later. Install using pip:
 
 ```bash
 pip install pkynetics
@@ -57,22 +57,7 @@ cd pkynetics
 pip install -e .[dev]
 ```
 
-## Quick Start
-
-```python
-from pkynetics.data_import import tga_importer
-from pkynetics.model_fitting_methods import kissinger_method
-from pkynetics.result_visualization import plot_kissinger
-
-# Import TGA data
-data = tga_importer('path/to/data.csv', manufacturer='auto')
-
-# Perform Kissinger analysis
-e_a, a, se_e_a, se_ln_a, r_squared = kissinger_method(data['temperature'], data['heating_rate'])
-
-# Visualize results
-plot_kissinger(data['temperature'], data['heating_rate'], e_a, a, r_squared)
-```
+For detailed installation instructions and requirements, see our [Installation Guide](https://pkynetics.readthedocs.io/en/latest/installation.html).
 
 ## Documentation
 
@@ -84,17 +69,17 @@ Complete documentation is available at [pkynetics.readthedocs.io](https://pkynet
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
-- Code style
-- Development setup
-- Testing requirements
-- Pull request process
+We welcome contributions! Please read our:
+- [Contributing Guidelines](.github/CONTRIBUTING.md)
+- [Code of Conduct](.github/CODE_OF_CONDUCT.md)
 
-## Support
+## Security
 
-- [Issue Tracker](https://github.com/PPeitsch/pkynetics/issues)
-- [Discussions](https://github.com/PPeitsch/pkynetics/discussions)
-- [Documentation](https://pkynetics.readthedocs.io/)
+For vulnerability reports, please review our [Security Policy](.github/SECURITY.md).
+
+## Change Log
+
+See [CHANGELOG.md](CHANGELOG.md) for a list of changes and version updates.
 
 ## License
 
@@ -113,9 +98,3 @@ If you use Pkynetics in your research, please cite it as:
   url = {https://github.com/PPeitsch/pkynetics}
 }
 ```
-
-## Acknowledgments
-
-- Contributors and maintainers
-- The thermal analysis community for valuable feedback
-- Open source projects that made this possible
