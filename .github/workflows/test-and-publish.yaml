@@ -39,10 +39,6 @@ jobs:
   test:
     name: Tests - Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      checks: write
-      pull-requests: write
     strategy:
       fail-fast: false
       matrix:
@@ -88,7 +84,6 @@ jobs:
       name: pypi
       url: https://pypi.org/p/pkynetics
     permissions:
-      contents: read
       id-token: write
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
 
