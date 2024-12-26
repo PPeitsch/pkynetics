@@ -59,6 +59,11 @@ Repository = "https://github.com/PPeitsch/pkynetics.git"
 "Bug Tracker" = "https://github.com/PPeitsch/pkynetics/issues"
 Changelog = "https://github.com/PPeitsch/pkynetics/blob/main/CHANGELOG.md"
 
+[tool.hatch.build]
+include = [
+    "src/pkynetics/py.typed"
+]
+
 [tool.hatch.version]
 path = "src/pkynetics/__about__.py"
 
@@ -67,6 +72,10 @@ path = "src/pkynetics/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pkynetics"]
+include = ["py.typed"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/pkynetics/py.typed"]
 
 [tool.black]
 line-length = 88
@@ -78,6 +87,7 @@ line_length = 88
 multi_line_output = 3
 
 [tool.mypy]
+packages = ["pkynetics"]
 python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
