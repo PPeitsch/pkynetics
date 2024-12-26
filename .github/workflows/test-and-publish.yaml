@@ -61,7 +61,7 @@ jobs:
 
     - name: Run tests with coverage
       run: |
-        python -m pytest tests/ --cov=src/pkynetics --cov-report=xml --junitxml=junit.xml
+        python -m pytest tests/ --cov=pkynetics --cov-report=xml --junitxml=junit.xml
 
     - name: Upload test results to Codecov
       if: ${{ !cancelled() }}
