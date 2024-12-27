@@ -8,16 +8,6 @@ body:
       value: |
         Thanks for taking the time to fill out this bug report!
         Please include the ⚡ emoji at the start of your title if you've read our contributing guidelines.
-  - type: checkboxes
-    id: terms
-    attributes:
-      label: Guidelines
-      description: By submitting this issue, you agree to follow our [Contributing Guidelines](https://github.com/PPeitsch/pkynetics/blob/main/.github/CONTRIBUTING.md)
-      options:
-        - label: I agree to follow this project's Contributing Guidelines
-          required: true
-        - label: I have searched for similar issues before creating this one
-          required: true
 
   - type: input
     id: version
@@ -107,3 +97,14 @@ body:
       placeholder: "Dependency versions, environment details, related issues, etc."
     validations:
       required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Guidelines
+      description: By submitting this issue, you agree to follow our [Contributing Guidelines](https://github.com/PPeitsch/pkynetics/blob/main/.github/CONTRIBUTING.md)
+      options:
+        - label: I agree to follow this project's Contributing Guidelines
+          required: true
+        - label: I have searched for similar issues before creating this one
+          required: true

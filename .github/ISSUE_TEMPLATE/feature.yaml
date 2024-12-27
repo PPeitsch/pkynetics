@@ -8,18 +8,6 @@ body:
       value: |
         Thanks for taking the time to suggest a new feature!
         Please include the ⚡ emoji at the start of your title if you've read our contributing guidelines.
-  - type: checkboxes
-    id: terms
-    attributes:
-      label: Guidelines
-      description: By submitting this issue, you agree to follow our [Contributing Guidelines](https://github.com/PPeitsch/pkynetics/blob/main/.github/CONTRIBUTING.md)
-      options:
-        - label: I agree to follow this project's Contributing Guidelines
-          required: true
-        - label: I have searched for similar feature requests
-          required: true
-        - label: I understand that this is a request and implementation is not guaranteed
-          required: true
 
   - type: textarea
     id: problem
@@ -73,3 +61,16 @@ body:
       placeholder: Technical details, API design, etc.
     validations:
       required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Guidelines
+      description: By submitting this issue, you agree to follow our [Contributing Guidelines](https://github.com/PPeitsch/pkynetics/blob/main/.github/CONTRIBUTING.md)
+      options:
+        - label: I agree to follow this project's Contributing Guidelines
+          required: true
+        - label: I have searched for similar feature requests
+          required: true
+        - label: I understand that this is a request and implementation is not guaranteed
+          required: true
