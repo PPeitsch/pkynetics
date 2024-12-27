@@ -104,7 +104,7 @@ def import_setaram(file_path: str) -> ReturnDict:
                     "Furnace Temperature (°C)": "temperature",
                     "Sample Temperature (°C)": "sample_temperature",
                     "TG (mg)": "weight",
-                    "HeatFlow (mW)": "heat_flow"
+                    "HeatFlow (mW)": "heat_flow",
                 }
             else:
                 raise ValueError("Not new format")
@@ -126,7 +126,7 @@ def import_setaram(file_path: str) -> ReturnDict:
                 "Furnace": "temperature",
                 "Sample": "sample_temperature",
                 "TG": "weight",
-                "HeatFlow": "heat_flow"
+                "HeatFlow": "heat_flow",
             }
 
         # Clean column names and rename
@@ -137,8 +137,7 @@ def import_setaram(file_path: str) -> ReturnDict:
         for col in df.columns:
             if col in column_mapping.values():
                 df[col] = pd.to_numeric(
-                    df[col].str.replace(",", ".").str.strip(),
-                    errors="coerce"
+                    df[col].str.replace(",", ".").str.strip(), errors="coerce"
                 )
 
         # Initialize data dictionary
