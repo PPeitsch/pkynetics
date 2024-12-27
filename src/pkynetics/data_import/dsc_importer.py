@@ -68,6 +68,7 @@ def dsc_importer(file_path: str, manufacturer: str = "auto") -> ReturnDict:
 def import_setaram(file_path: str) -> ReturnDict:
     """
     Import Setaram DSC or simultaneous DSC-TGA data.
+    Handles both old and new Setaram file formats.
 
     Args:
         file_path (str): Path to the Setaram data file.
@@ -75,10 +76,6 @@ def import_setaram(file_path: str) -> ReturnDict:
     Returns:
         Dict[str, Optional[np.ndarray]]: Dictionary containing time, temperature,
         sample_temperature, heat_flow, and weight (if available) data.
-
-    Raises:
-        ValueError: If the file format is not recognized as a valid Setaram format.
-        FileNotFoundError: If the specified file does not exist.
     """
     logger.info(f"Importing Setaram data from {file_path}")
 
@@ -88,29 +85,60 @@ def import_setaram(file_path: str) -> ReturnDict:
             raw_data = file.read()
             detection_result = chardet.detect(raw_data)
             encoding = detection_result["encoding"]
-            confidence = detection_result["confidence"]
 
-        logger.info(
-            f"File preview: {raw_data[:100].decode(encoding='utf-8', errors='ignore')}"
-        )
-        logger.info(f"Detected encoding: {encoding} with confidence: {confidence}")
-        logger.info(f"Detection result: {detection_result}")
+        # Try to read file in new format first
+        try:
+            df = pd.read_csv(
+                file_path,
+                sep=";",
+                decimal=",",
+                encoding=encoding,
+                dtype=str,
+                skiprows=13 if file_path.lower().endswith(".txt") else 0,
+            )
+            # Verify if it's really the new format by checking column names
+            if "Time (s)" in df.columns:
+                logger.info("Detected new Setaram format")
+                column_mapping = {
+                    "Time (s)": "time",
+                    "Furnace Temperature (°C)": "temperature",
+                    "Sample Temperature (°C)": "sample_temperature",
+                    "TG (mg)": "weight",
+                    "HeatFlow (mW)": "heat_flow",
+                }
+            else:
+                raise ValueError("Not new format")
 
-        # Read the file with detected encoding
-        df = pd.read_csv(
-            file_path,
-            sep=";",
-            decimal=",",
-            encoding=encoding,
-            dtype=str,
-            skiprows=13 if file_path.lower().endswith(".txt") else 0,
-        )
+        except (pd.errors.ParserError, ValueError):
+            # If new format fails, try old format
+            logger.info("Trying old Setaram format")
+            df = pd.read_csv(
+                file_path,
+                delim_whitespace=True,
+                decimal=".",
+                encoding=encoding,
+                dtype=str,
+                skiprows=12,
+            )
+            column_mapping = {
+                "Index": "index",
+                "Time": "time",
+                "Furnace": "temperature",
+                "Sample": "sample_temperature",
+                "TG": "weight",
+                "HeatFlow": "heat_flow",
+            }
 
-        logger.info(f"Available columns: {df.columns.tolist()}")
+        # Clean column names and rename
+        df.columns = df.columns.str.strip()
+        df = df.rename(columns=column_mapping)
 
-        # Convert string values to float
+        # Convert string values to float, handling both decimal separators
         for col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+            if col in column_mapping.values():
+                df[col] = pd.to_numeric(
+                    df[col].str.replace(",", ".").str.strip(), errors="coerce"
+                )
 
         # Initialize data dictionary
         data: ReturnDict = {
@@ -119,20 +147,12 @@ def import_setaram(file_path: str) -> ReturnDict:
             "sample_temperature": None,
             "heat_flow": None,
             "weight": None,
-            "heat_capacity": None,
         }
 
         # Fill available data
-        if "Time (s)" in df.columns:
-            data["time"] = df["Time (s)"].values
-        if "Furnace Temperature (°C)" in df.columns:
-            data["temperature"] = df["Furnace Temperature (°C)"].values
-        if "Sample Temperature (°C)" in df.columns:
-            data["sample_temperature"] = df["Sample Temperature (°C)"].values
-        if "HeatFlow (mW)" in df.columns:
-            data["heat_flow"] = df["HeatFlow (mW)"].values
-        if "TG (mg)" in df.columns:
-            data["weight"] = df["TG (mg)"].values
+        for key in data.keys():
+            if key in df.columns:
+                data[key] = df[key].values
 
         return data
 
