@@ -133,24 +133,40 @@ class BaselineCorrector:
         regions: Optional[List[Tuple[float, float]]] = None,
         **kwargs,
     ) -> Tuple[NDArray[np.float64], Dict]:
-        """Fit linear baseline through specified regions."""
+        """
+        Fit linear baseline through specified regions.
+
+        Args:
+            temperature: Temperature array
+            heat_flow: Heat flow array
+            regions: List of (start_temp, end_temp) tuples for baseline regions
+            **kwargs: Additional parameters
+
+        Returns:
+            Tuple[NDArray[np.float64], Dict]: Baseline array and parameters
+        """
         if regions is None:
-            regions = [(temperature[0], temperature[-1])]
+            regions = [(float(temperature[0]), float(temperature[-1]))]
 
         # Collect points in baseline regions
         temp_points = []
         heat_points = []
         for start_temp, end_temp in regions:
+            # Ensure scalar comparison
+            start_temp = float(start_temp)
+            end_temp = float(end_temp)
             mask = (temperature >= start_temp) & (temperature <= end_temp)
             temp_points.extend(temperature[mask])
             heat_points.extend(heat_flow[mask])
 
         # Fit linear baseline
+        temp_points = np.array(temp_points)
+        heat_points = np.array(heat_points)
+
         coeffs = np.polyfit(temp_points, heat_points, 1)
         baseline = np.polyval(coeffs, temperature)
 
         params = {"slope": float(coeffs[0]), "intercept": float(coeffs[1])}
-
         return baseline, params
 
     def _fit_polynomial_baseline(
@@ -161,28 +177,45 @@ class BaselineCorrector:
         degree: int = 3,
         **kwargs,
     ) -> Tuple[NDArray[np.float64], Dict]:
-        """Fit polynomial baseline of specified degree."""
+        """
+        Fit polynomial baseline of specified degree.
+
+        Args:
+            temperature: Temperature array
+            heat_flow: Heat flow array
+            regions: List of (start_temp, end_temp) tuples for baseline regions
+            degree: Polynomial degree
+            **kwargs: Additional parameters
+
+        Returns:
+            Tuple[NDArray[np.float64], Dict]: Baseline array and parameters
+        """
         if regions is None:
             n_points = len(temperature) // 10
             regions = [
-                (temperature[0], temperature[n_points]),
-                (temperature[-n_points:], temperature[-1]),
+                (float(temperature[0]), float(temperature[n_points])),
+                (float(temperature[-n_points]), float(temperature[-1])),
             ]
 
         # Collect points in baseline regions
         temp_points = []
         heat_points = []
         for start_temp, end_temp in regions:
+            # Ensure scalar comparison
+            start_temp = float(start_temp)
+            end_temp = float(end_temp)
             mask = (temperature >= start_temp) & (temperature <= end_temp)
             temp_points.extend(temperature[mask])
             heat_points.extend(heat_flow[mask])
 
         # Fit polynomial
+        if len(temp_points) <= degree:
+            raise ValueError(f"Not enough points for polynomial degree {degree}")
+
         coeffs = np.polyfit(temp_points, heat_points, degree)
         baseline = np.polyval(coeffs, temperature)
 
         params = {"coefficients": coeffs.tolist(), "degree": degree}
-
         return baseline, params
 
     def _fit_spline_baseline(
