@@ -80,6 +80,7 @@ class PeakAnalyzer:
         smoothing_window: int = 21,
         smoothing_order: int = 3,
         peak_prominence: float = 0.1,
+        height_threshold: float = 0.05,
     ):
         """
         Initialize peak analyzer.
@@ -88,10 +89,12 @@ class PeakAnalyzer:
             smoothing_window: Window size for Savitzky-Golay smoothing
             smoothing_order: Order of polynomial for smoothing
             peak_prominence: Minimum prominence for peak detection
+            height_threshold: Minimum height threshold for peak detection
         """
         self.smoothing_window = smoothing_window
         self.smoothing_order = smoothing_order
         self.peak_prominence = peak_prominence
+        self.height_threshold = height_threshold
 
     def find_peaks(
         self,
@@ -109,38 +112,44 @@ class PeakAnalyzer:
 
         Returns:
             List of DSCPeak objects containing peak information
+
+        Raises:
+            ValueError: If temperature and heat flow arrays have different lengths
         """
-        # Validate inputs
         if len(temperature) != len(heat_flow):
             raise ValueError("Temperature and heat flow arrays must have same length")
 
-        # Apply baseline correction if provided
-        signal_to_analyze = heat_flow.copy()
-        if baseline is not None:
-            signal_to_analyze = heat_flow - baseline
+        # Apply signal smoothing to reduce noise
+        smooth_heat_flow = signal.savgol_filter(
+            heat_flow, self.smoothing_window, self.smoothing_order
+        )
 
-        # Find peaks using scipy.signal
+        # Apply baseline correction if provided
+        signal_to_analyze = smooth_heat_flow.copy()
+        if baseline is not None:
+            signal_to_analyze = smooth_heat_flow - baseline
+
+        # Find peaks with enhanced criteria
         peaks, properties = signal.find_peaks(
             signal_to_analyze,
             prominence=self.peak_prominence,
+            height=self.height_threshold,
             width=self.smoothing_window // 2,
+            distance=self.smoothing_window,
         )
 
         peak_list = []
         for i, peak_idx in enumerate(peaks):
-            # Find peak boundaries
             left_idx = int(properties["left_bases"][i])
             right_idx = int(properties["right_bases"][i])
 
-            # Calculate peak characteristics
             peak_info = self._analyze_peak_region(
                 temperature[left_idx : right_idx + 1],
-                signal_to_analyze[left_idx : right_idx + 1],
+                heat_flow[left_idx : right_idx + 1],
                 peak_idx - left_idx,
                 baseline[left_idx : right_idx + 1] if baseline is not None else None,
             )
 
-            # Update peak indices to global coordinates
             peak_info.peak_indices = (left_idx, right_idx)
             peak_list.append(peak_info)
 
@@ -207,7 +216,7 @@ class PeakAnalyzer:
         baseline: Optional[NDArray[np.float64]] = None,
     ) -> float:
         """
-        Calculate onset temperature using tangent method.
+        Calculate onset temperature using tangent method with enhanced precision.
 
         Args:
             temperature: Temperature array
@@ -216,17 +225,21 @@ class PeakAnalyzer:
             baseline: Optional baseline array
 
         Returns:
-            Onset temperature
+            Onset temperature (float)
         """
-        # Use linear baseline if none provided
         if baseline is None:
             baseline = np.zeros_like(heat_flow)
 
-        # Find region before peak for tangent calculation
+        # Use extended pre-peak region
         pre_peak = slice(0, peak_idx)
 
-        # Calculate derivative in pre-peak region
-        dydx = np.gradient(heat_flow[pre_peak], temperature[pre_peak])
+        # Smooth data for derivative calculation
+        smooth_flow = signal.savgol_filter(
+            heat_flow[pre_peak], self.smoothing_window, self.smoothing_order
+        )
+
+        # Calculate derivative
+        dydx = np.gradient(smooth_flow, temperature[pre_peak])
 
         # Find point of maximum slope
         max_slope_idx = np.argmax(np.abs(dydx))
@@ -236,12 +249,28 @@ class PeakAnalyzer:
         intercept = heat_flow[max_slope_idx] - slope * temperature[max_slope_idx]
         tangent = slope * temperature + intercept
 
-        # Find intersection with baseline
-        onset_temp, _ = find_intersection_point(
-            temperature, tangent, baseline, max_slope_idx, "backward"
-        )
+        # Find intersection using multiple points for improved precision
+        window = self.smoothing_window
+        onset_temps = []
+        for i in range(
+            max(0, max_slope_idx - window),
+            min(max_slope_idx + window, len(temperature)),
+        ):
+            if (tangent[i] <= baseline[i] and tangent[i + 1] >= baseline[i + 1]) or (
+                tangent[i] >= baseline[i] and tangent[i + 1] <= baseline[i + 1]
+            ):
+                x1, x2 = temperature[i], temperature[i + 1]
+                y1 = tangent[i] - baseline[i]
+                y2 = tangent[i + 1] - baseline[i + 1]
 
-        return onset_temp
+                if abs(y2 - y1) > 1e-10:
+                    x_int = x1 - y1 * (x2 - x1) / (y2 - y1)
+                    onset_temps.append(x_int)
+
+        if not onset_temps:
+            return temperature[max_slope_idx]
+
+        return float(np.median(onset_temps))
 
     def _calculate_endset(
         self,
