@@ -21,10 +21,11 @@ class CpCalculator:
     def _get_heat_flow(
         self, data: Dict[str, NDArray[np.float64]], required: bool = True
     ) -> Optional[NDArray[np.float64]]:
-        """Get heat flow data from dictionary trying multiple common key names."""
+        """Get heat flow data from dictionary."""
         for key in ["heat_flow", "sample_heat_flow", "total_heat_flow"]:
-            if key in data:
-                return data[key]
+            hf = data.get(key)
+            if hf is not None:
+                return hf
         if required:
             raise KeyError("No heat flow data found in input data")
         return None
@@ -191,24 +192,18 @@ class CpCalculator:
         """
         # Extract required data
         temp = data["temperature"]
-        total_hf = self._get_heat_flow(data, required=False) or data["total_heat_flow"]
+        total_hf = data.get("total_heat_flow", np.zeros_like(temp))
         reversing_hf = data["reversing_heat_flow"]
-        modulation_period = data.get("modulation_period", 60.0)  # seconds
-        modulation_amplitude = data.get("modulation_amplitude", 0.5)  # K
+        modulation_period = data.get("modulation_period", 60.0)
+        modulation_amplitude = data.get("modulation_amplitude", 0.5)
 
-        # Convert to complex heat capacity
         omega = 2 * np.pi / modulation_period
-        cp_complex = reversing_hf / (modulation_amplitude * omega)
+        cp = np.abs(reversing_hf) / (modulation_amplitude * omega)
 
-        # Use real component for Cp
-        cp = np.abs(cp_complex)  # Changed to use magnitude instead of real part
-
-        # Calculate uncertainty
         uncertainty = self._calculate_modulated_uncertainty(
-            cp_complex, modulation_amplitude, modulation_period
+            reversing_hf + 1j * total_hf, modulation_amplitude, modulation_period
         )
 
-        # Calculate quality metrics
         quality_metrics = self._calculate_quality_metrics(
             temp, cp, uncertainty, total_hf, reversing_hf
         )
@@ -222,7 +217,6 @@ class CpCalculator:
             metadata={
                 "modulation_period": modulation_period,
                 "modulation_amplitude": modulation_amplitude,
-                "phase_angle": np.angle(cp_complex, deg=True),
             },
         )
 

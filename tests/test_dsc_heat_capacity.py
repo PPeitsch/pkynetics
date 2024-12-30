@@ -87,28 +87,26 @@ def generate_step_dsc_data(
     n_steps: int = 20,
 ) -> dict:
     """Generate synthetic DSC data for step method."""
-    # Generate temperature profile with distinct steps
-    base_temp = np.linspace(*temp_range, n_steps)
-    temperature = []
-    heat_flow = []
-    base_cp = 0.5 + 0.001 * (base_temp - 300)
-
+    # Generate stepped temperature profile with clear plateaus
+    temperature = np.zeros(n_points)
+    heat_flow = np.zeros(n_points)
     points_per_step = n_points // n_steps
-    for i in range(n_steps):
-        # Add constant temperature region
-        temperature.extend([base_temp[i]] * points_per_step)
-        # Add heat flow corresponding to Cp
-        heat_flow.extend([base_cp[i] * step_size] * points_per_step)
 
-    temperature = np.array(temperature)
-    heat_flow = np.array(heat_flow)
-    expected_cp = np.repeat(base_cp, points_per_step)
+    base_temps = np.linspace(*temp_range, n_steps)
+    base_cp = 0.5 + 0.001 * (base_temps - 300)
+
+    for i in range(n_steps):
+        start_idx = i * points_per_step
+        end_idx = (i + 1) * points_per_step
+        temperature[start_idx:end_idx] = base_temps[i]
+        heat_flow[start_idx:end_idx] = base_cp[i] * step_size
 
     return {
         "temperature": temperature,
         "heat_flow": heat_flow,
         "step_size": step_size,
-        "expected_cp": expected_cp,
+        "expected_cp": np.repeat(base_cp, points_per_step),
+        "sample_mass": 1.0,
     }
 
 
