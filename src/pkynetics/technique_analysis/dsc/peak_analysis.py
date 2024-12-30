@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy import optimize
+from scipy import optimize, signal
 from scipy.integrate import trapz
 from scipy.signal import find_peaks
 
@@ -75,16 +75,121 @@ def find_intersection_point(
 class PeakAnalyzer:
     """Class for DSC peak analysis."""
 
-    def __init__(self, smoothing_window: int = 21, smoothing_order: int = 3):
+    def __init__(self,
+                 smoothing_window: int = 21,
+                 smoothing_order: int = 3,
+                 peak_prominence: float = 0.1):
         """
         Initialize peak analyzer.
 
         Args:
-            smoothing_window: Window size for Savitzky-Golay filter
-            smoothing_order: Polynomial order for Savitzky-Golay filter
+            smoothing_window: Window size for Savitzky-Golay smoothing
+            smoothing_order: Order of polynomial for smoothing
+            peak_prominence: Minimum prominence for peak detection
         """
         self.smoothing_window = smoothing_window
         self.smoothing_order = smoothing_order
+        self.peak_prominence = peak_prominence
+
+    def find_peaks(self,
+                   temperature: NDArray[np.float64],
+                   heat_flow: NDArray[np.float64],
+                   baseline: Optional[NDArray[np.float64]] = None) -> List[DSCPeak]:
+        """
+        Find and analyze peaks in DSC data.
+
+        Args:
+            temperature: Temperature array in K
+            heat_flow: Heat flow array in mW
+            baseline: Optional baseline array in mW
+
+        Returns:
+            List of DSCPeak objects containing peak information
+        """
+        # Validate inputs
+        if len(temperature) != len(heat_flow):
+            raise ValueError("Temperature and heat flow arrays must have same length")
+
+        # Apply baseline correction if provided
+        signal_to_analyze = heat_flow.copy()
+        if baseline is not None:
+            signal_to_analyze = heat_flow - baseline
+
+        # Find peaks using scipy.signal
+        peaks, properties = signal.find_peaks(
+            signal_to_analyze,
+            prominence=self.peak_prominence,
+            width=self.smoothing_window // 2
+        )
+
+        peak_list = []
+        for i, peak_idx in enumerate(peaks):
+            # Find peak boundaries
+            left_idx = int(properties["left_bases"][i])
+            right_idx = int(properties["right_bases"][i])
+
+            # Calculate peak characteristics
+            peak_info = self._analyze_peak_region(
+                temperature[left_idx:right_idx + 1],
+                signal_to_analyze[left_idx:right_idx + 1],
+                peak_idx - left_idx,
+                baseline[left_idx:right_idx + 1] if baseline is not None else None
+            )
+
+            # Update peak indices to global coordinates
+            peak_info.peak_indices = (left_idx, right_idx)
+            peak_list.append(peak_info)
+
+        return peak_list
+
+    def _analyze_peak_region(self,
+                             temperature: NDArray[np.float64],
+                             heat_flow: NDArray[np.float64],
+                             peak_idx: int,
+                             baseline: Optional[NDArray[np.float64]] = None) -> DSCPeak:
+        """
+        Analyze a single peak region.
+
+        Args:
+            temperature: Temperature array
+            heat_flow: Heat flow array
+            peak_idx: Index of peak maximum
+            baseline: Optional baseline array
+
+        Returns:
+            DSCPeak object with peak characteristics
+        """
+        # Calculate onset and endset using existing methods
+        onset_temp = self._calculate_onset(temperature, heat_flow, peak_idx, baseline)
+        endset_temp = self._calculate_endset(temperature, heat_flow, peak_idx, baseline)
+
+        # Get peak characteristics
+        peak_temp = temperature[peak_idx]
+        peak_height = heat_flow[peak_idx]
+        if baseline is not None:
+            peak_height -= baseline[peak_idx]
+
+        # Calculate peak width using existing method
+        peak_width = self._calculate_peak_width(temperature, heat_flow, peak_idx, baseline)
+
+        # Calculate peak area
+        signal_to_integrate = heat_flow
+        if baseline is not None:
+            signal_to_integrate = heat_flow - baseline
+        peak_area = trapz(signal_to_integrate, temperature)
+
+        return DSCPeak(
+            onset_temperature=float(onset_temp),
+            peak_temperature=float(peak_temp),
+            endset_temperature=float(endset_temp),
+            enthalpy=float(abs(peak_area)),
+            peak_height=float(peak_height),
+            peak_width=float(peak_width),
+            peak_area=float(peak_area),
+            baseline_type="none" if baseline is None else "provided",
+            baseline_params={},
+            peak_indices=(0, len(temperature) - 1)  # Will be updated in find_peaks
+        )
 
     def _calculate_onset(
         self,
