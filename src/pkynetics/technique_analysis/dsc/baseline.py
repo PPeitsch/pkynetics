@@ -253,13 +253,28 @@ class BaselineCorrector:
         regions: Optional[List[Tuple[float, float]]] = None,
         **kwargs,
     ) -> Tuple[NDArray[np.float64], Dict]:
-        """Fit asymmetric least squares baseline."""
+        """
+        Fit asymmetric least squares baseline.
+
+        Args:
+            temperature: Temperature array
+            heat_flow: Heat flow array
+            regions: Optional baseline regions
+            **kwargs: Additional parameters
+
+        Returns:
+            Tuple[NDArray[np.float64], Dict]: Baseline and parameters
+        """
 
         def als_baseline(
             y: NDArray[np.float64], lam: float, p: float, niter: int = 10
         ) -> NDArray[np.float64]:
             L = len(y)
-            D = np.diff(np.eye(L), 2)
+            # Create second derivative matrix with proper dimensions
+            D = np.zeros((L - 2, L))
+            for i in range(L - 2):
+                D[i, i : i + 3] = [1, -2, 1]
+
             w = np.ones(L)
             for i in range(niter):
                 W = np.diag(w)
@@ -268,12 +283,10 @@ class BaselineCorrector:
                 w = p * (y > z) + (1 - p) * (y < z)
             return z
 
-        # Parameters for asymmetric least squares
         lam = kwargs.get("lam", 1e5)
         p = kwargs.get("p", 0.001)
 
         baseline = als_baseline(heat_flow, lam, p)
-
         params = {"lambda": lam, "p": p}
 
         return baseline, params
