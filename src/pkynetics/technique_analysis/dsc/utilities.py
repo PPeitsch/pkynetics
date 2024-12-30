@@ -65,6 +65,8 @@ class SignalProcessor:
         Returns:
             Smoothed signal array
         """
+        import statsmodels.api as sm
+
         window = window_length or self.default_window
         polyorder = polyorder or self.default_polyorder
 
@@ -78,7 +80,9 @@ class SignalProcessor:
             return np.convolve(data, kernel, mode="same")
         elif method == "lowess":
             x = np.arange(len(data))
-            return stats.lowess(data, x, frac=window / len(data))[:, 1]
+            frac = min(1.0, max(0.01, window / len(data)))
+            lowess = sm.nonparametric.lowess(data, x, frac=frac, return_sorted=False)
+            return lowess
         else:
             raise ValueError(f"Unknown smoothing method: {method}")
 
