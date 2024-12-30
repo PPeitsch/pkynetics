@@ -291,29 +291,6 @@ class BaselineCorrector:
 
         return baseline, params
 
-    def _fit_rubberband_baseline(
-        self,
-        temperature: NDArray[np.float64],
-        heat_flow: NDArray[np.float64],
-        regions: Optional[List[Tuple[float, float]]] = None,
-        **kwargs,
-    ) -> Tuple[NDArray[np.float64], Dict]:
-        """Fit rubberband (convex hull) baseline."""
-        # Find convex hull of the data points
-        points = np.column_stack((temperature, heat_flow))
-        hull = optimize.convex_hull_plot_2d(points)
-
-        # Extract lower hull points
-        hull_points = points[hull.vertices]
-        lower_hull = hull_points[hull_points[:, 0].argsort()]
-
-        # Interpolate between hull points
-        baseline = np.interp(temperature, lower_hull[:, 0], lower_hull[:, 1])
-
-        params = {"n_hull_points": len(lower_hull)}
-
-        return baseline, params
-
     def _auto_baseline(
         self,
         temperature: NDArray[np.float64],
@@ -321,10 +298,11 @@ class BaselineCorrector:
         regions: Optional[List[Tuple[float, float]]] = None,
         **kwargs,
     ) -> Tuple[NDArray[np.float64], Dict]:
-        """Automatically select and apply best baseline method."""
+        """Automatically select best baseline method."""
         methods = ["linear", "polynomial", "spline", "asymmetric"]
         best_score = float("inf")
         best_result = None
+        best_method = None
 
         for method in methods:
             result = self.correct(temperature, heat_flow, method, regions)
@@ -333,8 +311,42 @@ class BaselineCorrector:
             if score < best_score:
                 best_score = score
                 best_result = result
+                best_method = method
 
-        return best_result.baseline, best_result.parameters
+        if best_result is None:
+            raise ValueError("No valid baseline method found")
+
+        return best_result.baseline, {"method": best_method}
+
+    def _fit_rubberband_baseline(
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        regions: Optional[List[Tuple[float, float]]] = None,
+        **kwargs,
+    ) -> Tuple[NDArray[np.float64], Dict]:
+        """Fit rubberband baseline using convex hull."""
+        from scipy.spatial import ConvexHull
+
+        points = np.column_stack((temperature, heat_flow))
+        hull = ConvexHull(points)
+
+        # Extract lower hull points
+        vertices = points[hull.vertices]
+        sorted_vertices = vertices[vertices[:, 0].argsort()]
+
+        # Find lower envelope
+        lower_points = []
+        for i in range(len(sorted_vertices) - 1):
+            if sorted_vertices[i + 1, 1] >= sorted_vertices[i, 1]:
+                lower_points.append(sorted_vertices[i])
+        lower_points.append(sorted_vertices[-1])
+        lower_points = np.array(lower_points)
+
+        # Interpolate baseline
+        baseline = np.interp(temperature, lower_points[:, 0], lower_points[:, 1])
+
+        return baseline, {"n_hull_points": len(lower_points)}
 
     def _find_quiet_regions(
         self,
