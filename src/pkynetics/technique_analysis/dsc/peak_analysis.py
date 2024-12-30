@@ -6,7 +6,6 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import optimize, signal
 from scipy.integrate import trapz
-from scipy.signal import find_peaks
 
 from .types import DSCPeak
 
@@ -216,7 +215,7 @@ class PeakAnalyzer:
         baseline: Optional[NDArray[np.float64]] = None,
     ) -> float:
         """
-        Calculate onset temperature using tangent method with enhanced precision.
+        Calculate onset temperature with index validation.
 
         Args:
             temperature: Temperature array
@@ -227,6 +226,8 @@ class PeakAnalyzer:
         Returns:
             Onset temperature (float)
         """
+        self._validate_peak_index(peak_idx, len(temperature))
+
         if baseline is None:
             baseline = np.zeros_like(heat_flow)
 
@@ -388,13 +389,13 @@ class PeakAnalyzer:
         peak_shape: str = "gaussian",
     ) -> Tuple[List[Dict], NDArray[np.float64]]:
         """
-        Deconvolute overlapping peaks.
+        Deconvolute overlapping peaks with improved parameter estimation.
 
         Args:
             temperature: Temperature array
             heat_flow: Heat flow array
             n_peaks: Number of peaks to fit
-            peak_shape: Shape function ("gaussian" or "lorentzian")
+            peak_shape: Peak function type ("gaussian" or "lorentzian")
 
         Returns:
             Tuple of (list of peak parameters, fitted curve)
@@ -403,44 +404,61 @@ class PeakAnalyzer:
         def gaussian(
             x: NDArray[np.float64], amp: float, cen: float, wid: float
         ) -> NDArray[np.float64]:
-            """Gaussian peak function."""
             return amp * np.exp(-(((x - cen) / wid) ** 2))
 
         def lorentzian(
             x: NDArray[np.float64], amp: float, cen: float, wid: float
         ) -> NDArray[np.float64]:
-            """Lorentzian peak function."""
             return amp * wid**2 / ((x - cen) ** 2 + wid**2)
 
         peak_func = gaussian if peak_shape == "gaussian" else lorentzian
 
-        # Initial guess for peak parameters
-        peaks, properties = find_peaks(heat_flow, distance=len(temperature) // n_peaks)
-        if len(peaks) < n_peaks:
-            peaks = np.array([i * len(temperature) // n_peaks for i in range(n_peaks)])
+        # Find initial peak positions
+        smooth_flow = signal.savgol_filter(heat_flow, self.smoothing_window, 3)
+        peaks, properties = signal.find_peaks(
+            smooth_flow, distance=len(temperature) // (n_peaks + 1)
+        )
 
+        if len(peaks) < n_peaks:
+            # Create evenly spaced initial guesses if not enough peaks found
+            peak_indices = np.linspace(0, len(temperature) - 1, n_peaks, dtype=int)
+        else:
+            # Use the n_peaks highest peaks
+            peak_heights = smooth_flow[peaks]
+            peak_indices = peaks[np.argsort(peak_heights)[-n_peaks:]]
+
+        # Generate initial parameters
         p0 = []
-        for idx in peaks[:n_peaks]:
-            p0.extend(
-                [
-                    heat_flow[idx],  # amplitude
-                    temperature[idx],  # center
-                    (temperature[1] - temperature[0]) * 10,  # width
-                ]
-            )
+        bounds_low = []
+        bounds_high = []
+        for idx in peak_indices:
+            amp = heat_flow[idx]
+            cen = temperature[idx]
+            wid = (temperature[1] - temperature[0]) * 10
+
+            p0.extend([amp, cen, wid])
+            bounds_low.extend(
+                [0, temperature.min(), 0]
+            )  # Amplitude and width must be positive
+            bounds_high.extend([amp * 2, temperature.max(), wid * 5])
 
         def fit_function(x: NDArray[np.float64], *params) -> NDArray[np.float64]:
-            """Combined peak function for fitting."""
             result = np.zeros_like(x)
             for i in range(0, len(params), 3):
                 result += peak_func(x, params[i], params[i + 1], params[i + 2])
             return result
 
         try:
-            # Fit peaks
-            popt, _ = optimize.curve_fit(fit_function, temperature, heat_flow, p0=p0)
+            popt, _ = optimize.curve_fit(
+                fit_function,
+                temperature,
+                heat_flow,
+                p0=p0,
+                bounds=(bounds_low, bounds_high),
+                maxfev=10000,
+            )
 
-            # Extract individual peak parameters
+            # Extract results
             peak_params = []
             fitted_curve = np.zeros_like(temperature)
 
@@ -461,9 +479,24 @@ class PeakAnalyzer:
 
             return peak_params, fitted_curve
 
-        except optimize.OptimizeWarning:
-            # Return empty results if fitting fails
+        except (optimize.OptimizeWarning, RuntimeError):
             return [], np.zeros_like(temperature)
+
+    def _validate_peak_index(self, peak_idx: int, array_length: int) -> None:
+        """
+        Validate peak index is within array bounds.
+
+        Args:
+            peak_idx: Peak index to validate
+            array_length: Length of data array
+
+        Raises:
+            IndexError: If peak_idx is out of bounds
+        """
+        if peak_idx < 0 or peak_idx >= array_length:
+            raise IndexError(
+                f"Peak index {peak_idx} out of bounds for array of length {array_length}"
+            )
 
     def analyze_peak_region(
         self,
