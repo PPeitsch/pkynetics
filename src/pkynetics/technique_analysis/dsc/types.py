@@ -1,6 +1,6 @@
 """Type definitions for DSC analysis."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -54,3 +54,55 @@ class BaselineResult:
     parameters: Dict
     quality_metrics: Dict
     regions: Optional[List[Tuple[float, float]]] = None
+
+
+@dataclass
+class GlassTransition:
+    """Glass transition characteristics."""
+
+    onset_temperature: float
+    midpoint_temperature: float
+    endpoint_temperature: float
+    delta_cp: float  # Change in heat capacity
+    width: float  # Temperature range of transition
+    quality_metrics: Dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
+class CrystallizationEvent:
+    """Crystallization event characteristics."""
+
+    onset_temperature: float
+    peak_temperature: float
+    endpoint_temperature: float
+    enthalpy: float
+    peak_height: float
+    width: float
+    crystallization_rate: Optional[float] = None
+    quality_metrics: Dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
+class MeltingEvent:
+    """Melting event characteristics."""
+
+    onset_temperature: float
+    peak_temperature: float
+    endpoint_temperature: float
+    enthalpy: float
+    peak_height: float
+    width: float
+    quality_metrics: Dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
+class PhaseTransition:
+    """Generic phase transition characteristics."""
+
+    transition_type: str  # 'first_order', 'second_order', etc.
+    start_temperature: float
+    peak_temperature: float
+    end_temperature: float
+    enthalpy: Optional[float] = None
+    transition_width: float = 0.0
+    quality_metrics: Dict[str, float] = field(default_factory=dict)
