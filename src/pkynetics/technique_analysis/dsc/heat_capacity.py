@@ -18,6 +18,17 @@ class CpCalculator:
         self.calibration_data: Optional[CalibrationData] = None
         self._reference_data = self._load_reference_data()
 
+    def _get_heat_flow(
+        self, data: Dict[str, NDArray[np.float64]], required: bool = True
+    ) -> Optional[NDArray[np.float64]]:
+        """Get heat flow data from dictionary trying multiple common key names."""
+        for key in ["heat_flow", "sample_heat_flow", "total_heat_flow"]:
+            if key in data:
+                return data[key]
+        if required:
+            raise KeyError("No heat flow data found in input data")
+        return None
+
     def calculate_cp(
         self,
         sample_data: Dict[str, NDArray[np.float64]],
@@ -228,9 +239,8 @@ class CpCalculator:
         Returns:
             CpResult object
         """
-        # Extract required data
         temp = data["temperature"]
-        heat_flow = data["heat_flow"]
+        heat_flow = self._get_heat_flow(data)
         heating_rate = data.get("heating_rate", 10.0)  # K/min
         sample_mass = data.get("sample_mass", 1.0)  # mg
 
@@ -336,9 +346,8 @@ class CpCalculator:
         if self.calibration_data is None:
             raise ValueError("Calibration required for direct Cp calculation")
 
-        # Extract required data
         temp = data["temperature"]
-        heat_flow = data["heat_flow"]
+        heat_flow = self._get_heat_flow(data)
         heating_rate = data.get("heating_rate", 10.0)  # K/min
         sample_mass = data.get("sample_mass", 1.0)  # mg
 
