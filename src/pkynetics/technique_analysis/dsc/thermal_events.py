@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 import numpy as np
 from numpy.typing import NDArray
 
-from .core import DSCPeak
+from .types import DSCPeak
 
 
 class ThermalEventDetector:

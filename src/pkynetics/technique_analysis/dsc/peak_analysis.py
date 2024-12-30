@@ -3,11 +3,12 @@
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from core import DSCPeak
 from numpy.typing import NDArray
 from scipy import optimize
 from scipy.integrate import trapz
 from scipy.signal import find_peaks
+
+from .types import DSCPeak
 
 
 def find_intersection_point(
