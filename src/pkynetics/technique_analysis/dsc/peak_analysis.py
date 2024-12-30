@@ -75,10 +75,12 @@ def find_intersection_point(
 class PeakAnalyzer:
     """Class for DSC peak analysis."""
 
-    def __init__(self,
-                 smoothing_window: int = 21,
-                 smoothing_order: int = 3,
-                 peak_prominence: float = 0.1):
+    def __init__(
+        self,
+        smoothing_window: int = 21,
+        smoothing_order: int = 3,
+        peak_prominence: float = 0.1,
+    ):
         """
         Initialize peak analyzer.
 
@@ -91,10 +93,12 @@ class PeakAnalyzer:
         self.smoothing_order = smoothing_order
         self.peak_prominence = peak_prominence
 
-    def find_peaks(self,
-                   temperature: NDArray[np.float64],
-                   heat_flow: NDArray[np.float64],
-                   baseline: Optional[NDArray[np.float64]] = None) -> List[DSCPeak]:
+    def find_peaks(
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        baseline: Optional[NDArray[np.float64]] = None,
+    ) -> List[DSCPeak]:
         """
         Find and analyze peaks in DSC data.
 
@@ -119,7 +123,7 @@ class PeakAnalyzer:
         peaks, properties = signal.find_peaks(
             signal_to_analyze,
             prominence=self.peak_prominence,
-            width=self.smoothing_window // 2
+            width=self.smoothing_window // 2,
         )
 
         peak_list = []
@@ -130,10 +134,10 @@ class PeakAnalyzer:
 
             # Calculate peak characteristics
             peak_info = self._analyze_peak_region(
-                temperature[left_idx:right_idx + 1],
-                signal_to_analyze[left_idx:right_idx + 1],
+                temperature[left_idx : right_idx + 1],
+                signal_to_analyze[left_idx : right_idx + 1],
                 peak_idx - left_idx,
-                baseline[left_idx:right_idx + 1] if baseline is not None else None
+                baseline[left_idx : right_idx + 1] if baseline is not None else None,
             )
 
             # Update peak indices to global coordinates
@@ -142,11 +146,13 @@ class PeakAnalyzer:
 
         return peak_list
 
-    def _analyze_peak_region(self,
-                             temperature: NDArray[np.float64],
-                             heat_flow: NDArray[np.float64],
-                             peak_idx: int,
-                             baseline: Optional[NDArray[np.float64]] = None) -> DSCPeak:
+    def _analyze_peak_region(
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        peak_idx: int,
+        baseline: Optional[NDArray[np.float64]] = None,
+    ) -> DSCPeak:
         """
         Analyze a single peak region.
 
@@ -170,7 +176,9 @@ class PeakAnalyzer:
             peak_height -= baseline[peak_idx]
 
         # Calculate peak width using existing method
-        peak_width = self._calculate_peak_width(temperature, heat_flow, peak_idx, baseline)
+        peak_width = self._calculate_peak_width(
+            temperature, heat_flow, peak_idx, baseline
+        )
 
         # Calculate peak area
         signal_to_integrate = heat_flow
@@ -188,7 +196,7 @@ class PeakAnalyzer:
             peak_area=float(peak_area),
             baseline_type="none" if baseline is None else "provided",
             baseline_params={},
-            peak_indices=(0, len(temperature) - 1)  # Will be updated in find_peaks
+            peak_indices=(0, len(temperature) - 1),  # Will be updated in find_peaks
         )
 
     def _calculate_onset(
