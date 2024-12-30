@@ -1,10 +1,21 @@
 """Type definitions for DSC analysis."""
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from enum import Enum
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
+
+
+class CpMethod(Enum):
+    """Enumeration of Cp calculation methods."""
+
+    STANDARD = "standard"  # Traditional three-run method
+    MODULATED = "modulated"  # MDSC method
+    CONTINUOUS = "continuous"  # Continuous Cp method
+    STEP = "step"  # Step method
+    DIRECT = "direct"  # Direct Cp from calibrated DSC
 
 
 @dataclass
@@ -106,3 +117,29 @@ class PhaseTransition:
     enthalpy: Optional[float] = None
     transition_width: float = 0.0
     quality_metrics: Dict[str, float] = field(default_factory=dict)
+
+
+@dataclass
+class CpResult:
+    """Container for specific heat capacity results."""
+
+    temperature: NDArray[np.float64]
+    specific_heat: NDArray[np.float64]
+    method: CpMethod
+    uncertainty: NDArray[np.float64]
+    quality_metrics: Dict[str, float]
+    metadata: Dict[str, Union[float, str, NDArray[np.float64]]]
+
+
+@dataclass
+class CalibrationData:
+    """Container for calibration data."""
+
+    reference_material: str
+    temperature: NDArray[np.float64]
+    measured_cp: NDArray[np.float64]
+    reference_cp: NDArray[np.float64]
+    calibration_factors: NDArray[np.float64]
+    uncertainty: NDArray[np.float64]
+    valid_range: Tuple[float, float]
+    timestamp: str = field(default_factory=lambda: np.datetime64("now").astype(str))
