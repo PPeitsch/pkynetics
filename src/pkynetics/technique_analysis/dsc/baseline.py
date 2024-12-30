@@ -20,13 +20,12 @@ class BaselineCorrector:
         self._correction_methods = {
             "linear": self._fit_linear_baseline,
             "polynomial": self._fit_polynomial_baseline,
-            "sigmoidal": self._fit_sigmoidal_baseline
+            "sigmoidal": self._fit_sigmoidal_baseline,
         }
 
-    def correct(self,
-                temperature: NDArray[np.float64],
-                heat_flow: NDArray[np.float64],
-                **kwargs) -> Tuple[NDArray[np.float64], Dict]:
+    def correct(
+        self, temperature: NDArray[np.float64], heat_flow: NDArray[np.float64], **kwargs
+    ) -> Tuple[NDArray[np.float64], Dict]:
         """Apply baseline correction."""
         if self.method not in self._correction_methods:
             raise ValueError(f"Unknown baseline method: {self.method}")
@@ -34,11 +33,12 @@ class BaselineCorrector:
         correction_func = self._correction_methods[self.method]
         return correction_func(temperature, heat_flow, **kwargs)
 
-    def _fit_linear_baseline(self,
-                             temperature: NDArray[np.float64],
-                             heat_flow: NDArray[np.float64],
-                             range_points: Optional[List[Tuple[float, float]]] = None
-                             ) -> Tuple[NDArray[np.float64], Dict]:
+    def _fit_linear_baseline(
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        range_points: Optional[List[Tuple[float, float]]] = None,
+    ) -> Tuple[NDArray[np.float64], Dict]:
         """Fit linear baseline."""
         if range_points is None:
             points = [(temperature[0], temperature[-1])]
@@ -58,14 +58,16 @@ class BaselineCorrector:
         return baseline, {
             "type": "linear",
             "slope": float(coeffs[0]),
-            "intercept": float(coeffs[1])
+            "intercept": float(coeffs[1]),
         }
 
-    def _fit_polynomial_baseline(self,
-                                 temperature: NDArray[np.float64],
-                                 heat_flow: NDArray[np.float64],
-                                 degree: int = 3,
-                                 **kwargs) -> Tuple[NDArray[np.float64], Dict]:
+    def _fit_polynomial_baseline(
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        degree: int = 3,
+        **kwargs,
+    ) -> Tuple[NDArray[np.float64], Dict]:
         """Fit polynomial baseline."""
         # Implementation similar to linear but with higher degree
         coeffs = np.polyfit(temperature, heat_flow, degree)
@@ -74,13 +76,12 @@ class BaselineCorrector:
         return baseline, {
             "type": "polynomial",
             "degree": degree,
-            "coefficients": coeffs.tolist()
+            "coefficients": coeffs.tolist(),
         }
 
-    def _fit_sigmoidal_baseline(self,
-                                temperature: NDArray[np.float64],
-                                heat_flow: NDArray[np.float64],
-                                **kwargs) -> Tuple[NDArray[np.float64], Dict]:
+    def _fit_sigmoidal_baseline(
+        self, temperature: NDArray[np.float64], heat_flow: NDArray[np.float64], **kwargs
+    ) -> Tuple[NDArray[np.float64], Dict]:
         """Fit sigmoidal baseline."""
 
         def sigmoid(x, a, b, c, d):
@@ -90,10 +91,7 @@ class BaselineCorrector:
             popt, _ = curve_fit(sigmoid, temperature, heat_flow)
             baseline = sigmoid(temperature, *popt)
 
-            return baseline, {
-                "type": "sigmoidal",
-                "parameters": popt.tolist()
-            }
+            return baseline, {"type": "sigmoidal", "parameters": popt.tolist()}
         except RuntimeError:
             # Fallback to linear if sigmoid fitting fails
             return self._fit_linear_baseline(temperature, heat_flow)

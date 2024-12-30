@@ -51,11 +51,13 @@ class DSCExperiment:
 class DSCAnalyzer:
     """Main class for DSC analysis."""
 
-    def __init__(self,
-                 experiment: DSCExperiment,
-                 baseline_corrector: Optional['BaselineCorrector'] = None,
-                 peak_analyzer: Optional['PeakAnalyzer'] = None,
-                 event_detector: Optional['ThermalEventDetector'] = None):
+    def __init__(
+        self,
+        experiment: DSCExperiment,
+        baseline_corrector: Optional["BaselineCorrector"] = None,
+        peak_analyzer: Optional["PeakAnalyzer"] = None,
+        event_detector: Optional["ThermalEventDetector"] = None,
+    ):
         """Initialize DSC analyzer with experiment data."""
         self.experiment = experiment
         self.baseline_corrector = baseline_corrector or BaselineCorrector()
@@ -71,22 +73,18 @@ class DSCAnalyzer:
         """Perform complete DSC analysis."""
         # Correct baseline
         self.baseline, baseline_params = self.baseline_corrector.correct(
-            self.experiment.temperature,
-            self.experiment.heat_flow
+            self.experiment.temperature, self.experiment.heat_flow
         )
         self.corrected_heat_flow = self.experiment.heat_flow - self.baseline
 
         # Analyze peaks
         self.peaks = self.peak_analyzer.find_peaks(
-            self.experiment.temperature,
-            self.corrected_heat_flow
+            self.experiment.temperature, self.corrected_heat_flow
         )
 
         # Detect thermal events
         self.events = self.event_detector.detect_events(
-            self.experiment.temperature,
-            self.corrected_heat_flow,
-            self.peaks
+            self.experiment.temperature, self.corrected_heat_flow, self.peaks
         )
 
         return {
@@ -94,6 +92,6 @@ class DSCAnalyzer:
             "events": self.events,
             "baseline": {
                 "type": baseline_params["type"],
-                "parameters": baseline_params
-            }
+                "parameters": baseline_params,
+            },
         }
