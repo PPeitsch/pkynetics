@@ -280,7 +280,7 @@ class PeakAnalyzer:
         baseline: Optional[NDArray[np.float64]] = None,
     ) -> float:
         """
-        Calculate endset temperature using tangent method.
+        Calculate endset temperature using tangent method with enhanced precision.
 
         Args:
             temperature: Temperature array
@@ -291,30 +291,49 @@ class PeakAnalyzer:
         Returns:
             Endset temperature
         """
-        # Use linear baseline if none provided
         if baseline is None:
             baseline = np.zeros_like(heat_flow)
 
-        # Find region after peak for tangent calculation
+        # Use extended post-peak region
         post_peak = slice(peak_idx, len(temperature))
 
-        # Calculate derivative in post-peak region
-        dydx = np.gradient(heat_flow[post_peak], temperature[post_peak])
+        # Smooth data for derivative calculation
+        smooth_flow = signal.savgol_filter(
+            heat_flow[post_peak], self.smoothing_window, self.smoothing_order
+        )
 
-        # Find point of maximum slope
+        # Calculate derivative in post-peak region
+        dydx = np.gradient(smooth_flow, temperature[post_peak])
+
+        # Find point of maximum negative slope
         max_slope_idx = peak_idx + np.argmin(dydx)
 
         # Calculate tangent line
-        slope = dydx[max_slope_idx - peak_idx]
+        slope = np.min(dydx)  # Use the maximum negative slope
         intercept = heat_flow[max_slope_idx] - slope * temperature[max_slope_idx]
         tangent = slope * temperature + intercept
 
-        # Find intersection with baseline
-        endset_temp, _ = find_intersection_point(
-            temperature, tangent, baseline, max_slope_idx, "forward"
-        )
+        # Find intersection using multiple points
+        window = self.smoothing_window
+        endset_temps = []
+        for i in range(
+            max_slope_idx, min(max_slope_idx + window, len(temperature) - 1)
+        ):
+            if (tangent[i] <= baseline[i] and tangent[i + 1] >= baseline[i + 1]) or (
+                tangent[i] >= baseline[i] and tangent[i + 1] <= baseline[i + 1]
+            ):
+                x1, x2 = temperature[i], temperature[i + 1]
+                y1 = tangent[i] - baseline[i]
+                y2 = tangent[i + 1] - baseline[i + 1]
 
-        return endset_temp
+                if abs(y2 - y1) > 1e-10:
+                    x_int = x1 - y1 * (x2 - x1) / (y2 - y1)
+                    endset_temps.append(x_int)
+
+        if not endset_temps:
+            return temperature[max_slope_idx]
+
+        return float(np.median(endset_temps))
 
     def _calculate_peak_width(
         self,
