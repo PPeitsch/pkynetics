@@ -1,7 +1,7 @@
 """Type definitions for DSC analysis."""
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -42,3 +42,15 @@ class DSCExperiment:
                 np.mean(np.gradient(self.temperature, self.time)) * 60
             )
         self.metadata = self.metadata or {}
+
+
+@dataclass
+class BaselineResult:
+    """Container for baseline correction results."""
+
+    baseline: NDArray[np.float64]
+    corrected_data: NDArray[np.float64]
+    method: str
+    parameters: Dict
+    quality_metrics: Dict
+    regions: Optional[List[Tuple[float, float]]] = None
