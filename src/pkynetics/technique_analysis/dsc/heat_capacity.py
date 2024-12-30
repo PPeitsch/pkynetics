@@ -191,17 +191,17 @@ class CpCalculator:
         """
         # Extract required data
         temp = data["temperature"]
-        total_hf = data["total_heat_flow"]
+        total_hf = self._get_heat_flow(data, required=False) or data["total_heat_flow"]
         reversing_hf = data["reversing_heat_flow"]
         modulation_period = data.get("modulation_period", 60.0)  # seconds
         modulation_amplitude = data.get("modulation_amplitude", 0.5)  # K
 
-        # Calculate complex heat capacity
+        # Convert to complex heat capacity
         omega = 2 * np.pi / modulation_period
         cp_complex = reversing_hf / (modulation_amplitude * omega)
 
-        # Extract reversing Cp (real component)
-        cp = np.real(cp_complex)
+        # Use real component for Cp
+        cp = np.abs(cp_complex)  # Changed to use magnitude instead of real part
 
         # Calculate uncertainty
         uncertainty = self._calculate_modulated_uncertainty(
@@ -584,25 +584,26 @@ class CpCalculator:
         self, temperature: NDArray[np.float64], step_size: float
     ) -> List[Tuple[int, int]]:
         """Detect temperature step regions in data."""
-        # Calculate temperature gradient
         dT = np.gradient(temperature)
+        is_constant = np.abs(dT) < 0.1 * step_size  # Adjusted threshold
 
-        # Find regions of constant temperature
-        is_constant = np.abs(dT) < 0.1  # Temperature change < 0.1 K
-
-        # Find step boundaries
         steps = []
         in_step = False
         start_idx = 0
+        min_step_points = 10  # Minimum points for a valid step
 
         for i, const in enumerate(is_constant):
             if const and not in_step:
                 start_idx = i
                 in_step = True
             elif not const and in_step:
-                if temperature[i] - temperature[start_idx] >= 0.9 * step_size:
+                if i - start_idx >= min_step_points:
                     steps.append((start_idx, i))
                 in_step = False
+
+        # Handle last step
+        if in_step and len(temperature) - start_idx >= min_step_points:
+            steps.append((start_idx, len(temperature)))
 
         return steps
 
