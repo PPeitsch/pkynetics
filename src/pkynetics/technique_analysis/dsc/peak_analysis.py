@@ -413,34 +413,49 @@ class PeakAnalyzer:
 
         peak_func = gaussian if peak_shape == "gaussian" else lorentzian
 
-        # Find initial peak positions
+        # Apply smoothing for better peak detection
         smooth_flow = signal.savgol_filter(heat_flow, self.smoothing_window, 3)
+
+        # Find all potential peaks
         peaks, properties = signal.find_peaks(
-            smooth_flow, distance=len(temperature) // (n_peaks + 1)
+            smooth_flow,
+            prominence=np.max(smooth_flow) * 0.1,
+            width=5,
+            distance=len(temperature) // (n_peaks * 2),
         )
 
         if len(peaks) < n_peaks:
-            # Create evenly spaced initial guesses if not enough peaks found
-            peak_indices = np.linspace(0, len(temperature) - 1, n_peaks, dtype=int)
+            # Divide temperature range into n_peaks regions
+            temp_range = temperature.max() - temperature.min()
+            region_size = temp_range / n_peaks
+            peak_positions = [
+                temperature.min() + region_size * (i + 0.5) for i in range(n_peaks)
+            ]
+            peak_indices = [
+                np.abs(temperature - pos).argmin() for pos in peak_positions
+            ]
         else:
-            # Use the n_peaks highest peaks
-            peak_heights = smooth_flow[peaks]
-            peak_indices = peaks[np.argsort(peak_heights)[-n_peaks:]]
+            # Select peaks with highest prominence
+            prominences = properties["prominences"]
+            peak_indices = peaks[np.argsort(prominences)[-n_peaks:]]
 
-        # Generate initial parameters
+        # Generate initial parameters and bounds
         p0 = []
         bounds_low = []
         bounds_high = []
+
+        temp_range = temperature.max() - temperature.min()
+        min_width = temp_range * 0.02  # 2% of temperature range
+        max_width = temp_range * 0.2  # 20% of temperature range
+
         for idx in peak_indices:
-            amp = heat_flow[idx]
+            amp = smooth_flow[idx]
             cen = temperature[idx]
-            wid = (temperature[1] - temperature[0]) * 10
+            wid = temp_range * 0.05  # Initial width 5% of temperature range
 
             p0.extend([amp, cen, wid])
-            bounds_low.extend(
-                [0, temperature.min(), 0]
-            )  # Amplitude and width must be positive
-            bounds_high.extend([amp * 2, temperature.max(), wid * 5])
+            bounds_low.extend([0, cen - temp_range * 0.15, min_width])
+            bounds_high.extend([amp * 2, cen + temp_range * 0.15, max_width])
 
         def fit_function(x: NDArray[np.float64], *params) -> NDArray[np.float64]:
             result = np.zeros_like(x)
@@ -449,6 +464,7 @@ class PeakAnalyzer:
             return result
 
         try:
+            # Perform curve fitting with improved bounds
             popt, _ = optimize.curve_fit(
                 fit_function,
                 temperature,
@@ -456,9 +472,10 @@ class PeakAnalyzer:
                 p0=p0,
                 bounds=(bounds_low, bounds_high),
                 maxfev=10000,
+                ftol=1e-8,
+                xtol=1e-8,
             )
 
-            # Extract results
             peak_params = []
             fitted_curve = np.zeros_like(temperature)
 
