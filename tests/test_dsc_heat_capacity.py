@@ -72,8 +72,9 @@ def generate_modulated_dsc_data(
         "reversing_heat_flow": reversing_hf,
         "modulation_period": modulation_period,
         "modulation_amplitude": modulation_amplitude,
-        "expected_cp": base_cp
+        "expected_cp": base_cp,
     }
+
 
 def generate_step_dsc_data(
     temp_range: tuple = (300, 500),

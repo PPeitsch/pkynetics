@@ -31,13 +31,25 @@ class CpCalculator:
         return None
 
     def calculate_cp(
-            self, sample_data: Dict[str, NDArray[np.float64]], method: CpMethod = CpMethod.STANDARD, **kwargs
+        self,
+        sample_data: Dict[str, NDArray[np.float64]],
+        method: Union[CpMethod, str] = CpMethod.STANDARD,
+        **kwargs,
     ) -> CpResult:
         """Calculate specific heat capacity."""
+        # Validate method type
+        if isinstance(method, str):
+            try:
+                method = CpMethod(method)
+            except ValueError:
+                raise ValueError(f"Invalid calculation method: {method}")
+
         # Validate required fields
         required = ["temperature"]
         if not all(field in sample_data for field in required):
-            raise ValueError(f"Missing required fields: {[f for f in required if f not in sample_data]}")
+            raise ValueError(
+                f"Missing required fields: {[f for f in required if f not in sample_data]}"
+            )
 
         calculation_methods = {
             CpMethod.STANDARD: self._calculate_standard_cp,
@@ -49,9 +61,8 @@ class CpCalculator:
 
         result = calculation_methods[method](sample_data, **kwargs)
 
-        # Scale continuous results to match standard method
         if method == CpMethod.CONTINUOUS:
-            scale_factor = 0.5 / np.mean(result.specific_heat[:20])  # Use first points for scaling
+            scale_factor = 0.5 / np.mean(result.specific_heat[:20])
             result.specific_heat *= scale_factor
             result.uncertainty *= scale_factor
 
@@ -167,7 +178,9 @@ class CpCalculator:
             },
         )
 
-    def _calculate_modulated_cp(self, data: Dict[str, NDArray[np.float64]], **kwargs) -> CpResult:
+    def _calculate_modulated_cp(
+        self, data: Dict[str, NDArray[np.float64]], **kwargs
+    ) -> CpResult:
         """Calculate Cp using modulated DSC method."""
         temp = data["temperature"]
         reversing_hf = data["reversing_heat_flow"]
@@ -186,7 +199,9 @@ class CpCalculator:
             reversing_hf, modulation_amplitude, modulation_period
         )
 
-        quality_metrics = self._calculate_quality_metrics(temp, cp, uncertainty, reversing_hf)
+        quality_metrics = self._calculate_quality_metrics(
+            temp, cp, uncertainty, reversing_hf
+        )
 
         return CpResult(
             temperature=temp,
@@ -197,8 +212,8 @@ class CpCalculator:
             metadata={
                 "modulation_period": modulation_period,
                 "modulation_amplitude": modulation_amplitude,
-                "phase_angle": float(np.mean(phase_angle))
-            }
+                "phase_angle": float(np.mean(phase_angle)),
+            },
         )
 
     def _calculate_continuous_cp(
@@ -241,7 +256,9 @@ class CpCalculator:
             metadata={"heating_rate": heating_rate, "sample_mass": sample_mass},
         )
 
-    def _calculate_step_cp(self, data: Dict[str, NDArray[np.float64]], **kwargs) -> CpResult:
+    def _calculate_step_cp(
+        self, data: Dict[str, NDArray[np.float64]], **kwargs
+    ) -> CpResult:
         """Calculate Cp using step method."""
         temp = data["temperature"]
         heat_flow = self._get_heat_flow(data)
@@ -255,10 +272,14 @@ class CpCalculator:
         cp = heat_flow / (sample_mass * step_size)
 
         # Calculate uncertainty
-        uncertainty = self._calculate_step_uncertainty(heat_flow, step_size, sample_mass)
+        uncertainty = self._calculate_step_uncertainty(
+            heat_flow, step_size, sample_mass
+        )
 
         # Calculate quality metrics
-        quality_metrics = self._calculate_quality_metrics(temp, cp, uncertainty, heat_flow)
+        quality_metrics = self._calculate_quality_metrics(
+            temp, cp, uncertainty, heat_flow
+        )
 
         return CpResult(
             temperature=temp,
@@ -269,11 +290,13 @@ class CpCalculator:
             metadata={
                 "step_size": step_size,
                 "sample_mass": sample_mass,
-                "step_points": steps
-            }
+                "step_points": steps,
+            },
         )
 
-    def _calculate_direct_cp(self, data: Dict[str, NDArray[np.float64]], **kwargs) -> CpResult:
+    def _calculate_direct_cp(
+        self, data: Dict[str, NDArray[np.float64]], **kwargs
+    ) -> CpResult:
         """Calculate Cp using direct method with calibrated DSC."""
         if self.calibration_data is None:
             raise ValueError("Calibration required for direct Cp calculation")
@@ -339,13 +362,13 @@ class CpCalculator:
         )
 
     def _calculate_standard_uncertainty(
-            self,
-            sample_hf: NDArray[np.float64],
-            ref_hf: NDArray[np.float64],
-            ref_cp: NDArray[np.float64],
-            sample_mass: float,
-            ref_mass: float,
-            heating_rate: float,
+        self,
+        sample_hf: NDArray[np.float64],
+        ref_hf: NDArray[np.float64],
+        ref_cp: NDArray[np.float64],
+        sample_mass: float,
+        ref_mass: float,
+        heating_rate: float,
     ) -> NDArray[np.float64]:
         """Calculate uncertainty for standard three-run method."""
         # Reduce uncertainty components to match expectation
