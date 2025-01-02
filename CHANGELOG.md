@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+[v0.3.3] - 2024-12-27
+---------------------
+
+Added
+^^^^^
+- Enhanced DSC data import functionality for Setaram file formats
+- Support for multiple delimiter and decimal separator styles
+- Comprehensive file format detection for Setaram DSC files
+
+Changed
+^^^^^^^
+- Improved robustness of data import mechanisms
+- Enhanced logging for file format detection
+- Maintained backwards compatibility with existing import methods
+
+Fixed
+^^^^^
+- Better handling of file import variations
+- Improved error handling for different file configurations
+
 ## [v0.3.2] - 2024-12-27
 
 ### Changed
@@ -15,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Restructured issue template to reduce friction in reporting process
 - Maintained all existing guideline compliance checks
-- 
+
 ## [v0.3.1] - 2024-12-26
 
 ### Fixed
