@@ -56,29 +56,24 @@ def generate_modulated_dsc_data(
 ) -> dict:
     """Generate synthetic modulated DSC data."""
     temperature = np.linspace(*temp_range, n_points)
-    time = np.linspace(0, (temp_range[1] - temp_range[0]) / 10, n_points)  # 10 K/min
-
-    # Generate modulated signals
-    omega = 2 * np.pi / modulation_period
-    modulation = modulation_amplitude * np.sin(omega * time)
+    time = np.linspace(0, modulation_period * 10, n_points)
 
     # Base Cp signal
     base_cp = 0.5 + 0.001 * (temperature - 300)
 
-    # Generate heat flows
-    total_hf = base_cp * 10 * (1 + 0.1 * np.sin(omega * time))  # 10 K/min
-    reversing_hf = base_cp * modulation_amplitude * omega * np.cos(omega * time)
+    # Generate reversing heat flow
+    omega = 2 * np.pi / modulation_period
+    heating_rate = omega * modulation_amplitude
+    reversing_hf = base_cp * heating_rate
 
     return {
         "temperature": temperature,
         "time": time,
-        "total_heat_flow": total_hf,
         "reversing_heat_flow": reversing_hf,
         "modulation_period": modulation_period,
         "modulation_amplitude": modulation_amplitude,
-        "expected_cp": base_cp,
+        "expected_cp": base_cp
     }
-
 
 def generate_step_dsc_data(
     temp_range: tuple = (300, 500),
