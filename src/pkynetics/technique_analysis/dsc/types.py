@@ -11,24 +11,26 @@ from numpy.typing import NDArray
 class CpMethod(Enum):
     """Enumeration of heat capacity calculation methods."""
 
-    THREE_STEP = "three_step"   # Method using three separate measurements (sample, reference, blank)
-    SINGLE_STEP = "single_step" # Method using a single measurement (with or without calibration)
-    MODULATED = "modulated"     # Method using temperature modulation (MDSC)
+    THREE_STEP = "three_step"  # Method using three separate measurements (sample, reference, blank)
+    SINGLE_STEP = (
+        "single_step"  # Method using a single measurement (with or without calibration)
+    )
+    MODULATED = "modulated"  # Method using temperature modulation (MDSC)
 
 
 class OperationMode(Enum):
     """Measurement operation modes that can be applied to Cp methods."""
 
     CONTINUOUS = "continuous"  # Continuous heating/cooling
-    STEPPED = "stepped"       # Step-wise heating/cooling with isothermal segments
+    STEPPED = "stepped"  # Step-wise heating/cooling with isothermal segments
 
 
 class StabilityMethod(Enum):
     """Methods for detecting stable regions in stepped mode."""
 
-    BASIC = "basic"          # Simple dT/dt threshold method
-    STATISTICAL = "stats"    # Statistical analysis method
-    CLUSTERING = "cluster"   # Clustering-based method
+    BASIC = "basic"  # Simple dT/dt threshold method
+    STATISTICAL = "stats"  # Statistical analysis method
+    CLUSTERING = "cluster"  # Clustering-based method
 
 
 @dataclass

@@ -6,18 +6,18 @@ from .heat_capacity import CpCalculator
 from .peak_analysis import PeakAnalyzer
 from .thermal_events import ThermalEventDetector
 from .types import (
-    CpMethod,
-    OperationMode,
-    StabilityMethod,
-    DSCPeak,
-    DSCExperiment,
     BaselineResult,
-    GlassTransition,
-    CrystallizationEvent,
-    MeltingEvent,
-    PhaseTransition,
-    CpResult,
     CalibrationData,
+    CpMethod,
+    CpResult,
+    CrystallizationEvent,
+    DSCExperiment,
+    DSCPeak,
+    GlassTransition,
+    MeltingEvent,
+    OperationMode,
+    PhaseTransition,
+    StabilityMethod,
 )
 from .utilities import (
     DataValidator,
