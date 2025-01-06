@@ -5,7 +5,20 @@ from .core import DSCAnalyzer
 from .heat_capacity import CpCalculator
 from .peak_analysis import PeakAnalyzer
 from .thermal_events import ThermalEventDetector
-from .types import DSCExperiment, DSCPeak
+from .types import (
+    CpMethod,
+    OperationMode,
+    StabilityMethod,
+    DSCPeak,
+    DSCExperiment,
+    BaselineResult,
+    GlassTransition,
+    CrystallizationEvent,
+    MeltingEvent,
+    PhaseTransition,
+    CpResult,
+    CalibrationData,
+)
 from .utilities import (
     DataValidator,
     DSCUnits,
@@ -33,4 +46,17 @@ __all__ = [
     "validate_window_size",
     "safe_savgol_filter",
     "find_intersection_point",
+    # Types
+    "CpMethod",
+    "OperationMode",
+    "StabilityMethod",
+    "DSCPeak",
+    "DSCExperiment",
+    "BaselineResult",
+    "GlassTransition",
+    "CrystallizationEvent",
+    "MeltingEvent",
+    "PhaseTransition",
+    "CpResult",
+    "CalibrationData",
 ]

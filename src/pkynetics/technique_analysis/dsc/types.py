@@ -9,13 +9,26 @@ from numpy.typing import NDArray
 
 
 class CpMethod(Enum):
-    """Enumeration of Cp calculation methods."""
+    """Enumeration of heat capacity calculation methods."""
 
-    STANDARD = "standard"  # Traditional three-run method
-    MODULATED = "modulated"  # MDSC method
-    CONTINUOUS = "continuous"  # Continuous Cp method
-    STEP = "step"  # Step method
-    DIRECT = "direct"  # Direct Cp from calibrated DSC
+    THREE_STEP = "three_step"   # Method using three separate measurements (sample, reference, blank)
+    SINGLE_STEP = "single_step" # Method using a single measurement (with or without calibration)
+    MODULATED = "modulated"     # Method using temperature modulation (MDSC)
+
+
+class OperationMode(Enum):
+    """Measurement operation modes that can be applied to Cp methods."""
+
+    CONTINUOUS = "continuous"  # Continuous heating/cooling
+    STEPPED = "stepped"       # Step-wise heating/cooling with isothermal segments
+
+
+class StabilityMethod(Enum):
+    """Methods for detecting stable regions in stepped mode."""
+
+    BASIC = "basic"          # Simple dT/dt threshold method
+    STATISTICAL = "stats"    # Statistical analysis method
+    CLUSTERING = "cluster"   # Clustering-based method
 
 
 @dataclass
@@ -129,6 +142,8 @@ class CpResult:
     uncertainty: NDArray[np.float64]
     quality_metrics: Dict[str, float]
     metadata: Dict[str, Union[float, str, NDArray[np.float64]]]
+    operation_mode: OperationMode = field(default=OperationMode.CONTINUOUS)
+    stable_regions: Optional[List[Tuple[int, int]]] = None
 
 
 @dataclass
