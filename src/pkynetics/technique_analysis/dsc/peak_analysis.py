@@ -8,67 +8,7 @@ from scipy import optimize, signal
 from scipy.integrate import trapz
 
 from .types import DSCPeak
-
-
-def find_intersection_point(
-    x: NDArray[np.float64],
-    y1: NDArray[np.float64],
-    y2: NDArray[np.float64],
-    start_idx: int,
-    direction: str = "forward",
-) -> Tuple[float, int]:
-    """
-    Find the intersection point between two curves.
-
-    Args:
-        x: x-axis values (temperature)
-        y1: First curve values
-        y2: Second curve values
-        start_idx: Starting index for search
-        direction: Search direction ("forward" or "backward")
-
-    Returns:
-        Tuple of (intersection x value, index)
-    """
-    if direction == "forward":
-        search_range = range(start_idx, len(x) - 1)
-    else:
-        search_range = range(start_idx, 0, -1)
-
-    for i in search_range:
-        if direction == "forward":
-            if (y1[i] <= y2[i] and y1[i + 1] >= y2[i + 1]) or (
-                y1[i] >= y2[i] and y1[i + 1] <= y2[i + 1]
-            ):
-                break
-        else:
-            if (y1[i] <= y2[i] and y1[i - 1] >= y2[i - 1]) or (
-                y1[i] >= y2[i] and y1[i - 1] <= y2[i - 1]
-            ):
-                break
-    else:
-        return x[start_idx], start_idx
-
-    # Linear interpolation to find precise intersection
-    if direction == "forward":
-        idx1, idx2 = i, i + 1
-    else:
-        idx1, idx2 = i - 1, i
-
-    x1, x2 = x[idx1], x[idx2]
-    y1_1, y1_2 = y1[idx1], y1[idx2]
-    y2_1, y2_2 = y2[idx1], y2[idx2]
-
-    # Intersection point by linear interpolation
-    dx = x2 - x1
-    dy1 = y1_2 - y1_1
-    dy2 = y2_2 - y2_1
-
-    if abs(dy1 - dy2) < 1e-10:  # Parallel lines
-        return x[i], i
-
-    x_int = x1 + (y2_1 - y1_1) * dx / (dy1 - dy2)
-    return float(x_int), i
+from .utilities import find_intersection_point, safe_savgol_filter, validate_window_size
 
 
 class PeakAnalyzer:
@@ -118,8 +58,8 @@ class PeakAnalyzer:
         if len(temperature) != len(heat_flow):
             raise ValueError("Temperature and heat flow arrays must have same length")
 
-        # Apply signal smoothing to reduce noise
-        smooth_heat_flow = signal.savgol_filter(
+        # Apply signal smoothing with safe window size
+        smooth_heat_flow = safe_savgol_filter(
             heat_flow, self.smoothing_window, self.smoothing_order
         )
 
@@ -133,8 +73,11 @@ class PeakAnalyzer:
             signal_to_analyze,
             prominence=self.peak_prominence,
             height=self.height_threshold,
-            width=self.smoothing_window // 2,
-            distance=self.smoothing_window,
+            width=validate_window_size(len(signal_to_analyze), self.smoothing_window)
+            // 2,
+            distance=validate_window_size(
+                len(signal_to_analyze), self.smoothing_window
+            ),
         )
 
         peak_list = []
@@ -183,7 +126,7 @@ class PeakAnalyzer:
         if baseline is not None:
             peak_height -= baseline[peak_idx]
 
-        # Calculate peak width using existing method
+        # Calculate peak width
         peak_width = self._calculate_peak_width(
             temperature, heat_flow, peak_idx, baseline
         )
@@ -204,7 +147,7 @@ class PeakAnalyzer:
             peak_area=float(peak_area),
             baseline_type="none" if baseline is None else "provided",
             baseline_params={},
-            peak_indices=(0, len(temperature) - 1),  # Will be updated in find_peaks
+            peak_indices=(0, len(temperature) - 1),
         )
 
     def _calculate_onset(
@@ -235,8 +178,10 @@ class PeakAnalyzer:
         pre_peak = slice(0, peak_idx)
 
         # Smooth data for derivative calculation
-        smooth_flow = signal.savgol_filter(
-            heat_flow[pre_peak], self.smoothing_window, self.smoothing_order
+        smooth_flow = safe_savgol_filter(
+            heat_flow[pre_peak],
+            min(len(heat_flow[pre_peak]), self.smoothing_window),
+            self.smoothing_order,
         )
 
         # Calculate derivative
@@ -245,24 +190,27 @@ class PeakAnalyzer:
         # Find point of maximum slope
         max_slope_idx = np.argmax(np.abs(dydx))
 
-        # Calculate tangent line
+        # Calculate tangent line parameters
         slope = dydx[max_slope_idx]
         intercept = heat_flow[max_slope_idx] - slope * temperature[max_slope_idx]
-        tangent = slope * temperature + intercept
+
+        # Calculate tangent line for intersection search
+        search_temp = temperature[:peak_idx]  # Solo hasta el pico
+        tangent = slope * search_temp + intercept
 
         # Find intersection using multiple points for improved precision
-        window = self.smoothing_window
+        window = min(
+            validate_window_size(len(temperature), self.smoothing_window), max_slope_idx
+        )
+
         onset_temps = []
-        for i in range(
-            max(0, max_slope_idx - window),
-            min(max_slope_idx + window, len(temperature)),
-        ):
-            if (tangent[i] <= baseline[i] and tangent[i + 1] >= baseline[i + 1]) or (
-                tangent[i] >= baseline[i] and tangent[i + 1] <= baseline[i + 1]
-            ):
+        for i in range(max(0, max_slope_idx - window), peak_idx - 1):
+            y_current = tangent[i] - baseline[i]
+            y_next = tangent[i + 1] - baseline[i + 1]
+
+            if y_current * y_next <= 0:
                 x1, x2 = temperature[i], temperature[i + 1]
-                y1 = tangent[i] - baseline[i]
-                y2 = tangent[i + 1] - baseline[i + 1]
+                y1, y2 = y_current, y_next
 
                 if abs(y2 - y1) > 1e-10:
                     x_int = x1 - y1 * (x2 - x1) / (y2 - y1)
@@ -281,7 +229,7 @@ class PeakAnalyzer:
         baseline: Optional[NDArray[np.float64]] = None,
     ) -> float:
         """
-        Calculate endset temperature using tangent method with enhanced precision.
+        Calculate endset temperature.
 
         Args:
             temperature: Temperature array
@@ -295,12 +243,14 @@ class PeakAnalyzer:
         if baseline is None:
             baseline = np.zeros_like(heat_flow)
 
-        # Use extended post-peak region
+        # Use post-peak region
         post_peak = slice(peak_idx, len(temperature))
 
         # Smooth data for derivative calculation
-        smooth_flow = signal.savgol_filter(
-            heat_flow[post_peak], self.smoothing_window, self.smoothing_order
+        smooth_flow = safe_savgol_filter(
+            heat_flow[post_peak],
+            min(len(heat_flow[post_peak]), self.smoothing_window),
+            self.smoothing_order,
         )
 
         # Calculate derivative in post-peak region
@@ -309,23 +259,25 @@ class PeakAnalyzer:
         # Find point of maximum negative slope
         max_slope_idx = peak_idx + np.argmin(dydx)
 
-        # Calculate tangent line
-        slope = np.min(dydx)  # Use the maximum negative slope
+        # Calculate tangent line parameters
+        slope = np.min(dydx)
         intercept = heat_flow[max_slope_idx] - slope * temperature[max_slope_idx]
-        tangent = slope * temperature + intercept
 
-        # Find intersection using multiple points
-        window = self.smoothing_window
+        # Calculate tangent line for intersection search
+        search_temp = temperature[peak_idx:]  # Solo después del pico
+        tangent = slope * search_temp + intercept
+
+        search_baseline = baseline[peak_idx:]
+
         endset_temps = []
-        for i in range(
-            max_slope_idx, min(max_slope_idx + window, len(temperature) - 1)
-        ):
-            if (tangent[i] <= baseline[i] and tangent[i + 1] >= baseline[i + 1]) or (
-                tangent[i] >= baseline[i] and tangent[i + 1] <= baseline[i + 1]
-            ):
-                x1, x2 = temperature[i], temperature[i + 1]
-                y1 = tangent[i] - baseline[i]
-                y2 = tangent[i + 1] - baseline[i + 1]
+        for i in range(len(search_temp) - 1):
+            y_current = tangent[i] - search_baseline[i]
+            y_next = tangent[i + 1] - search_baseline[i + 1]
+
+            # Verificar cambio de signo
+            if y_current * y_next <= 0:
+                x1, x2 = search_temp[i], search_temp[i + 1]
+                y1, y2 = y_current, y_next
 
                 if abs(y2 - y1) > 1e-10:
                     x_int = x1 - y1 * (x2 - x1) / (y2 - y1)
@@ -389,7 +341,7 @@ class PeakAnalyzer:
         peak_shape: str = "gaussian",
     ) -> Tuple[List[Dict], NDArray[np.float64]]:
         """
-        Deconvolute overlapping peaks with improved parameter estimation.
+        Deconvolute overlapping peaks.
 
         Args:
             temperature: Temperature array
@@ -414,7 +366,9 @@ class PeakAnalyzer:
         peak_func = gaussian if peak_shape == "gaussian" else lorentzian
 
         # Apply smoothing for better peak detection
-        smooth_flow = signal.savgol_filter(heat_flow, self.smoothing_window, 3)
+        smooth_flow = safe_savgol_filter(
+            heat_flow, validate_window_size(len(heat_flow), self.smoothing_window), 3
+        )
 
         # Find all potential peaks
         peaks, properties = signal.find_peaks(

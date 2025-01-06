@@ -8,7 +8,9 @@ from numpy.typing import NDArray
 from scipy import signal, stats
 
 
-def validate_window_size(data_length: int, window_length: int, min_size: int = 3) -> int:
+def validate_window_size(
+    data_length: int, window_length: int, min_size: int = 3
+) -> int:
     """
     Validate and adjust window size for signal processing operations.
 
@@ -36,9 +38,7 @@ def validate_window_size(data_length: int, window_length: int, min_size: int = 3
 
 
 def safe_savgol_filter(
-    data: NDArray[np.float64],
-    window_length: int,
-    polyorder: int
+    data: NDArray[np.float64], window_length: int, polyorder: int
 ) -> NDArray[np.float64]:
     """
     Apply Savitzky-Golay filter with validated window size.
@@ -61,7 +61,7 @@ def find_intersection_point(
     y1: NDArray[np.float64],
     y2: NDArray[np.float64],
     start_idx: int,
-    direction: str = "forward"
+    direction: str = "forward",
 ) -> Tuple[float, int]:
     """
     Find the intersection point between two curves.
@@ -84,12 +84,12 @@ def find_intersection_point(
     for i in search_range:
         if direction == "forward":
             if (y1[i] <= y2[i] and y1[i + 1] >= y2[i + 1]) or (
-                    y1[i] >= y2[i] and y1[i + 1] <= y2[i + 1]
+                y1[i] >= y2[i] and y1[i + 1] <= y2[i + 1]
             ):
                 break
         else:
             if (y1[i] <= y2[i] and y1[i - 1] >= y2[i - 1]) or (
-                    y1[i] >= y2[i] and y1[i - 1] <= y2[i - 1]
+                y1[i] >= y2[i] and y1[i - 1] <= y2[i - 1]
             ):
                 break
     else:
