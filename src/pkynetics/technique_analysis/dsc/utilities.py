@@ -1,11 +1,120 @@
 """Utility functions for DSC data analysis."""
 
 from enum import Enum
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy import signal, stats
+
+
+def validate_window_size(data_length: int, window_length: int, min_size: int = 3) -> int:
+    """
+    Validate and adjust window size for signal processing operations.
+
+    Args:
+        data_length: Length of the data array
+        window_length: Requested window length
+        min_size: Minimum acceptable window size (must be odd)
+
+    Returns:
+        Valid window length (odd number, between min_size and data_length)
+    """
+    # Ensure min_size is odd
+    min_size = (min_size // 2) * 2 + 1
+
+    # Adjust window size if necessary
+    if window_length >= data_length:
+        window_length = min(data_length - 1, 21)
+
+    # Ensure window is odd
+    if window_length % 2 == 0:
+        window_length -= 1
+
+    # Ensure window is at least min_size
+    return max(min_size, window_length)
+
+
+def safe_savgol_filter(
+    data: NDArray[np.float64],
+    window_length: int,
+    polyorder: int
+) -> NDArray[np.float64]:
+    """
+    Apply Savitzky-Golay filter with validated window size.
+
+    Args:
+        data: Input data array
+        window_length: Desired window length
+        polyorder: Polynomial order for filtering
+
+    Returns:
+        Filtered data array
+    """
+    valid_window = validate_window_size(len(data), window_length)
+    valid_polyorder = min(valid_window - 1, polyorder)
+    return signal.savgol_filter(data, valid_window, valid_polyorder)
+
+
+def find_intersection_point(
+    x: NDArray[np.float64],
+    y1: NDArray[np.float64],
+    y2: NDArray[np.float64],
+    start_idx: int,
+    direction: str = "forward"
+) -> Tuple[float, int]:
+    """
+    Find the intersection point between two curves.
+
+    Args:
+        x: x-axis values
+        y1: First curve values
+        y2: Second curve values
+        start_idx: Starting index for search
+        direction: Search direction ("forward" or "backward")
+
+    Returns:
+        Tuple of (intersection x value, index)
+    """
+    if direction == "forward":
+        search_range = range(start_idx, len(x) - 1)
+    else:
+        search_range = range(start_idx, 0, -1)
+
+    for i in search_range:
+        if direction == "forward":
+            if (y1[i] <= y2[i] and y1[i + 1] >= y2[i + 1]) or (
+                    y1[i] >= y2[i] and y1[i + 1] <= y2[i + 1]
+            ):
+                break
+        else:
+            if (y1[i] <= y2[i] and y1[i - 1] >= y2[i - 1]) or (
+                    y1[i] >= y2[i] and y1[i - 1] <= y2[i - 1]
+            ):
+                break
+    else:
+        return x[start_idx], start_idx
+
+    # Linear interpolation to find precise intersection
+    if direction == "forward":
+        idx1, idx2 = i, i + 1
+    else:
+        idx1, idx2 = i - 1, i
+
+    x1, x2 = x[idx1], x[idx2]
+    y1_1, y1_2 = y1[idx1], y1[idx2]
+    y2_1, y2_2 = y2[idx1], y2[idx2]
+
+    # Intersection point by linear interpolation
+    dx = x2 - x1
+    dy1 = y1_2 - y1_1
+    dy2 = y2_2 - y2_1
+
+    if abs(dy1 - dy2) < 1e-10:  # Parallel lines
+        return x[i], i
+
+    x_int = x1 + (y2_1 - y1_1) * dx / (dy1 - dy2)
+    return float(x_int), i
 
 
 class DSCUnits(Enum):
