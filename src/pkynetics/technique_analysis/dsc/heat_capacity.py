@@ -1,11 +1,9 @@
 """Specific heat capacity analysis module for DSC measurements."""
 
-from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy import integrate
 
 from .types import CalibrationData, CpMethod, CpResult
 
