@@ -22,10 +22,10 @@ class SignalStabilityDetector:
     """Class for detecting stable regions in signals."""
 
     def __init__(
-            self,
-            method: Union[StabilityMethod, str] = StabilityMethod.STATISTICAL,
-            min_points: int = 100,
-            **kwargs,
+        self,
+        method: Union[StabilityMethod, str] = StabilityMethod.STATISTICAL,
+        min_points: int = 100,
+        **kwargs,
     ):
         """
         Initialize stability detector.
@@ -43,10 +43,10 @@ class SignalStabilityDetector:
         self.params = kwargs
 
     def find_stable_regions(
-            self,
-            signal: NDArray[np.float64],
-            x_values: Optional[NDArray[np.float64]] = None,
-            **kwargs,
+        self,
+        signal: NDArray[np.float64],
+        x_values: Optional[NDArray[np.float64]] = None,
+        **kwargs,
     ) -> List[Tuple[int, int]]:
         """
         Find stable regions in signal.
@@ -75,24 +75,24 @@ class SignalStabilityDetector:
         return detection_methods[self.method](signal, x_values, **params)
 
     def _derivative_method(
-            self,
-            signal: NDArray[np.float64],
-            x_values: Optional[NDArray[np.float64]] = None,
-            threshold: float = 0.1,
-            **kwargs,
+        self,
+        signal: NDArray[np.float64],
+        x_values: Optional[NDArray[np.float64]] = None,
+        threshold: float = 0.1,
+        **kwargs,
     ) -> List[Tuple[int, int]]:
         """Detect stable regions using signal derivative."""
         # TODO: Implementar
         pass
 
     def _statistical_method(
-            self,
-            signal: NDArray[np.float64],
-            x_values: Optional[NDArray[np.float64]] = None,
-            window_size: int = 50,
-            std_threshold: float = 0.1,
-            overlap: float = 0.5,
-            **kwargs,
+        self,
+        signal: NDArray[np.float64],
+        x_values: Optional[NDArray[np.float64]] = None,
+        window_size: int = 50,
+        std_threshold: float = 0.1,
+        overlap: float = 0.5,
+        **kwargs,
     ) -> List[Tuple[int, int]]:
         """
         Detect stable regions using statistical measures.
@@ -140,7 +140,7 @@ class SignalStabilityDetector:
             if stable_mask[i] and start_idx is None:
                 start_idx = i * step
             elif (
-                    not stable_mask[i] or i == len(stable_mask) - 1
+                not stable_mask[i] or i == len(stable_mask) - 1
             ) and start_idx is not None:
                 end_idx = i * step + window_size
                 if end_idx - start_idx >= self.min_points:
@@ -148,7 +148,7 @@ class SignalStabilityDetector:
                     region_signal = signal[start_idx:end_idx]
                     local_stds = np.array(
                         [
-                            np.std(region_signal[j: j + window_size])
+                            np.std(region_signal[j : j + window_size])
                             for j in range(0, len(region_signal) - window_size, step)
                         ]
                     )
@@ -162,14 +162,14 @@ class SignalStabilityDetector:
         return stable_regions
 
     def _linear_fit_method(
-            self,
-            signal: NDArray[np.float64],
-            x_values: Optional[NDArray[np.float64]] = None,
-            window_size: int = 100,
-            r2_threshold: float = 0.95,
-            slope_tolerance: float = 0.1,
-            overlap: float = 0.5,
-            **kwargs,
+        self,
+        signal: NDArray[np.float64],
+        x_values: Optional[NDArray[np.float64]] = None,
+        window_size: int = 100,
+        r2_threshold: float = 0.95,
+        slope_tolerance: float = 0.1,
+        overlap: float = 0.5,
+        **kwargs,
     ) -> List[Tuple[int, int]]:
         """
         Detect stable regions using linear regression.
@@ -211,7 +211,7 @@ class SignalStabilityDetector:
 
             # Perform linear regression
             slope, intercept, r_value, _, _ = stats.linregress(window_x, window_y)
-            window_stats[i] = [r_value ** 2, slope, intercept]
+            window_stats[i] = [r_value**2, slope, intercept]
 
         # Find regions with good linear fit
         r2_mask = window_stats[:, 0] >= r2_threshold
@@ -232,7 +232,7 @@ class SignalStabilityDetector:
             if stable_mask[i] and start_idx is None:
                 start_idx = i * step
             elif (
-                    not stable_mask[i] or i == len(stable_mask) - 1
+                not stable_mask[i] or i == len(stable_mask) - 1
             ) and start_idx is not None:
                 end_idx = i * step + window_size
                 if end_idx - start_idx >= self.min_points:
@@ -243,10 +243,10 @@ class SignalStabilityDetector:
                     # Calculate R² for sub-windows to find most linear section
                     r2_values = []
                     for j in range(0, len(region_signal) - window_size, step):
-                        sub_x = region_x[j: j + window_size]
-                        sub_y = region_signal[j: j + window_size]
+                        sub_x = region_x[j : j + window_size]
+                        sub_y = region_signal[j : j + window_size]
                         _, _, r_value, _, _ = stats.linregress(sub_x, sub_y)
-                        r2_values.append(r_value ** 2)
+                        r2_values.append(r_value**2)
 
                     if r2_values:
                         # Find the most linear section
@@ -259,13 +259,13 @@ class SignalStabilityDetector:
         return stable_regions
 
     def _adaptive_method(
-            self,
-            signal: NDArray[np.float64],
-            x_values: Optional[NDArray[np.float64]] = None,
-            min_segment_size: int = 50,
-            error_threshold: float = 0.1,
-            max_depth: int = 10,
-            **kwargs,
+        self,
+        signal: NDArray[np.float64],
+        x_values: Optional[NDArray[np.float64]] = None,
+        min_segment_size: int = 50,
+        error_threshold: float = 0.1,
+        max_depth: int = 10,
+        **kwargs,
     ) -> List[Tuple[int, int]]:
         """
         Detect stable regions using adaptive segmentation.
@@ -348,13 +348,13 @@ class SignalStabilityDetector:
         return stable_regions
 
     def _wavelet_method(
-            self,
-            signal: NDArray[np.float64],
-            x_values: Optional[NDArray[np.float64]] = None,
-            wavelet: str = "db4",
-            level: int = 3,
-            threshold: float = 0.1,
-            **kwargs,
+        self,
+        signal: NDArray[np.float64],
+        x_values: Optional[NDArray[np.float64]] = None,
+        wavelet: str = "db4",
+        level: int = 3,
+        threshold: float = 0.1,
+        **kwargs,
     ) -> List[Tuple[int, int]]:
         """
         Detect stable regions using wavelet transform.
@@ -415,7 +415,7 @@ class SignalStabilityDetector:
             if stability_mask[i] and start_idx is None:
                 start_idx = i
             elif (
-                    not stability_mask[i] or i == len(stability_mask) - 1
+                not stability_mask[i] or i == len(stability_mask) - 1
             ) and start_idx is not None:
                 end_idx = i
                 if end_idx - start_idx >= self.min_points:
@@ -425,14 +425,14 @@ class SignalStabilityDetector:
         return stable_regions
 
     def _derivative_method(
-            self,
-            signal: NDArray[np.float64],
-            x_values: Optional[NDArray[np.float64]] = None,
-            window_size: int = 20,
-            derivative_threshold: float = 0.1,
-            second_derivative_threshold: float = 0.05,
-            smooth_window: int = 7,
-            **kwargs
+        self,
+        signal: NDArray[np.float64],
+        x_values: Optional[NDArray[np.float64]] = None,
+        window_size: int = 20,
+        derivative_threshold: float = 0.1,
+        second_derivative_threshold: float = 0.05,
+        smooth_window: int = 7,
+        **kwargs,
     ) -> List[Tuple[int, int]]:
         """
         Detect stable regions using first and second derivatives.
@@ -471,8 +471,9 @@ class SignalStabilityDetector:
         norm_second_threshold = signal_range * second_derivative_threshold
 
         # Create stability mask
-        stable_mask = (np.abs(first_derivative) < norm_first_threshold) & \
-                      (np.abs(second_derivative) < norm_second_threshold)
+        stable_mask = (np.abs(first_derivative) < norm_first_threshold) & (
+            np.abs(second_derivative) < norm_second_threshold
+        )
 
         # Find continuous regions
         stable_regions = []
@@ -481,13 +482,19 @@ class SignalStabilityDetector:
         for i in range(len(stable_mask)):
             if stable_mask[i] and start_idx is None:
                 start_idx = i
-            elif (not stable_mask[i] or i == len(stable_mask) - 1) and start_idx is not None:
+            elif (
+                not stable_mask[i] or i == len(stable_mask) - 1
+            ) and start_idx is not None:
                 end_idx = i
                 if end_idx - start_idx >= self.min_points:
                     # Refine region using local derivatives
                     refined_start, refined_end = self._refine_derivative_region(
-                        signal, x_values, start_idx, end_idx,
-                        norm_first_threshold, norm_second_threshold
+                        signal,
+                        x_values,
+                        start_idx,
+                        end_idx,
+                        norm_first_threshold,
+                        norm_second_threshold,
                     )
                     if refined_end - refined_start >= self.min_points:
                         stable_regions.append((refined_start, refined_end))
@@ -496,13 +503,13 @@ class SignalStabilityDetector:
         return stable_regions
 
     def _refine_derivative_region(
-            self,
-            signal: NDArray[np.float64],
-            x_values: NDArray[np.float64],
-            start_idx: int,
-            end_idx: int,
-            first_threshold: float,
-            second_threshold: float,
+        self,
+        signal: NDArray[np.float64],
+        x_values: NDArray[np.float64],
+        start_idx: int,
+        end_idx: int,
+        first_threshold: float,
+        second_threshold: float,
     ) -> Tuple[int, int]:
         """Refine region boundaries using local derivative analysis."""
         # Calculate local derivatives
@@ -531,11 +538,11 @@ class SignalStabilityDetector:
         return best_start, best_end
 
     def evaluate_stability(
-            self,
-            signal: NDArray[np.float64],
-            region: Tuple[int, int],
-            x_values: Optional[NDArray[np.float64]] = None,
-            **kwargs
+        self,
+        signal: NDArray[np.float64],
+        region: Tuple[int, int],
+        x_values: Optional[NDArray[np.float64]] = None,
+        **kwargs,
     ) -> Dict[str, float]:
         """
         Evaluate comprehensive stability metrics for a given region.
@@ -596,16 +603,16 @@ class SignalStabilityDetector:
                 linearity,
                 derivative_metrics["std_d1"] / range_val,
                 derivative_metrics["std_d2"] / range_val,
-                snr
-            )
+                snr,
+            ),
         }
 
         return metrics
 
     def _calculate_linearity(
-            self,
-            signal: NDArray[np.float64],
-            x_values: Optional[NDArray[np.float64]] = None,
+        self,
+        signal: NDArray[np.float64],
+        x_values: Optional[NDArray[np.float64]] = None,
     ) -> float:
         """
         Calculate comprehensive linearity metric.
@@ -617,7 +624,7 @@ class SignalStabilityDetector:
 
         # Linear regression
         slope, intercept, r_value, _, _ = stats.linregress(x_values, signal)
-        r2 = float(r_value ** 2)
+        r2 = float(r_value**2)
 
         # Residual analysis
         y_pred = slope * x_values + intercept
@@ -632,9 +639,7 @@ class SignalStabilityDetector:
         return float(np.clip(linearity, 0, 1))
 
     def _estimate_noise(
-            self,
-            signal: NDArray[np.float64],
-            window_size: int = 5
+        self, signal: NDArray[np.float64], window_size: int = 5
     ) -> float:
         """
         Estimate noise level using median absolute deviation of differences.
@@ -653,12 +658,12 @@ class SignalStabilityDetector:
         return float(noise_level)
 
     def _calculate_stability_score(
-            self,
-            normalized_std: float,
-            linearity: float,
-            normalized_d1_std: float,
-            normalized_d2_std: float,
-            snr: float,
+        self,
+        normalized_std: float,
+        linearity: float,
+        normalized_d1_std: float,
+        normalized_d2_std: float,
+        snr: float,
     ) -> float:
         """
         Calculate overall stability score combining multiple metrics.
@@ -666,24 +671,18 @@ class SignalStabilityDetector:
         Returns a score between 0 (unstable) and 1 (very stable).
         """
         # Weight the different components
-        weights = {
-            'std': 0.25,
-            'linearity': 0.25,
-            'd1': 0.2,
-            'd2': 0.15,
-            'snr': 0.15
-        }
+        weights = {"std": 0.25, "linearity": 0.25, "d1": 0.2, "d2": 0.15, "snr": 0.15}
 
         # Transform SNR to 0-1 scale
         snr_score = 1 - np.exp(-snr / 10)  # asymptotic approach to 1
 
         # Calculate weighted score
         score = (
-                weights['std'] * (1 - normalized_std) +
-                weights['linearity'] * linearity +
-                weights['d1'] * (1 - normalized_d1_std) +
-                weights['d2'] * (1 - normalized_d2_std) +
-                weights['snr'] * snr_score
+            weights["std"] * (1 - normalized_std)
+            + weights["linearity"] * linearity
+            + weights["d1"] * (1 - normalized_d1_std)
+            + weights["d2"] * (1 - normalized_d2_std)
+            + weights["snr"] * snr_score
         )
 
         return float(np.clip(score, 0, 1))
