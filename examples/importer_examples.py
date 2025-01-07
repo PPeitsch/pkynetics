@@ -26,7 +26,7 @@ def tga_import_example():
 
 def dsc_import_example():
     """Example of using dsc_importer function."""
-    dsc_file_path = os.path.join(PKG_DATA_DIR, "sample_dsc_data.txt")
+    dsc_file_path = os.path.join(PKG_DATA_DIR, "sample_dsc_setaram.txt")
     try:
         dsc_data = dsc_importer(file_path=dsc_file_path, manufacturer="Setaram")
         print("DSC data imported successfully.")
