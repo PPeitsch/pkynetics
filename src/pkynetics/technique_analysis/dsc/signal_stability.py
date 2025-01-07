@@ -86,38 +86,169 @@ class SignalStabilityDetector:
         pass
 
     def _statistical_method(
-        self,
-        signal: NDArray[np.float64],
-        x_values: Optional[NDArray[np.float64]] = None,
-        window_size: int = 50,
-        std_threshold: float = 0.1,
-        **kwargs,
+            self,
+            signal: NDArray[np.float64],
+            x_values: Optional[NDArray[np.float64]] = None,
+            window_size: int = 50,
+            std_threshold: float = 0.1,
+            overlap: float = 0.5,
+            **kwargs
     ) -> List[Tuple[int, int]]:
         """
         Detect stable regions using statistical measures.
 
-        Uses a moving window to calculate local standard deviation
-        and identifies regions where it's below the threshold.
+        Args:
+            signal: Signal array
+            x_values: Optional x-axis values (not used in this method)
+            window_size: Size of the sliding window
+            std_threshold: Maximum allowed standard deviation relative to signal range
+            overlap: Fraction of overlap between windows (0 to 1)
+            **kwargs: Additional parameters (ignored)
+
+        Returns:
+            List of (start_idx, end_idx) tuples for stable regions
         """
-        # TODO: Implementar
-        pass
+        if len(signal) < window_size:
+            return []
+
+        # Calculate absolute threshold based on signal range
+        signal_range = np.ptp(signal)
+        abs_threshold = signal_range * std_threshold
+
+        # Calculate window step size
+        step = int(window_size * (1 - overlap))
+        if step < 1:
+            step = 1
+
+        # Initialize variables
+        stable_regions = []
+        n_windows = (len(signal) - window_size) // step + 1
+        window_stats = np.zeros(n_windows)
+
+        # Calculate standard deviation for each window
+        for i in range(n_windows):
+            start_idx = i * step
+            end_idx = start_idx + window_size
+            window_stats[i] = np.std(signal[start_idx:end_idx])
+
+        # Find regions where std is below threshold
+        stable_mask = window_stats < abs_threshold
+
+        # Find continuous stable regions
+        start_idx = None
+        for i in range(len(stable_mask)):
+            if stable_mask[i] and start_idx is None:
+                start_idx = i * step
+            elif (not stable_mask[i] or i == len(stable_mask) - 1) and start_idx is not None:
+                end_idx = i * step + window_size
+                if end_idx - start_idx >= self.min_points:
+                    # Refine region boundaries
+                    region_signal = signal[start_idx:end_idx]
+                    local_stds = np.array([
+                        np.std(region_signal[j:j + window_size])
+                        for j in range(0, len(region_signal) - window_size, step)
+                    ])
+                    # Find the most stable section within the region
+                    best_idx = np.argmin(local_stds)
+                    refined_start = start_idx + best_idx * step
+                    refined_end = min(refined_start + window_size, len(signal))
+                    stable_regions.append((refined_start, refined_end))
+                start_idx = None
+
+        return stable_regions
 
     def _linear_fit_method(
-        self,
-        signal: NDArray[np.float64],
-        x_values: Optional[NDArray[np.float64]] = None,
-        window_size: int = 100,
-        r2_threshold: float = 0.95,
-        **kwargs,
+            self,
+            signal: NDArray[np.float64],
+            x_values: Optional[NDArray[np.float64]] = None,
+            window_size: int = 100,
+            r2_threshold: float = 0.95,
+            slope_tolerance: float = 0.1,
+            overlap: float = 0.5,
+            **kwargs
     ) -> List[Tuple[int, int]]:
         """
         Detect stable regions using linear regression.
 
-        Fits linear model to windows of data and checks R² value
-        to identify stable (linear) regions.
+        Args:
+            signal: Signal array
+            x_values: Optional x-axis values
+            window_size: Size of the sliding window
+            r2_threshold: Minimum R² value for linear fit
+            slope_tolerance: Maximum allowed relative change in slope between windows
+            overlap: Fraction of overlap between windows (0 to 1)
+            **kwargs: Additional parameters (ignored)
+
+        Returns:
+            List of (start_idx, end_idx) tuples for stable regions
         """
-        # TODO: Implementar
-        pass
+        if len(signal) < window_size:
+            return []
+
+        if x_values is None:
+            x_values = np.arange(len(signal))
+
+        # Calculate window step size
+        step = int(window_size * (1 - overlap))
+        if step < 1:
+            step = 1
+
+        # Initialize variables
+        stable_regions = []
+        n_windows = (len(signal) - window_size) // step + 1
+        window_stats = np.zeros((n_windows, 3))  # [R², slope, intercept]
+
+        # Calculate linear fit statistics for each window
+        for i in range(n_windows):
+            start_idx = i * step
+            end_idx = start_idx + window_size
+            window_x = x_values[start_idx:end_idx]
+            window_y = signal[start_idx:end_idx]
+
+            # Perform linear regression
+            slope, intercept, r_value, _, _ = stats.linregress(window_x, window_y)
+            window_stats[i] = [r_value ** 2, slope, intercept]
+
+        # Find regions with good linear fit
+        r2_mask = window_stats[:, 0] >= r2_threshold
+
+        # Check for consistent slope
+        slope_diffs = np.abs(np.diff(window_stats[:, 1]))
+        mean_slope = np.mean(np.abs(window_stats[:, 1]))
+        slope_mask = np.concatenate(([True], slope_diffs <= slope_tolerance * mean_slope))
+
+        # Combine criteria
+        stable_mask = r2_mask & slope_mask
+
+        # Find continuous stable regions
+        start_idx = None
+        for i in range(len(stable_mask)):
+            if stable_mask[i] and start_idx is None:
+                start_idx = i * step
+            elif (not stable_mask[i] or i == len(stable_mask) - 1) and start_idx is not None:
+                end_idx = i * step + window_size
+                if end_idx - start_idx >= self.min_points:
+                    # Refine region boundaries
+                    region_signal = signal[start_idx:end_idx]
+                    region_x = x_values[start_idx:end_idx]
+
+                    # Calculate R² for sub-windows to find most linear section
+                    r2_values = []
+                    for j in range(0, len(region_signal) - window_size, step):
+                        sub_x = region_x[j:j + window_size]
+                        sub_y = region_signal[j:j + window_size]
+                        _, _, r_value, _, _ = stats.linregress(sub_x, sub_y)
+                        r2_values.append(r_value ** 2)
+
+                    if r2_values:
+                        # Find the most linear section
+                        best_idx = np.argmax(r2_values)
+                        refined_start = start_idx + best_idx * step
+                        refined_end = min(refined_start + window_size, len(signal))
+                        stable_regions.append((refined_start, refined_end))
+                start_idx = None
+
+        return stable_regions
 
     def _adaptive_method(
         self,
