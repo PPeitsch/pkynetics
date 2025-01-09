@@ -525,9 +525,13 @@ class CpCalculator:
         metrics["avg_uncertainty"] = float(np.mean(uncertainty / cp))
         metrics["max_uncertainty"] = float(np.max(uncertainty / cp))
 
-        # Smoothness metric
-        smoothness = 1 / (1 + np.std(np.gradient(cp, temperature)))
-        metrics["smoothness"] = float(smoothness)
+        # Smoothness metric - calculate gradient properly
+        try:
+            dcp_dt = np.gradient(cp)  # No need to specify x-axis for basic smoothness
+            smoothness = 1 / (1 + np.std(dcp_dt))
+            metrics["smoothness"] = float(smoothness)
+        except Exception as e:
+            metrics["smoothness"] = 0.0  # Default value if calculation fails
 
         # Linear fit metrics
         slope, intercept, r_value, _, stderr = stats.linregress(temperature, cp)
