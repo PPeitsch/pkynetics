@@ -74,17 +74,6 @@ class SignalStabilityDetector:
 
         return detection_methods[self.method](signal, x_values, **params)
 
-    def _derivative_method(
-        self,
-        signal: NDArray[np.float64],
-        x_values: Optional[NDArray[np.float64]] = None,
-        threshold: float = 0.1,
-        **kwargs,
-    ) -> List[Tuple[int, int]]:
-        """Detect stable regions using signal derivative."""
-        # TODO: Implementar
-        pass
-
     def _statistical_method(
         self,
         signal: NDArray[np.float64],
