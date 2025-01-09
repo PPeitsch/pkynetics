@@ -444,6 +444,7 @@ class DataValidator:
         temperature: NDArray[np.float64],
         min_temp: Optional[float] = None,
         max_temp: Optional[float] = None,
+        strict_monotonic: bool = False,
     ) -> bool:
         """
         Validate temperature data.
@@ -452,6 +453,7 @@ class DataValidator:
             temperature: Temperature array
             min_temp: Minimum allowed temperature
             max_temp: Maximum allowed temperature
+            strict_monotonic: If True, requires strictly increasing temperature
 
         Returns:
             True if valid, raises ValueError otherwise
@@ -465,14 +467,26 @@ class DataValidator:
         if len(temperature) < 2:
             raise ValueError("Temperature array must have at least 2 points")
 
-        if not np.all(np.diff(temperature) > 0):
-            raise ValueError("Temperature must be strictly increasing")
+        # Check for invalid values
+        if not np.all(np.isfinite(temperature)):
+            raise ValueError("Temperature contains invalid values (inf or nan)")
 
+        # Check temperature range if specified
         if min_temp is not None and np.min(temperature) < min_temp:
             raise ValueError(f"Temperature below minimum allowed value: {min_temp}")
 
         if max_temp is not None and np.max(temperature) > max_temp:
             raise ValueError(f"Temperature above maximum allowed value: {max_temp}")
+
+        if strict_monotonic:
+            # Only check for strictly increasing if requested
+            if not np.all(np.diff(temperature) > 0):
+                raise ValueError("Temperature must be strictly increasing")
+        else:
+            # Check for reasonable temperature changes (no sudden jumps)
+            temp_diff = np.abs(np.diff(temperature))
+            if np.any(temp_diff > 50):  # 50K maximum step between points
+                raise ValueError("Detected unrealistic temperature jumps in data")
 
         return True
 
@@ -503,26 +517,116 @@ class DataValidator:
         if not np.all(np.isfinite(heat_flow)):
             raise ValueError("Heat flow contains invalid values")
 
+        # Check for realistic heat flow values (typical DSC range ±500 mW)
+        if np.any(np.abs(heat_flow) > 500):
+            raise ValueError("Heat flow values outside typical DSC range")
+
         return True
 
     @staticmethod
-    def check_sampling_rate(
-        temperature: NDArray[np.float64], tolerance: float = 0.1
-    ) -> float:
+    def detect_temperature_program(
+            temperature: NDArray[np.float64],
+            time: NDArray[np.float64],
+    ) -> Dict[str, Union[str, float]]:
         """
-        Check if temperature sampling is uniform.
+        Detect temperature program type and parameters.
 
         Args:
             temperature: Temperature array
+            time: Time array
+
+        Returns:
+            Dictionary containing program type and parameters
+        """
+        # Calculate temperature rate
+        temp_rate = np.gradient(temperature, time)
+
+        # Detect segments
+        segments = []
+        current_type = "isothermal"
+        current_rate = 0.0
+
+        # Threshold for rate detection (K/min)
+        rate_threshold = 0.5
+
+        for i, rate in enumerate(temp_rate):
+            if abs(rate) < rate_threshold:
+                if current_type != "isothermal":
+                    segments.append({
+                        "type": current_type,
+                        "rate": current_rate,
+                        "start_idx": i
+                    })
+                    current_type = "isothermal"
+            elif rate > rate_threshold:
+                if current_type != "heating":
+                    segments.append({
+                        "type": current_type,
+                        "rate": current_rate,
+                        "start_idx": i
+                    })
+                    current_type = "heating"
+                    current_rate = rate * 60  # Convert to K/min
+            else:  # rate < -rate_threshold
+                if current_type != "cooling":
+                    segments.append({
+                        "type": current_type,
+                        "rate": current_rate,
+                        "start_idx": i
+                    })
+                    current_type = "cooling"
+                    current_rate = rate * 60  # Convert to K/min
+
+        # Add final segment
+        segments.append({
+            "type": current_type,
+            "rate": current_rate,
+            "start_idx": len(temperature)
+        })
+
+        # Analyze program type
+        n_isothermal = sum(1 for s in segments if s["type"] == "isothermal")
+        n_heating = sum(1 for s in segments if s["type"] == "heating")
+        n_cooling = sum(1 for s in segments if s["type"] == "cooling")
+
+        if n_isothermal > n_heating + n_cooling:
+            program_type = "stepped"
+        elif n_cooling > 0:
+            program_type = "cyclic"
+        else:
+            program_type = "continuous"
+
+        return {
+            "type": program_type,
+            "segments": segments,
+            "avg_heating_rate": float(np.mean([s["rate"] for s in segments if s["type"] == "heating"])),
+            "avg_cooling_rate": float(np.mean([s["rate"] for s in segments if s["type"] == "cooling"])),
+            "n_isothermal": n_isothermal,
+            "n_heating": n_heating,
+            "n_cooling": n_cooling
+        }
+
+    @staticmethod
+    def check_sampling_rate(
+        temperature: NDArray[np.float64],
+        time: NDArray[np.float64],
+        tolerance: float = 0.1
+    ) -> float:
+        """
+        Check if sampling is uniform.
+
+        Args:
+            temperature: Temperature array
+            time: Time array
             tolerance: Allowed deviation from uniform sampling
 
         Returns:
             Average sampling rate if uniform, raises ValueError otherwise
         """
-        dT = np.diff(temperature)
-        mean_dT = np.mean(dT)
+        dt = np.diff(time)
+        mean_dt = np.mean(dt)
 
-        if np.any(np.abs(dT - mean_dT) / mean_dT > tolerance):
-            raise ValueError("Non-uniform temperature sampling detected")
+        if np.any(np.abs(dt - mean_dt) / mean_dt > tolerance):
+            raise ValueError("Non-uniform time sampling detected")
 
-        return float(mean_dT)
+        return float(mean_dt)
