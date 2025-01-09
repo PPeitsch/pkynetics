@@ -1,9 +1,15 @@
-"""DSC analysis module for Pkynetics."""
+"""DSC analysis module for Pkynetics.
+
+This module provides functionality for differential scanning calorimetry (DSC)
+data analysis, including baseline correction, peak detection, thermal event analysis,
+and heat capacity calculations.
+"""
 
 from .baseline import BaselineCorrector
 from .core import DSCAnalyzer
 from .heat_capacity import CpCalculator
 from .peak_analysis import PeakAnalyzer
+from .signal_stability import SignalStabilityDetector
 from .thermal_events import ThermalEventDetector
 from .types import (
     BaselineResult,
@@ -20,8 +26,8 @@ from .types import (
     StabilityMethod,
 )
 from .utilities import (
-    DataValidator,
     DSCUnits,
+    DataValidator,
     SignalProcessor,
     UnitConverter,
     find_intersection_point,
@@ -38,6 +44,7 @@ __all__ = [
     "PeakAnalyzer",
     "ThermalEventDetector",
     "CpCalculator",
+    "SignalStabilityDetector",
     # Utility components
     "DSCUnits",
     "SignalProcessor",
@@ -46,7 +53,7 @@ __all__ = [
     "validate_window_size",
     "safe_savgol_filter",
     "find_intersection_point",
-    # Types
+    # Types and Enums
     "CpMethod",
     "OperationMode",
     "StabilityMethod",
