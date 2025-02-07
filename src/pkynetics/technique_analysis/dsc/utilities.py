@@ -525,8 +525,8 @@ class DataValidator:
 
     @staticmethod
     def detect_temperature_program(
-            temperature: NDArray[np.float64],
-            time: NDArray[np.float64],
+        temperature: NDArray[np.float64],
+        time: NDArray[np.float64],
     ) -> Dict[str, Union[str, float]]:
         """
         Detect temperature program type and parameters.
@@ -552,37 +552,29 @@ class DataValidator:
         for i, rate in enumerate(temp_rate):
             if abs(rate) < rate_threshold:
                 if current_type != "isothermal":
-                    segments.append({
-                        "type": current_type,
-                        "rate": current_rate,
-                        "start_idx": i
-                    })
+                    segments.append(
+                        {"type": current_type, "rate": current_rate, "start_idx": i}
+                    )
                     current_type = "isothermal"
             elif rate > rate_threshold:
                 if current_type != "heating":
-                    segments.append({
-                        "type": current_type,
-                        "rate": current_rate,
-                        "start_idx": i
-                    })
+                    segments.append(
+                        {"type": current_type, "rate": current_rate, "start_idx": i}
+                    )
                     current_type = "heating"
                     current_rate = rate * 60  # Convert to K/min
             else:  # rate < -rate_threshold
                 if current_type != "cooling":
-                    segments.append({
-                        "type": current_type,
-                        "rate": current_rate,
-                        "start_idx": i
-                    })
+                    segments.append(
+                        {"type": current_type, "rate": current_rate, "start_idx": i}
+                    )
                     current_type = "cooling"
                     current_rate = rate * 60  # Convert to K/min
 
         # Add final segment
-        segments.append({
-            "type": current_type,
-            "rate": current_rate,
-            "start_idx": len(temperature)
-        })
+        segments.append(
+            {"type": current_type, "rate": current_rate, "start_idx": len(temperature)}
+        )
 
         # Analyze program type
         n_isothermal = sum(1 for s in segments if s["type"] == "isothermal")
@@ -599,18 +591,22 @@ class DataValidator:
         return {
             "type": program_type,
             "segments": segments,
-            "avg_heating_rate": float(np.mean([s["rate"] for s in segments if s["type"] == "heating"])),
-            "avg_cooling_rate": float(np.mean([s["rate"] for s in segments if s["type"] == "cooling"])),
+            "avg_heating_rate": float(
+                np.mean([s["rate"] for s in segments if s["type"] == "heating"])
+            ),
+            "avg_cooling_rate": float(
+                np.mean([s["rate"] for s in segments if s["type"] == "cooling"])
+            ),
             "n_isothermal": n_isothermal,
             "n_heating": n_heating,
-            "n_cooling": n_cooling
+            "n_cooling": n_cooling,
         }
 
     @staticmethod
     def check_sampling_rate(
         temperature: NDArray[np.float64],
         time: NDArray[np.float64],
-        tolerance: float = 0.1
+        tolerance: float = 0.1,
     ) -> float:
         """
         Check if sampling is uniform.

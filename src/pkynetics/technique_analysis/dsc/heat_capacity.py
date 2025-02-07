@@ -15,10 +15,10 @@ class CpCalculator:
     """Class for specific heat capacity calculations and analysis."""
 
     def __init__(
-            self,
-            signal_processor: Optional[SignalProcessor] = None,
-            stability_detector: Optional[SignalStabilityDetector] = None,
-            data_validator: Optional[DataValidator] = None,
+        self,
+        signal_processor: Optional[SignalProcessor] = None,
+        stability_detector: Optional[SignalStabilityDetector] = None,
+        data_validator: Optional[DataValidator] = None,
     ):
         """Initialize calculator with optional components."""
         self.signal_processor = signal_processor or SignalProcessor()
@@ -28,17 +28,17 @@ class CpCalculator:
         self._reference_data = self._load_reference_data()
 
     def calculate_cp(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            sample_mass: float,
-            heating_rate: float,
-            method: Union[CpMethod, str] = CpMethod.THREE_STEP,
-            operation_mode: Union[OperationMode, str] = OperationMode.CONTINUOUS,
-            stability_method: Union[StabilityMethod, str] = StabilityMethod.STATISTICAL,
-            reference_data: Optional[Dict] = None,
-            use_calibration: bool = True,
-            **kwargs,
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        sample_mass: float,
+        heating_rate: float,
+        method: Union[CpMethod, str] = CpMethod.THREE_STEP,
+        operation_mode: Union[OperationMode, str] = OperationMode.CONTINUOUS,
+        stability_method: Union[StabilityMethod, str] = StabilityMethod.STATISTICAL,
+        reference_data: Optional[Dict] = None,
+        use_calibration: bool = True,
+        **kwargs,
     ) -> CpResult:
         """
         Calculate specific heat capacity.
@@ -120,14 +120,14 @@ class CpCalculator:
         return result
 
     def calibrate(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            sample_mass: float,
-            heating_rate: float,
-            reference_material: str,
-            operation_mode: Union[OperationMode, str] = OperationMode.CONTINUOUS,
-            stability_method: Union[StabilityMethod, str] = StabilityMethod.STATISTICAL,
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        sample_mass: float,
+        heating_rate: float,
+        reference_material: str,
+        operation_mode: Union[OperationMode, str] = OperationMode.CONTINUOUS,
+        stability_method: Union[StabilityMethod, str] = StabilityMethod.STATISTICAL,
     ) -> CalibrationData:
         """
         Perform DSC calibration using reference material.
@@ -179,7 +179,7 @@ class CpCalculator:
             measured_result.specific_heat,
             ref_cp_interp,
             measured_result.uncertainty,
-            ref_data.get("uncertainty", np.zeros_like(ref_data["cp"]))
+            ref_data.get("uncertainty", np.zeros_like(ref_data["cp"])),
         )
 
         # Create and store calibration data
@@ -195,21 +195,21 @@ class CpCalculator:
                 "sample_mass": sample_mass,
                 "heating_rate": heating_rate,
                 "operation_mode": operation_mode.value,
-            }
+            },
         )
 
         return self.calibration_data
 
     def _calculate_three_step_cp(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            sample_mass: float,
-            heating_rate: float,
-            reference_data: Dict,
-            operation_mode: OperationMode,
-            stability_method: StabilityMethod,
-            **kwargs,
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        sample_mass: float,
+        heating_rate: float,
+        reference_data: Dict,
+        operation_mode: OperationMode,
+        stability_method: StabilityMethod,
+        **kwargs,
     ) -> CpResult:
         """
         Calculate Cp using three-step method.
@@ -238,7 +238,10 @@ class CpCalculator:
         ref_cp = np.asarray(reference_data["cp"]).ravel()
 
         # Validate array lengths
-        if not all(len(arr) == len(temperature) for arr in [heat_flow, ref_temp, ref_heat_flow, ref_cp]):
+        if not all(
+            len(arr) == len(temperature)
+            for arr in [heat_flow, ref_temp, ref_heat_flow, ref_cp]
+        ):
             raise ValueError("All data arrays must have the same length")
 
         # Validate reference data
@@ -340,14 +343,14 @@ class CpCalculator:
         )
 
     def _calculate_single_step_cp(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            sample_mass: float,
-            heating_rate: float,
-            operation_mode: OperationMode,
-            stability_method: StabilityMethod,
-            **kwargs,
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        sample_mass: float,
+        heating_rate: float,
+        operation_mode: OperationMode,
+        stability_method: StabilityMethod,
+        **kwargs,
     ) -> CpResult:
         """Calculate Cp using single-step method."""
         # Find stable regions if in stepped mode
@@ -416,14 +419,14 @@ class CpCalculator:
         )
 
     def _calculate_modulated_cp(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            sample_mass: float,
-            heating_rate: float,
-            modulation_period: float = 60.0,
-            modulation_amplitude: float = 0.5,
-            **kwargs,
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        sample_mass: float,
+        heating_rate: float,
+        modulation_period: float = 60.0,
+        modulation_amplitude: float = 0.5,
+        **kwargs,
     ) -> CpResult:
         """Calculate Cp using modulated DSC method."""
         # Calculate modulation parameters
@@ -434,10 +437,7 @@ class CpCalculator:
         reversing_cp = heat_flow / (sample_mass * heating_rate_mod)
 
         # Calculate phase angle and uncertainty
-        phase_angle = np.arctan2(
-            np.gradient(heat_flow, temperature),
-            heat_flow
-        )
+        phase_angle = np.arctan2(np.gradient(heat_flow, temperature), heat_flow)
 
         uncertainty = self._calculate_modulated_uncertainty(
             heat_flow, modulation_amplitude, modulation_period, sample_mass
@@ -448,9 +448,7 @@ class CpCalculator:
             temperature, reversing_cp, uncertainty
         )
         quality_metrics["phase_angle"] = float(np.mean(phase_angle))
-        quality_metrics["modulation_quality"] = float(
-            1 - np.std(phase_angle) / np.pi
-        )
+        quality_metrics["modulation_quality"] = float(1 - np.std(phase_angle) / np.pi)
 
         return CpResult(
             temperature=temperature,
@@ -469,12 +467,12 @@ class CpCalculator:
         )
 
     def _calculate_three_step_uncertainty(
-            self,
-            sample_signal: NDArray[np.float64],
-            ref_signal: NDArray[np.float64],
-            ref_cp: Union[float, NDArray[np.float64]],
-            sample_mass: float,
-            ref_mass: float,
+        self,
+        sample_signal: NDArray[np.float64],
+        ref_signal: NDArray[np.float64],
+        ref_cp: Union[float, NDArray[np.float64]],
+        sample_mass: float,
+        ref_mass: float,
     ) -> NDArray[np.float64]:
         """Calculate uncertainty for three-step method."""
         # Component uncertainties
@@ -484,20 +482,20 @@ class CpCalculator:
 
         # Combined uncertainty using propagation of errors
         u_combined = np.sqrt(
-            (u_signal * sample_signal / ref_signal) ** 2 +
-            u_signal ** 2 +
-            (u_mass * sample_mass) ** 2 +
-            (u_mass * ref_mass) ** 2 +
-            (u_ref * ref_cp) ** 2
+            (u_signal * sample_signal / ref_signal) ** 2
+            + u_signal**2
+            + (u_mass * sample_mass) ** 2
+            + (u_mass * ref_mass) ** 2
+            + (u_ref * ref_cp) ** 2
         )
 
         return u_combined
 
     def _calculate_single_step_uncertainty(
-            self,
-            heat_flow: Union[float, NDArray[np.float64]],
-            heating_rate: float,
-            sample_mass: float,
+        self,
+        heat_flow: Union[float, NDArray[np.float64]],
+        heating_rate: float,
+        sample_mass: float,
     ) -> Union[float, NDArray[np.float64]]:
         """Calculate uncertainty for single-step method."""
         # Component uncertainties
@@ -507,19 +505,19 @@ class CpCalculator:
 
         # Combined uncertainty
         u_combined = np.sqrt(
-            (u_flow * heat_flow) ** 2 +
-            (u_rate * heating_rate) ** 2 +
-            (u_mass * sample_mass) ** 2
+            (u_flow * heat_flow) ** 2
+            + (u_rate * heating_rate) ** 2
+            + (u_mass * sample_mass) ** 2
         )
 
         return u_combined
 
     def _calculate_modulated_uncertainty(
-            self,
-            heat_flow: NDArray[np.float64],
-            amplitude: float,
-            period: float,
-            sample_mass: float,
+        self,
+        heat_flow: NDArray[np.float64],
+        amplitude: float,
+        period: float,
+        sample_mass: float,
     ) -> NDArray[np.float64]:
         """Calculate uncertainty for modulated DSC method."""
         # Component uncertainties
@@ -534,19 +532,19 @@ class CpCalculator:
 
         # Combined uncertainty
         u_combined = np.sqrt(
-            (u_flow * heat_flow) ** 2 +
-            (u_amp * amplitude) ** 2 +
-            (u_omega * period) ** 2 +
-            (u_mass * sample_mass) ** 2
+            (u_flow * heat_flow) ** 2
+            + (u_amp * amplitude) ** 2
+            + (u_omega * period) ** 2
+            + (u_mass * sample_mass) ** 2
         )
 
         return u_combined
 
     def _calculate_quality_metrics(
-            self,
-            temperature: NDArray[np.float64],
-            cp: NDArray[np.float64],
-            uncertainty: NDArray[np.float64],
+        self,
+        temperature: NDArray[np.float64],
+        cp: NDArray[np.float64],
+        uncertainty: NDArray[np.float64],
     ) -> Dict[str, float]:
         """Calculate comprehensive quality metrics."""
         metrics = {}
@@ -576,7 +574,8 @@ class CpCalculator:
 
         if not (len(temp) == len(cp_vals) == len(unc)):
             raise ValueError(
-                f"All input arrays must have the same length. Got: temperature={len(temp)}, cp={len(cp_vals)}, uncertainty={len(unc)}")
+                f"All input arrays must have the same length. Got: temperature={len(temp)}, cp={len(cp_vals)}, uncertainty={len(unc)}"
+            )
 
         # Signal-to-noise ratio
         noise = np.std(np.diff(cp_vals))
@@ -601,29 +600,33 @@ class CpCalculator:
             # Make sure arrays are properly shaped for linregress
             if len(temp) > 1 and len(cp_vals) > 1:
                 slope, intercept, r_value, _, stderr = stats.linregress(temp, cp_vals)
-                metrics.update({
-                    "slope": float(slope),
-                    "intercept": float(intercept),
-                    "r_squared": float(r_value ** 2),
-                    "std_error": float(stderr),
-                })
+                metrics.update(
+                    {
+                        "slope": float(slope),
+                        "intercept": float(intercept),
+                        "r_squared": float(r_value**2),
+                        "std_error": float(stderr),
+                    }
+                )
             else:
                 raise ValueError("Insufficient data points for linear regression")
         except Exception as e:
             print(f"Warning: Linear regression failed: {str(e)}")
-            metrics.update({
-                "slope": 0.0,
-                "intercept": 0.0,
-                "r_squared": 0.0,
-                "std_error": 0.0,
-            })
+            metrics.update(
+                {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "r_squared": 0.0,
+                    "std_error": 0.0,
+                }
+            )
 
         # Overall quality score (0 to 1)
         valid_metrics = [
             metrics["snr"] / (metrics["snr"] + 1),
             1 - metrics["avg_uncertainty"],
             metrics["smoothness"],
-            metrics["r_squared"]
+            metrics["r_squared"],
         ]
         metrics["quality_score"] = float(np.mean(valid_metrics))
 
@@ -637,7 +640,7 @@ class CpCalculator:
 
         sapphire = {
             "temperature": temp_range,
-            "cp": 1.0289 + 2.3506e-4 * temp_range + 1.6818e-7 * temp_range ** 2,
+            "cp": 1.0289 + 2.3506e-4 * temp_range + 1.6818e-7 * temp_range**2,
             "uncertainty": 0.02,  # 2% uncertainty
             "valid_range": (200, 800),
             "molecular_weight": 101.96,  # g/mol
@@ -648,7 +651,8 @@ class CpCalculator:
         zinc = {
             "temperature": np.linspace(290, 450, 161),
             "cp": 0.3889 + 2.7247e-4 * temp_range,
-            "uncertainty": 0.015, "valid_range": (290, 450),
+            "uncertainty": 0.015,
+            "valid_range": (290, 450),
             "molecular_weight": 65.38,  # g/mol
             "purity": 0.9999,
             "melting_point": 419.53,  # K
@@ -660,11 +664,11 @@ class CpCalculator:
         }
 
     def _calculate_calibration_uncertainty(
-            self,
-            measured_cp: NDArray[np.float64],
-            reference_cp: NDArray[np.float64],
-            measurement_uncertainty: NDArray[np.float64],
-            reference_uncertainty: NDArray[np.float64],
+        self,
+        measured_cp: NDArray[np.float64],
+        reference_cp: NDArray[np.float64],
+        measurement_uncertainty: NDArray[np.float64],
+        reference_uncertainty: NDArray[np.float64],
     ) -> NDArray[np.float64]:
         """Calculate comprehensive uncertainty in calibration factors."""
         # Relative uncertainties
@@ -676,26 +680,23 @@ class CpCalculator:
         u_cal = 0.01  # 1% calibration stability
 
         # Combined relative uncertainty
-        u_combined = np.sqrt(
-            u_meas_rel ** 2 +
-            u_ref_rel ** 2 +
-            u_temp ** 2 +
-            u_cal ** 2
-        )
+        u_combined = np.sqrt(u_meas_rel**2 + u_ref_rel**2 + u_temp**2 + u_cal**2)
 
         return u_combined * measured_cp
 
     def _apply_calibration(
-            self,
-            result: CpResult,
+        self,
+        result: CpResult,
     ) -> CpResult:
         """Apply calibration correction to Cp results."""
         if self.calibration_data is None:
             return result
 
         # Check temperature range validity
-        if (np.min(result.temperature) < self.calibration_data.valid_range[0] or
-                np.max(result.temperature) > self.calibration_data.valid_range[1]):
+        if (
+            np.min(result.temperature) < self.calibration_data.valid_range[0]
+            or np.max(result.temperature) > self.calibration_data.valid_range[1]
+        ):
             raise ValueError("Temperature range outside calibration validity")
 
         # Interpolate calibration factors
@@ -716,8 +717,7 @@ class CpCalculator:
         )
 
         calibrated_uncertainty = np.sqrt(
-            result.uncertainty ** 2 +
-            (calibrated_cp * cal_uncertainty) ** 2
+            result.uncertainty**2 + (calibrated_cp * cal_uncertainty) ** 2
         )
 
         # Create new result with calibrated values
@@ -737,23 +737,23 @@ class CpCalculator:
         )
 
     def _calculate_regional_cp(
-            self,
-            sample_signal: float,
-            ref_signal: float,
-            sample_mass: float,
-            ref_mass: float,
-            ref_cp: float,
+        self,
+        sample_signal: float,
+        ref_signal: float,
+        sample_mass: float,
+        ref_mass: float,
+        ref_cp: float,
     ) -> float:
         """Calculate Cp for a single region in stepped mode."""
         return (sample_signal / ref_signal) * (ref_mass / sample_mass) * ref_cp
 
     def _calculate_continuous_cp(
-            self,
-            sample_signal: NDArray[np.float64],
-            ref_signal: NDArray[np.float64],
-            sample_mass: float,
-            ref_mass: float,
-            ref_cp: Union[float, NDArray[np.float64]],
+        self,
+        sample_signal: NDArray[np.float64],
+        ref_signal: NDArray[np.float64],
+        sample_mass: float,
+        ref_mass: float,
+        ref_cp: Union[float, NDArray[np.float64]],
     ) -> NDArray[np.float64]:
         """Calculate Cp for continuous measurement."""
         return (sample_signal / ref_signal) * (ref_mass / sample_mass) * ref_cp
@@ -763,9 +763,9 @@ class CpCalculator:
         return self._reference_data.get(material.lower())
 
     def validate_reference_data(
-            self,
-            reference_data: Dict,
-            required_fields: Optional[List[str]] = None,
+        self,
+        reference_data: Dict,
+        required_fields: Optional[List[str]] = None,
     ) -> bool:
         """
         Validate reference measurement data.
@@ -793,7 +793,10 @@ class CpCalculator:
             raise ValueError("All arrays must have the same length")
 
         # Validate numeric values
-        if not isinstance(reference_data["mass"], (int, float)) or reference_data["mass"] <= 0:
+        if (
+            not isinstance(reference_data["mass"], (int, float))
+            or reference_data["mass"] <= 0
+        ):
             raise ValueError("Reference mass must be a positive number")
 
         return True

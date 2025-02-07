@@ -26,8 +26,8 @@ from .types import (
     StabilityMethod,
 )
 from .utilities import (
-    DSCUnits,
     DataValidator,
+    DSCUnits,
     SignalProcessor,
     UnitConverter,
     find_intersection_point,

@@ -83,8 +83,12 @@ class DSCExperiment:
             )
 
         # Validate data
-        if len(self.temperature) != len(self.heat_flow) or len(self.temperature) != len(self.time):
-            raise ValueError("Temperature, heat flow, and time arrays must have the same length")
+        if len(self.temperature) != len(self.heat_flow) or len(self.temperature) != len(
+            self.time
+        ):
+            raise ValueError(
+                "Temperature, heat flow, and time arrays must have the same length"
+            )
         if self.mass < 0:
             raise ValueError("Sample mass must be positive")
         if self.heating_rate == 0:
@@ -177,7 +181,9 @@ class CpResult:
         """Validate arrays and calculations."""
         arrays = [self.temperature, self.specific_heat, self.uncertainty]
         if not all(isinstance(arr, np.ndarray) for arr in arrays):
-            raise TypeError("temperature, specific_heat, and uncertainty must be numpy arrays")
+            raise TypeError(
+                "temperature, specific_heat, and uncertainty must be numpy arrays"
+            )
         if not all(len(arr) == len(self.temperature) for arr in arrays):
             raise ValueError("All arrays must have the same length")
         if not all(np.all(np.isfinite(arr)) for arr in arrays):
@@ -200,8 +206,13 @@ class CalibrationData:
 
     def __post_init__(self):
         """Validate calibration data."""
-        arrays = [self.temperature, self.measured_cp, self.reference_cp,
-                  self.calibration_factors, self.uncertainty]
+        arrays = [
+            self.temperature,
+            self.measured_cp,
+            self.reference_cp,
+            self.calibration_factors,
+            self.uncertainty,
+        ]
         if not all(isinstance(arr, np.ndarray) for arr in arrays):
             raise TypeError("All data arrays must be numpy arrays")
         if not all(len(arr) == len(self.temperature) for arr in arrays):

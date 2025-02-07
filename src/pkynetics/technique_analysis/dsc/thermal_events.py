@@ -7,18 +7,24 @@ from numpy.typing import NDArray
 from scipy import signal
 from scipy.optimize import curve_fit
 
-from .types import DSCPeak, CrystallizationEvent, GlassTransition, MeltingEvent, PhaseTransition
+from .types import (
+    CrystallizationEvent,
+    DSCPeak,
+    GlassTransition,
+    MeltingEvent,
+    PhaseTransition,
+)
 
 
 class ThermalEventDetector:
     """Class for detecting and analyzing thermal events in DSC data."""
 
     def __init__(
-            self,
-            smoothing_window: int = 21,
-            smoothing_order: int = 3,
-            peak_prominence: float = 0.1,
-            noise_threshold: float = 0.05,
+        self,
+        smoothing_window: int = 21,
+        smoothing_order: int = 3,
+        peak_prominence: float = 0.1,
+        noise_threshold: float = 0.05,
     ):
         """
         Initialize thermal event detector.
@@ -35,11 +41,11 @@ class ThermalEventDetector:
         self.noise_threshold = noise_threshold
 
     def detect_events(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            peaks: List[DSCPeak],
-            baseline: Optional[NDArray[np.float64]] = None,
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        peaks: List[DSCPeak],
+        baseline: Optional[NDArray[np.float64]] = None,
     ) -> Dict:
         """
         Detect and analyze all thermal events.
@@ -58,24 +64,28 @@ class ThermalEventDetector:
         # Detect glass transitions
         gt = self.detect_glass_transition(temperature, heat_flow, baseline)
         if gt:
-            events['glass_transitions'] = [gt]
+            events["glass_transitions"] = [gt]
 
         # Detect crystallization events
-        events['crystallization'] = self.detect_crystallization(temperature, heat_flow, baseline)
+        events["crystallization"] = self.detect_crystallization(
+            temperature, heat_flow, baseline
+        )
 
         # Detect melting events
-        events['melting'] = self.detect_melting(temperature, heat_flow, baseline)
+        events["melting"] = self.detect_melting(temperature, heat_flow, baseline)
 
         # Detect other phase transitions
-        events['phase_transitions'] = self.detect_phase_transitions(temperature, heat_flow, baseline)
+        events["phase_transitions"] = self.detect_phase_transitions(
+            temperature, heat_flow, baseline
+        )
 
         return events
 
     def detect_glass_transition(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            baseline: Optional[NDArray[np.float64]] = None,
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        baseline: Optional[NDArray[np.float64]] = None,
     ) -> Optional[GlassTransition]:
         """
         Detect and analyze glass transition.
@@ -119,7 +129,7 @@ class ThermalEventDetector:
                 end_temp = temperature[end_idx]
                 mid_temp = temperature[
                     start_idx + np.argmax(np.abs(dHf[start_idx:end_idx]))
-                    ]
+                ]
 
                 # Calculate change in heat capacity
                 if baseline is not None:
@@ -147,10 +157,10 @@ class ThermalEventDetector:
         return None
 
     def detect_crystallization(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            baseline: Optional[NDArray[np.float64]] = None,
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        baseline: Optional[NDArray[np.float64]] = None,
     ) -> List[CrystallizationEvent]:
         """
         Detect and analyze crystallization events.
@@ -185,14 +195,14 @@ class ThermalEventDetector:
 
             # Calculate enthalpy
             enthalpy = self._calculate_peak_enthalpy(
-                temperature[onset_idx: end_idx + 1],
-                heat_flow_corr[onset_idx: end_idx + 1],
+                temperature[onset_idx : end_idx + 1],
+                heat_flow_corr[onset_idx : end_idx + 1],
             )
 
             # Calculate crystallization rate
             rate = self._calculate_crystallization_rate(
-                temperature[onset_idx: end_idx + 1],
-                heat_flow_corr[onset_idx: end_idx + 1],
+                temperature[onset_idx : end_idx + 1],
+                heat_flow_corr[onset_idx : end_idx + 1],
             )
 
             events.append(
@@ -205,8 +215,8 @@ class ThermalEventDetector:
                     width=float(temperature[end_idx] - temperature[onset_idx]),
                     crystallization_rate=float(rate) if rate is not None else None,
                     quality_metrics=self._calculate_peak_quality(
-                        temperature[onset_idx: end_idx + 1],
-                        heat_flow_corr[onset_idx: end_idx + 1],
+                        temperature[onset_idx : end_idx + 1],
+                        heat_flow_corr[onset_idx : end_idx + 1],
                     ),
                 )
             )
@@ -214,10 +224,10 @@ class ThermalEventDetector:
         return events
 
     def detect_melting(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            baseline: Optional[NDArray[np.float64]] = None,
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        baseline: Optional[NDArray[np.float64]] = None,
     ) -> List[MeltingEvent]:
         """
         Detect and analyze melting events.
@@ -249,8 +259,8 @@ class ThermalEventDetector:
 
             # Calculate enthalpy
             enthalpy = self._calculate_peak_enthalpy(
-                temperature[onset_idx: end_idx + 1],
-                heat_flow_corr[onset_idx: end_idx + 1],
+                temperature[onset_idx : end_idx + 1],
+                heat_flow_corr[onset_idx : end_idx + 1],
             )
 
             events.append(
@@ -262,8 +272,8 @@ class ThermalEventDetector:
                     peak_height=float(properties["prominences"][i]),
                     width=float(temperature[end_idx] - temperature[onset_idx]),
                     quality_metrics=self._calculate_peak_quality(
-                        temperature[onset_idx: end_idx + 1],
-                        heat_flow_corr[onset_idx: end_idx + 1],
+                        temperature[onset_idx : end_idx + 1],
+                        heat_flow_corr[onset_idx : end_idx + 1],
                     ),
                 )
             )
@@ -271,10 +281,10 @@ class ThermalEventDetector:
         return events
 
     def detect_phase_transitions(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            baseline: Optional[NDArray[np.float64]] = None,
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        baseline: Optional[NDArray[np.float64]] = None,
     ) -> List[PhaseTransition]:
         """
         Detect and analyze phase transitions.
@@ -312,8 +322,8 @@ class ThermalEventDetector:
             if baseline is not None:
                 heat_flow_corr = heat_flow - baseline
                 enthalpy = self._calculate_peak_enthalpy(
-                    temperature[start_idx: end_idx + 1],
-                    heat_flow_corr[start_idx: end_idx + 1],
+                    temperature[start_idx : end_idx + 1],
+                    heat_flow_corr[start_idx : end_idx + 1],
                 )
             else:
                 enthalpy = None
@@ -329,10 +339,10 @@ class ThermalEventDetector:
                         temperature[end_idx] - temperature[start_idx]
                     ),
                     quality_metrics=self._calculate_transition_quality(
-                        temperature[start_idx: end_idx + 1],
-                        heat_flow[start_idx: end_idx + 1],
-                        d1_smooth[start_idx: end_idx + 1],
-                        d2_smooth[start_idx: end_idx + 1],
+                        temperature[start_idx : end_idx + 1],
+                        heat_flow[start_idx : end_idx + 1],
+                        d1_smooth[start_idx : end_idx + 1],
+                        d2_smooth[start_idx : end_idx + 1],
                     ),
                 )
             )
@@ -341,7 +351,7 @@ class ThermalEventDetector:
         steps = signal.find_peaks(np.abs(d1_smooth), prominence=self.peak_prominence)[0]
         for step_idx in steps:
             if not any(
-                    abs(step_idx - peak_idx) < len(temperature) // 20 for peak_idx in peaks
+                abs(step_idx - peak_idx) < len(temperature) // 20 for peak_idx in peaks
             ):
                 start_idx = max(0, step_idx - len(temperature) // 40)
                 end_idx = min(len(temperature) - 1, step_idx + len(temperature) // 40)
@@ -356,10 +366,10 @@ class ThermalEventDetector:
                             temperature[end_idx] - temperature[start_idx]
                         ),
                         quality_metrics=self._calculate_transition_quality(
-                            temperature[start_idx: end_idx + 1],
-                            heat_flow[start_idx: end_idx + 1],
-                            d1_smooth[start_idx: end_idx + 1],
-                            d2_smooth[start_idx: end_idx + 1],
+                            temperature[start_idx : end_idx + 1],
+                            heat_flow[start_idx : end_idx + 1],
+                            d1_smooth[start_idx : end_idx + 1],
+                            d2_smooth[start_idx : end_idx + 1],
                         ),
                     )
                 )
@@ -392,10 +402,10 @@ class ThermalEventDetector:
             return False
 
     def _calculate_delta_cp(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            baseline: NDArray[np.float64],
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        baseline: NDArray[np.float64],
     ) -> float:
         """Calculate change in heat capacity across glass transition."""
         # Use first and last 20% of points to calculate pre and post Cp
@@ -407,7 +417,7 @@ class ThermalEventDetector:
         return post_cp - pre_cp
 
     def _calculate_crystallization_rate(
-            self, temperature: NDArray[np.float64], heat_flow: NDArray[np.float64]
+        self, temperature: NDArray[np.float64], heat_flow: NDArray[np.float64]
     ) -> Optional[float]:
         """Calculate crystallization rate from peak shape."""
         try:
@@ -419,10 +429,10 @@ class ThermalEventDetector:
             return None
 
     def _find_onset_index(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            peak_idx: int,
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        peak_idx: int,
     ) -> int:
         """Find onset point index using tangent method."""
         # Search in region before peak
@@ -438,10 +448,10 @@ class ThermalEventDetector:
         return onset_idx
 
     def _find_endpoint_index(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            peak_idx: int,
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        peak_idx: int,
     ) -> int:
         """Find endpoint index using tangent method."""
         # Search in region after peak
@@ -457,7 +467,7 @@ class ThermalEventDetector:
         return end_idx
 
     def _calculate_peak_enthalpy(
-            self, temperature: NDArray[np.float64], heat_flow: NDArray[np.float64]
+        self, temperature: NDArray[np.float64], heat_flow: NDArray[np.float64]
     ) -> float:
         """Calculate enthalpy from peak area."""
         # Integrate heat flow with respect to temperature
@@ -465,10 +475,10 @@ class ThermalEventDetector:
         return float(abs(enthalpy))
 
     def _calculate_gt_quality(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            d2Hf: NDArray[np.float64],
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        d2Hf: NDArray[np.float64],
     ) -> Dict[str, float]:
         """Calculate quality metrics for glass transition."""
         metrics = {}
@@ -490,11 +500,11 @@ class ThermalEventDetector:
         return metrics
 
     def _calculate_peak_quality(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            d1: Optional[NDArray[np.float64]] = None,
-            d2: Optional[NDArray[np.float64]] = None,
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        d1: Optional[NDArray[np.float64]] = None,
+        d2: Optional[NDArray[np.float64]] = None,
     ) -> Dict[str, float]:
         """Calculate quality metrics with size validation."""
         metrics = {}
@@ -512,22 +522,22 @@ class ThermalEventDetector:
             metrics["sharpness"] = 0.0
 
         # Basic signal metrics don't require gradients
-        noise = np.std(heat_flow[:min(20, len(heat_flow))])
+        noise = np.std(heat_flow[: min(20, len(heat_flow))])
         signal = np.max(np.abs(heat_flow))
         metrics["peak_to_noise"] = float(signal / noise if noise > 0 else 0)
 
         # Calculate baseline stability
-        start_region = heat_flow[:min(20, len(heat_flow))]
+        start_region = heat_flow[: min(20, len(heat_flow))]
         metrics["baseline_stability"] = float(1 / (1 + np.std(start_region)))
 
         return metrics
 
     def _calculate_transition_quality(
-            self,
-            temperature: NDArray[np.float64],
-            heat_flow: NDArray[np.float64],
-            d1: NDArray[np.float64],
-            d2: NDArray[np.float64],
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        d1: NDArray[np.float64],
+        d2: NDArray[np.float64],
     ) -> Dict[str, float]:
         """Calculate quality metrics for phase transitions."""
         metrics = {}
