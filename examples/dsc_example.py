@@ -1,224 +1,223 @@
-import os
-from typing import Dict, List, Optional, Tuple
+"""Example of DSC analysis with segment selection and improved error handling."""
 
-import matplotlib.pyplot as plt
+import os
+import logging
+from typing import Dict
 import numpy as np
-from scipy.interpolate import interp1d
+import matplotlib.pyplot as plt
+from scipy.signal import find_peaks
 
 from pkynetics.data_import import dsc_importer
-from pkynetics.technique_analysis.dsc import (
-    DSCAnalyzer,
-    DSCExperiment,
-    BaselineCorrector,
-    PeakAnalyzer,
-    ThermalEventDetector,
-    CpCalculator,
+from pkynetics.technique_analysis.dsc.types import DSCExperiment
+from pkynetics.technique_analysis.dsc.baseline import BaselineCorrector
+from pkynetics.technique_analysis.dsc.peak_analysis import PeakAnalyzer
+from pkynetics.technique_analysis.dsc.thermal_events import ThermalEventDetector
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+logger = logging.getLogger(__name__)
 
-# Get the absolute path of the project root directory
-PROJECT_ROOT = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "src", "pkynetics")
-)
-DSC_DATA_DIR = os.path.join(PROJECT_ROOT, "data", "dsc")
-CP_DATA_DIR = os.path.join(PROJECT_ROOT, "data", "heat_capacity")
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+PKG_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "src", "pkynetics", "data", "dsc")
 
 
-def analyze_heat_capacity():
-    """Example of heat capacity analysis."""
-    try:
-        # Import heat capacity data
-        sample_data = dsc_importer(
-            os.path.join(CP_DATA_DIR, "sample.txt"), manufacturer="Setaram"
-        )
-        blank_data = dsc_importer(
-            os.path.join(CP_DATA_DIR, "zero.txt"), manufacturer="Setaram"
-        )
-        ref_data = dsc_importer(
-            os.path.join(CP_DATA_DIR, "sapphire.txt"), manufacturer="Setaram"
-        )
+class DSCSegmentAnalyzer:
+    def __init__(self, experiment: DSCExperiment):
+        self.experiment = experiment
+        self.segments = []
+        self._detect_segments()
 
-        # Create experiment objects
-        experiments = {
-            "sample": DSCExperiment(
-                temperature=np.array(sample_data["temperature"], dtype=np.float64),
-                heat_flow=np.array(sample_data["heat_flow"], dtype=np.float64),
-                time=np.array(sample_data["time"], dtype=np.float64),
-                mass=10.0,
-                name="Sample",
-            ),
-            "blank": DSCExperiment(
-                temperature=np.array(blank_data["temperature"], dtype=np.float64),
-                heat_flow=np.array(blank_data["heat_flow"], dtype=np.float64),
-                time=np.array(blank_data["time"], dtype=np.float64),
-                mass=0.0,
-                name="Blank",
-            ),
-            "reference": DSCExperiment(
-                temperature=np.array(ref_data["temperature"], dtype=np.float64),
-                heat_flow=np.array(ref_data["heat_flow"], dtype=np.float64),
-                time=np.array(ref_data["time"], dtype=np.float64),
-                mass=15.0,
-                name="Sapphire",
-            ),
-        }
+    def _detect_segments(self) -> None:
+        """Detect different segments in the DSC curve."""
+        # Calculate derivative to find rate changes
+        dT = np.gradient(self.experiment.temperature)
+        rate = np.gradient(self.experiment.temperature, self.experiment.time)
 
-        # Initialize Cp calculator
-        calculator = CpCalculator()
+        # Find significant rate changes
+        rate_changes = find_peaks(np.abs(np.gradient(rate)))[0]
 
-        # Get reference sapphire data
-        ref_sapphire_temp = calculator._reference_data["sapphire"]["temperature"]
-        ref_sapphire_cp = calculator._reference_data["sapphire"]["cp"]
+        if len(rate_changes) == 0:
+            # If no clear segments, use the whole curve
+            self.segments = [(0, len(self.experiment.temperature) - 1)]
+            return
 
-        # Create interpolation function for sapphire Cp
-        sapphire_cp_interp = interp1d(
-            ref_sapphire_temp, ref_sapphire_cp, kind="linear", fill_value="extrapolate"
-        )
+        # Create segments
+        start_idx = 0
+        for end_idx in rate_changes:
+            if end_idx - start_idx > 100:  # Minimum segment size
+                self.segments.append((start_idx, end_idx))
+            start_idx = end_idx
 
-        # Interpolate sapphire Cp to match experimental temperature points
-        interpolated_sapphire_cp = sapphire_cp_interp(experiments["sample"].temperature)
+        # Add final segment
+        if len(self.experiment.temperature) - start_idx > 100:
+            self.segments.append((start_idx, len(self.experiment.temperature) - 1))
 
-        # Calculate Cp using different methods
-        results = {
-            "standard": calculator.calculate_cp(
-                sample_data={
-                    "temperature": experiments["sample"].temperature,
-                    "sample_heat_flow": experiments["sample"].heat_flow,
-                    "time": experiments["sample"].time,
-                    "sample_mass": experiments["sample"].mass,
-                    "reference_heat_flow": experiments["reference"].heat_flow,
-                    "baseline_heat_flow": experiments["blank"].heat_flow,
-                    "reference_mass": experiments["reference"].mass,
-                    "reference_cp": interpolated_sapphire_cp,
-                },
-                method="standard",
-            ),
-            "continuous": calculator.calculate_cp(
-                sample_data={
-                    "temperature": experiments["sample"].temperature,
-                    "heat_flow": experiments["sample"].heat_flow,
-                    "time": experiments["sample"].time,
-                    "sample_mass": experiments["sample"].mass,
-                    "heating_rate": experiments["sample"].heating_rate,
-                },
-                method="continuous",
-            ),
-        }
+    def plot_segments(self) -> None:
+        """Plot identified segments for user selection."""
+        plt.figure(figsize=(12, 6))
+        plt.plot(self.experiment.temperature, self.experiment.heat_flow, 'b-', alpha=0.5)
 
-        # Plot results
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
-
-        # Plot heat flow signals
-        for exp in experiments.values():
-            ax1.plot(exp.temperature, exp.heat_flow, label=exp.name)
-        ax1.set_xlabel("Temperature (°C)")
-        ax1.set_ylabel("Heat Flow (mW)")
-        ax1.set_title("Heat Capacity Measurement Signals")
-        ax1.legend()
-        ax1.grid(True)
-
-        # Plot calculated Cp
-        for method, result in results.items():
-            ax2.plot(
-                result.temperature,
-                result.specific_heat,
-                label=f"{method.capitalize()} Method",
+        for i, (start, end) in enumerate(self.segments):
+            plt.plot(
+                self.experiment.temperature[start:end],
+                self.experiment.heat_flow[start:end],
+                label=f'Segment {i + 1}'
             )
-            # Plot uncertainty bands
-            ax2.fill_between(
-                result.temperature,
-                result.specific_heat - result.uncertainty,
-                result.specific_heat + result.uncertainty,
-                alpha=0.2,
-            )
-        ax2.set_xlabel("Temperature (°C)")
-        ax2.set_ylabel("Specific Heat (J/g·K)")
-        ax2.set_title("Specific Heat Capacity Results")
-        ax2.legend()
-        ax2.grid(True)
 
-        plt.tight_layout()
+        plt.xlabel('Temperature (K)')
+        plt.ylabel('Heat Flow (mW)')
+        plt.title('DSC Curve Segments')
+        plt.legend()
+        plt.grid(True)
         plt.show()
 
-    except Exception as e:
-        print(f"Error in heat capacity analysis: {str(e)}")
-        raise
+    def get_segment(self, segment_idx: int) -> DSCExperiment:
+        """Get a specific segment as a new DSCExperiment object."""
+        if not 0 <= segment_idx < len(self.segments):
+            raise ValueError(f"Invalid segment index. Available segments: 0-{len(self.segments) - 1}")
+
+        start, end = self.segments[segment_idx]
+
+        return DSCExperiment(
+            temperature=self.experiment.temperature[start:end],
+            heat_flow=self.experiment.heat_flow[start:end],
+            time=self.experiment.time[start:end],
+            mass=self.experiment.mass,
+            heating_rate=self.experiment.heating_rate,
+            sample_name=f"{self.experiment.sample_name}_segment_{segment_idx}"
+        )
 
 
-def perform_dsc_analysis():
-    """Example of basic DSC analysis."""
+def analyze_segment(segment: DSCExperiment) -> Dict:
+    """Analyze a single DSC segment."""
+    results = {}
+
     try:
-        # Import DSC data
-        data = dsc_importer(
-            os.path.join(DSC_DATA_DIR, "sample_dsc_setaram.txt"), manufacturer="Setaram"
-        )
+        # Validate data
+        if len(segment.temperature) < 100:
+            raise ValueError("Segment too short for analysis")
 
-        # Create experiment
-        experiment = DSCExperiment(
-            temperature=np.array(data["temperature"], dtype=np.float64),
-            heat_flow=np.array(data["heat_flow"], dtype=np.float64),
-            time=np.array(data["time"], dtype=np.float64),
-            mass=10.0,
-            name="Sample DSC",
-        )
+        if not np.all(np.diff(segment.temperature) > 0):
+            logger.warning("Temperature not strictly increasing, sorting data...")
+            sort_idx = np.argsort(segment.temperature)
+            segment.temperature = segment.temperature[sort_idx]
+            segment.heat_flow = segment.heat_flow[sort_idx]
+            segment.time = segment.time[sort_idx]
 
-        # Initialize analyzers
-        baseline_corrector = BaselineCorrector()
-        analyzer = DSCAnalyzer(experiment)
-
-        # Perform baseline correction
+        # Baseline correction
+        baseline_corrector = BaselineCorrector(smoothing_window=min(21, len(segment.temperature) // 5))
         baseline_result = baseline_corrector.correct(
-            experiment.temperature, experiment.heat_flow, method="polynomial", degree=3
+            segment.temperature,
+            segment.heat_flow,
+            method='auto'
         )
+        results['baseline'] = baseline_result
 
-        # Analyze peaks
-        peaks = analyzer.peak_analyzer.find_peaks(
-            experiment.temperature, baseline_result.corrected_data
+        # Peak analysis
+        peak_analyzer = PeakAnalyzer()
+        peaks = peak_analyzer.find_peaks(
+            segment.temperature,
+            baseline_result.corrected_data,
+            baseline_result.baseline
         )
+        results['peaks'] = peaks
 
-        # Plot results
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
-
-        # Plot raw and corrected data
-        ax1.plot(experiment.temperature, experiment.heat_flow, label="Raw Data")
-        ax1.plot(
-            experiment.temperature, baseline_result.baseline, "--", label="Baseline"
-        )
-        ax1.plot(
-            experiment.temperature, baseline_result.corrected_data, label="Corrected"
-        )
-        ax1.set_xlabel("Temperature (°C)")
-        ax1.set_ylabel("Heat Flow (mW)")
-        ax1.set_title("DSC Data and Baseline Correction")
-        ax1.legend()
-        ax1.grid(True)
-
-        # Plot peaks
-        ax2.plot(experiment.temperature, baseline_result.corrected_data)
-        for peak in peaks:
-            ax2.axvline(peak.peak_temperature, color="r", linestyle="--")
-            ax2.annotate(
-                f"Peak T = {peak.peak_temperature:.1f}°C\n"
-                f"ΔH = {peak.enthalpy:.1f} J/g",
-                xy=(peak.peak_temperature, peak.peak_height),
-                xytext=(10, 10),
-                textcoords="offset points",
+        # Event detection
+        if len(peaks) > 0:
+            event_detector = ThermalEventDetector()
+            events = event_detector.detect_events(
+                segment.temperature,
+                baseline_result.corrected_data,
+                peaks,
+                baseline_result.baseline
             )
-        ax2.set_xlabel("Temperature (°C)")
-        ax2.set_ylabel("Heat Flow (mW)")
-        ax2.set_title("Peak Analysis")
-        ax2.grid(True)
-
-        plt.tight_layout()
-        plt.show()
+            results['events'] = events
 
     except Exception as e:
-        print(f"Error in DSC analysis: {str(e)}")
+        logger.error(f"Error analyzing segment: {str(e)}")
+        results['error'] = str(e)
+
+    return results
+
+
+def plot_segment_analysis(segment: DSCExperiment, results: Dict) -> None:
+    """Plot analysis results for a segment."""
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
+
+    # Original data and baseline
+    ax1.plot(segment.temperature, segment.heat_flow, 'b-', label='Original')
+    if 'baseline' in results:
+        ax1.plot(segment.temperature, results['baseline'].baseline, 'r--', label='Baseline')
+        ax1.plot(segment.temperature, results['baseline'].corrected_data, 'g-', label='Corrected')
+    ax1.set_xlabel('Temperature (K)')
+    ax1.set_ylabel('Heat Flow (mW)')
+    ax1.legend()
+    ax1.grid(True)
+
+    # Peaks and events
+    if 'peaks' in results:
+        for peak in results['peaks']:
+            ax2.axvline(peak.peak_temperature, color='r', linestyle='--', alpha=0.5)
+            ax2.axvline(peak.onset_temperature, color='g', linestyle=':', alpha=0.5)
+            ax2.axvline(peak.endset_temperature, color='g', linestyle=':', alpha=0.5)
+    ax2.plot(segment.temperature, segment.heat_flow, 'b-')
+    ax2.set_xlabel('Temperature (K)')
+    ax2.set_ylabel('Heat Flow (mW)')
+    ax2.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def main():
+    """Main execution function."""
+    # File path
+    file_path = os.path.join(PKG_DATA_DIR, "sample_dsc_setaram.txt")
+
+    try:
+        # Load data
+        data = dsc_importer(file_path=file_path, manufacturer="Setaram")
+        experiment = DSCExperiment(
+            temperature=data['temperature'],
+            heat_flow=data['heat_flow'],
+            time=data['time'],
+            mass=10.0,  # Example mass in mg
+            heating_rate=10.0  # Example heating rate in K/min
+        )
+
+        # Initialize segment analyzer
+        segment_analyzer = DSCSegmentAnalyzer(experiment)
+
+        # Show available segments
+        print(f"\nFound {len(segment_analyzer.segments)} segments")
+        segment_analyzer.plot_segments()
+
+        # Analyze each segment
+        for i in range(len(segment_analyzer.segments)):
+            print(f"\nAnalyzing segment {i + 1}...")
+            segment = segment_analyzer.get_segment(i)
+            results = analyze_segment(segment)
+
+            if 'error' not in results:
+                plot_segment_analysis(segment, results)
+
+                if 'peaks' in results:
+                    print(f"\nFound {len(results['peaks'])} peaks in segment {i + 1}:")
+                    for j, peak in enumerate(results['peaks']):
+                        print(f"\nPeak {j + 1}:")
+                        print(f"Onset Temperature: {peak.onset_temperature:.2f} K")
+                        print(f"Peak Temperature: {peak.peak_temperature:.2f} K")
+                        print(f"Endset Temperature: {peak.endset_temperature:.2f} K")
+                        print(f"Enthalpy: {peak.enthalpy:.2f} J/g")
+            else:
+                print(f"Error analyzing segment {i + 1}: {results['error']}")
+
+    except Exception as e:
+        logger.error(f"Error in DSC analysis: {str(e)}")
         raise
 
 
 if __name__ == "__main__":
-    print("1. Analyzing heat capacity...")
-    analyze_heat_capacity()
-
-    print("\n2. Performing basic DSC analysis...")
-    perform_dsc_analysis()
+    main()
