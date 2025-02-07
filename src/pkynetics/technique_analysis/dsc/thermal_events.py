@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 from scipy import signal
 from scipy.optimize import curve_fit
 
-from .types import CrystallizationEvent, GlassTransition, MeltingEvent, PhaseTransition
+from .types import DSCPeak, CrystallizationEvent, GlassTransition, MeltingEvent, PhaseTransition
 
 
 class ThermalEventDetector:
@@ -33,6 +33,43 @@ class ThermalEventDetector:
         self.smoothing_order = smoothing_order
         self.peak_prominence = peak_prominence
         self.noise_threshold = noise_threshold
+
+    def detect_events(
+            self,
+            temperature: NDArray[np.float64],
+            heat_flow: NDArray[np.float64],
+            peaks: List[DSCPeak],
+            baseline: Optional[NDArray[np.float64]] = None,
+    ) -> Dict:
+        """
+        Detect and analyze all thermal events.
+
+        Args:
+            temperature: Temperature array
+            heat_flow: Heat flow array
+            peaks: List of detected peaks
+            baseline: Optional baseline array
+
+        Returns:
+            Dictionary containing different types of thermal events
+        """
+        events = {}
+
+        # Detect glass transitions
+        gt = self.detect_glass_transition(temperature, heat_flow, baseline)
+        if gt:
+            events['glass_transitions'] = [gt]
+
+        # Detect crystallization events
+        events['crystallization'] = self.detect_crystallization(temperature, heat_flow, baseline)
+
+        # Detect melting events
+        events['melting'] = self.detect_melting(temperature, heat_flow, baseline)
+
+        # Detect other phase transitions
+        events['phase_transitions'] = self.detect_phase_transitions(temperature, heat_flow, baseline)
+
+        return events
 
     def detect_glass_transition(
         self,
