@@ -211,7 +211,36 @@ class CpCalculator:
             stability_method: StabilityMethod,
             **kwargs,
     ) -> CpResult:
-        """Calculate Cp using three-step method."""
+        """
+        Calculate Cp using three-step method.
+
+        Args:
+            temperature: Temperature array (K)
+            heat_flow: Heat flow array (mW)
+            sample_mass: Sample mass (mg)
+            heating_rate: Heating rate (K/min)
+            reference_data: Dictionary containing reference measurement data
+            operation_mode: Measurement operation mode
+            stability_method: Method for detecting stable regions
+            **kwargs: Additional parameters
+
+        Returns:
+            CpResult containing calculated heat capacity and analysis metrics
+
+        Raises:
+            ValueError: If required reference data is missing or arrays have inconsistent shapes
+        """
+        # Ensure arrays are 1D
+        temperature = np.asarray(temperature).ravel()
+        heat_flow = np.asarray(heat_flow).ravel()
+        ref_temp = np.asarray(reference_data["temperature"]).ravel()
+        ref_heat_flow = np.asarray(reference_data["heat_flow"]).ravel()
+        ref_cp = np.asarray(reference_data["cp"]).ravel()
+
+        # Validate array lengths
+        if not all(len(arr) == len(temperature) for arr in [heat_flow, ref_temp, ref_heat_flow, ref_cp]):
+            raise ValueError("All data arrays must have the same length")
+
         # Validate reference data
         required_fields = ["temperature", "heat_flow", "mass", "cp"]
         if not all(field in reference_data for field in required_fields):
@@ -236,7 +265,8 @@ class CpCalculator:
                 # Calculate regional averages
                 temp = np.mean(temperature[region_slice])
                 sample_signal = np.mean(heat_flow[region_slice])
-                ref_signal = np.mean(reference_data["heat_flow"][region_slice])
+                ref_signal = np.mean(ref_heat_flow[region_slice])
+                ref_cp_value = np.mean(ref_cp[region_slice])
 
                 # Calculate Cp
                 cp = self._calculate_regional_cp(
@@ -244,14 +274,14 @@ class CpCalculator:
                     ref_signal,
                     sample_mass,
                     reference_data["mass"],
-                    reference_data["cp"],
+                    ref_cp_value,
                 )
 
                 # Calculate uncertainty
                 uncertainty = self._calculate_three_step_uncertainty(
                     sample_signal,
                     ref_signal,
-                    reference_data["cp"],
+                    ref_cp_value,
                     sample_mass,
                     reference_data["mass"],
                 )
@@ -269,19 +299,24 @@ class CpCalculator:
             # Continuous mode calculations
             cp_array = self._calculate_continuous_cp(
                 heat_flow,
-                reference_data["heat_flow"],
+                ref_heat_flow,
                 sample_mass,
                 reference_data["mass"],
-                reference_data["cp"],
+                ref_cp,
             )
             temp_array = temperature
             uncertainty_array = self._calculate_three_step_uncertainty(
                 heat_flow,
-                reference_data["heat_flow"],
-                reference_data["cp"],
+                ref_heat_flow,
+                ref_cp,
                 sample_mass,
                 reference_data["mass"],
             )
+
+        # Ensure all output arrays are 1D
+        temp_array = np.asarray(temp_array).ravel()
+        cp_array = np.asarray(cp_array).ravel()
+        uncertainty_array = np.asarray(uncertainty_array).ravel()
 
         # Calculate quality metrics
         quality_metrics = self._calculate_quality_metrics(
@@ -516,39 +551,81 @@ class CpCalculator:
         """Calculate comprehensive quality metrics."""
         metrics = {}
 
+        # Debug original shapes
+        print("\nDebug: Original array shapes:")
+        print(f"Temperature: shape={temperature.shape}, type={type(temperature)}")
+        print(f"Cp: shape={cp.shape}, type={type(cp)}")
+        print(f"Uncertainty: shape={uncertainty.shape}, type={type(uncertainty)}")
+
+        # Ensure arrays are 1D
+        temp = temperature.ravel()
+        cp_vals = cp.ravel()
+        unc = uncertainty.ravel()
+
+        # Debug after ravel
+        print("\nDebug: Array lengths after ravel:")
+        print(f"Temperature: len={len(temp)}, shape={temp.shape}")
+        print(f"Cp: len={len(cp_vals)}, shape={cp_vals.shape}")
+        print(f"Uncertainty: len={len(unc)}, shape={unc.shape}")
+
+        # Print some values
+        print("\nDebug: First few values of each array:")
+        print(f"Temperature: {temp[:5]}")
+        print(f"Cp: {cp_vals[:5]}")
+        print(f"Uncertainty: {unc[:5]}")
+
+        if not (len(temp) == len(cp_vals) == len(unc)):
+            raise ValueError(
+                f"All input arrays must have the same length. Got: temperature={len(temp)}, cp={len(cp_vals)}, uncertainty={len(unc)}")
+
         # Signal-to-noise ratio
-        noise = np.std(np.diff(cp))
-        signal = np.ptp(cp)
+        noise = np.std(np.diff(cp_vals))
+        signal = np.ptp(cp_vals)
         metrics["snr"] = float(signal / noise if noise > 0 else np.inf)
 
         # Relative uncertainty
-        metrics["avg_uncertainty"] = float(np.mean(uncertainty / cp))
-        metrics["max_uncertainty"] = float(np.max(uncertainty / cp))
+        metrics["avg_uncertainty"] = float(np.mean(unc / cp_vals))
+        metrics["max_uncertainty"] = float(np.max(unc / cp_vals))
 
-        # Smoothness metric - calculate gradient properly
+        # Smoothness metric
         try:
-            dcp_dt = np.gradient(cp)  # No need to specify x-axis for basic smoothness
+            dcp_dt = np.gradient(cp_vals)
             smoothness = 1 / (1 + np.std(dcp_dt))
             metrics["smoothness"] = float(smoothness)
         except Exception as e:
-            metrics["smoothness"] = 0.0  # Default value if calculation fails
+            print(f"Warning: Smoothness calculation failed: {str(e)}")
+            metrics["smoothness"] = 0.0
 
         # Linear fit metrics
-        slope, intercept, r_value, _, stderr = stats.linregress(temperature, cp)
-        metrics.update({
-            "slope": float(slope),
-            "intercept": float(intercept),
-            "r_squared": float(r_value ** 2),
-            "std_error": float(stderr),
-        })
+        try:
+            # Make sure arrays are properly shaped for linregress
+            if len(temp) > 1 and len(cp_vals) > 1:
+                slope, intercept, r_value, _, stderr = stats.linregress(temp, cp_vals)
+                metrics.update({
+                    "slope": float(slope),
+                    "intercept": float(intercept),
+                    "r_squared": float(r_value ** 2),
+                    "std_error": float(stderr),
+                })
+            else:
+                raise ValueError("Insufficient data points for linear regression")
+        except Exception as e:
+            print(f"Warning: Linear regression failed: {str(e)}")
+            metrics.update({
+                "slope": 0.0,
+                "intercept": 0.0,
+                "r_squared": 0.0,
+                "std_error": 0.0,
+            })
 
         # Overall quality score (0 to 1)
-        metrics["quality_score"] = float(np.mean([
+        valid_metrics = [
             metrics["snr"] / (metrics["snr"] + 1),
             1 - metrics["avg_uncertainty"],
             metrics["smoothness"],
             metrics["r_squared"]
-        ]))
+        ]
+        metrics["quality_score"] = float(np.mean(valid_metrics))
 
         return metrics
 
