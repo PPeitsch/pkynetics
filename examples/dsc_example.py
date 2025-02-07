@@ -2,7 +2,7 @@
 
 import os
 import logging
-from typing import Dict
+from typing import Dict, Tuple, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
@@ -24,10 +24,24 @@ PKG_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "src", "pkynetics",
 
 
 class DSCSegmentAnalyzer:
-    def __init__(self, experiment: DSCExperiment):
+    def __init__(self, experiment: DSCExperiment, manual_range: Optional[Tuple[float, float]] = None):
         self.experiment = experiment
         self.segments = []
-        self._detect_segments()
+        if manual_range is not None:
+            self._create_manual_segment(manual_range)
+        else:
+            self._detect_segments()
+
+    def _create_manual_segment(self, temp_range: Tuple[float, float]) -> None:
+        """Create segment from manual temperature range."""
+        start_temp, end_temp = temp_range
+        start_idx = np.abs(self.experiment.temperature - start_temp).argmin()
+        end_idx = np.abs(self.experiment.temperature - end_temp).argmin()
+
+        if end_idx - start_idx > 100:
+            self.segments = [(start_idx, end_idx)]
+        else:
+            raise ValueError("Selected range too small (minimum 100 points required)")
 
     def _detect_segments(self) -> None:
         """Detect different segments in the DSC curve."""
@@ -111,7 +125,7 @@ def analyze_segment(segment: DSCExperiment) -> Dict:
         baseline_result = baseline_corrector.correct(
             segment.temperature,
             segment.heat_flow,
-            method='auto'
+            method='linear'
         )
         results['baseline'] = baseline_result
 
@@ -188,7 +202,14 @@ def main():
         )
 
         # Initialize segment analyzer
-        segment_analyzer = DSCSegmentAnalyzer(experiment)
+        use_manual = input("Use manual temperature range? (y/n): ").lower() == 'y'
+
+        if use_manual:
+            start_temp = float(input("Enter start temperature (K): "))
+            end_temp = float(input("Enter end temperature (K): "))
+            segment_analyzer = DSCSegmentAnalyzer(experiment, manual_range=(start_temp, end_temp))
+        else:
+            segment_analyzer = DSCSegmentAnalyzer(experiment)
 
         # Show available segments
         print(f"\nFound {len(segment_analyzer.segments)} segments")
