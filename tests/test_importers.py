@@ -29,7 +29,7 @@ class TestImporters(unittest.TestCase):
         )
 
         # Create sample DSC CSV data
-        self.dsc_file_path_csv = os.path.join(self.temp_dir, "sample_dsc_data.csv")
+        self.dsc_file_path_csv = os.path.join(self.temp_dir, "sample_dsc_setaram.csv")
         dsc_data = pd.DataFrame(
             {
                 "Time (s)": np.linspace(0, 10, 100),
@@ -47,7 +47,7 @@ class TestImporters(unittest.TestCase):
         )
 
         # Create sample DSC TXT data (with header)
-        self.dsc_file_path_txt = os.path.join(self.temp_dir, "sample_dsc_data.txt")
+        self.dsc_file_path_txt = os.path.join(self.temp_dir, "sample_dsc_setaram.txt")
         with open(self.dsc_file_path_txt, "w", encoding="utf-16le") as f:
             # Write 12 header lines
             for i in range(12):

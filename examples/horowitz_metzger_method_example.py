@@ -2,7 +2,10 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from pkynetics.model_fitting_methods import horowitz_metzger_method, horowitz_metzger_plot
+from pkynetics.model_fitting_methods import (
+    horowitz_metzger_method,
+    horowitz_metzger_plot,
+)
 
 # Generate more realistic sample data
 temperature = np.linspace(300, 800, 1000)  # Temperature in Kelvin
@@ -15,12 +18,14 @@ heating_rate = 10  # K/min
 r = 8.314  # Gas constant in J/(mol·K)
 k = true_a * np.exp(-true_e_a / (r * temperature))
 time = (temperature - temperature[0]) / heating_rate
-alpha = 1 - np.exp(-(k * time) ** true_n)
+alpha = 1 - np.exp(-((k * time) ** true_n))
 
 # Add some noise to make it more realistic
 np.random.seed(42)  # for reproducibility
 noise_level = 0.01
-alpha_noisy = np.clip(alpha + np.random.normal(0, noise_level, alpha.shape), 0.001, 0.999)
+alpha_noisy = np.clip(
+    alpha + np.random.normal(0, noise_level, alpha.shape), 0.001, 0.999
+)
 
 # Perform Horowitz-Metzger analysis
 e_a, a, t_s, r_squared = horowitz_metzger_method(temperature, alpha_noisy, n=true_n)
@@ -31,29 +36,45 @@ print(f"Fitted temperature of maximum decomposition rate: {t_s:.2f} K")
 print(f"R^2 = {r_squared:.4f}")
 
 # Generate plot data
-theta, y, _, _, _, _, theta_selected, y_selected = horowitz_metzger_plot(temperature, alpha_noisy, n=true_n)
+theta, y, _, _, _, _, theta_selected, y_selected = horowitz_metzger_plot(
+    temperature, alpha_noisy, n=true_n
+)
 
 # Calculate and print the range of conversion values used
 mask_selected = np.isin(theta, theta_selected)
 alpha_selected = alpha_noisy[mask_selected]
-print(f"Range of conversion values used: {alpha_selected.min():.2f} to {alpha_selected.max():.2f}")
+print(
+    f"Range of conversion values used: {alpha_selected.min():.2f} to {alpha_selected.max():.2f}"
+)
 
 # Plot the results
 plt.figure(figsize=(10, 6))
-plt.scatter(theta, y, label='All data', alpha=0.5, s=10)
-plt.scatter(theta_selected, y_selected, label='Selected data', color='green', s=10)
-plt.plot(theta_selected, np.polyval(np.polyfit(theta_selected, y_selected, 1), theta_selected), 'r-', label='Fitted line')
-plt.xlabel('θ (K)')
-plt.ylabel('ln(-ln(1-α))')
-plt.title('Horowitz-Metzger Plot (Improved Method)')
+plt.scatter(theta, y, label="All data", alpha=0.5, s=10)
+plt.scatter(theta_selected, y_selected, label="Selected data", color="green", s=10)
+plt.plot(
+    theta_selected,
+    np.polyval(np.polyfit(theta_selected, y_selected, 1), theta_selected),
+    "r-",
+    label="Fitted line",
+)
+plt.xlabel("θ (K)")
+plt.ylabel("ln(-ln(1-α))")
+plt.title("Horowitz-Metzger Plot (Improved Method)")
 plt.legend()
 plt.grid(True)
 
 # Add text box with results
-textstr = f'E_a = {e_a/1000:.2f} kJ/mol\nA = {a:.2e} min$^{{-1}}$\nT_s = {t_s:.2f} K\nR$^2$ = {r_squared:.4f}'
-props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-plt.text(0.05, 0.95, textstr, transform=plt.gca().transAxes, fontsize=9,
-         verticalalignment='top', bbox=props)
+textstr = f"E_a = {e_a/1000:.2f} kJ/mol\nA = {a:.2e} min$^{{-1}}$\nT_s = {t_s:.2f} K\nR$^2$ = {r_squared:.4f}"
+props = dict(boxstyle="round", facecolor="wheat", alpha=0.5)
+plt.text(
+    0.05,
+    0.95,
+    textstr,
+    transform=plt.gca().transAxes,
+    fontsize=9,
+    verticalalignment="top",
+    bbox=props,
+)
 
 plt.tight_layout()
 plt.show()
