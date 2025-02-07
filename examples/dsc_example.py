@@ -2,13 +2,14 @@
 
 import os
 import logging
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, List
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import signal
 from scipy.signal import find_peaks
 
 from pkynetics.data_import import dsc_importer
-from pkynetics.technique_analysis.dsc.types import DSCExperiment
+from pkynetics.technique_analysis.dsc.types import DSCExperiment, DSCPeak
 from pkynetics.technique_analysis.dsc.baseline import BaselineCorrector
 from pkynetics.technique_analysis.dsc.peak_analysis import PeakAnalyzer
 from pkynetics.technique_analysis.dsc.thermal_events import ThermalEventDetector
@@ -43,30 +44,107 @@ class DSCSegmentAnalyzer:
         else:
             raise ValueError("Selected range too small (minimum 100 points required)")
 
+    # En DSCSegmentAnalyzer
     def _detect_segments(self) -> None:
-        """Detect different segments in the DSC curve."""
-        # Calculate derivative to find rate changes
-        dT = np.gradient(self.experiment.temperature)
-        rate = np.gradient(self.experiment.temperature, self.experiment.time)
+        """Detect different segments in DSC curve."""
+        logger.info("Starting segment detection")
 
-        # Find significant rate changes
-        rate_changes = find_peaks(np.abs(np.gradient(rate)))[0]
+        # Calculate rate of temperature change
+        time_diff = np.gradient(self.experiment.time)
+        rate = np.gradient(self.experiment.temperature) / time_diff
+
+        # Smooth the rate signal
+        window_size = min(21, len(rate) // 5)
+        window_size = window_size if window_size % 2 == 1 else window_size + 1
+        rate_smooth = signal.savgol_filter(rate, window_size, 3)
+
+        # Find significant changes using prominence-based peak detection
+        logger.info("Looking for rate changes...")
+        rate_changes = signal.find_peaks(
+            np.abs(np.gradient(rate_smooth)),
+            prominence=np.std(rate_smooth),  # Adaptive threshold
+            width=5
+        )[0]
 
         if len(rate_changes) == 0:
-            # If no clear segments, use the whole curve
+            logger.info("No segments detected, using full range")
             self.segments = [(0, len(self.experiment.temperature) - 1)]
             return
 
-        # Create segments
+        # Create segments with overlap
         start_idx = 0
+        min_segment_size = 100
+        overlap = 50  # Points of overlap
+
         for end_idx in rate_changes:
-            if end_idx - start_idx > 100:  # Minimum segment size
-                self.segments.append((start_idx, end_idx))
+            if end_idx - start_idx > min_segment_size:
+                self.segments.append((
+                    max(0, start_idx - overlap),
+                    min(len(self.experiment.temperature), end_idx + overlap)
+                ))
+                logger.info(f"Added segment: {start_idx} to {end_idx}")
             start_idx = end_idx
 
-        # Add final segment
-        if len(self.experiment.temperature) - start_idx > 100:
-            self.segments.append((start_idx, len(self.experiment.temperature) - 1))
+        # Add final segment if needed
+        if len(self.experiment.temperature) - start_idx > min_segment_size:
+            self.segments.append((
+                max(0, start_idx - overlap),
+                len(self.experiment.temperature) - 1
+            ))
+            logger.info("Added final segment")
+
+    # En PeakAnalyzer
+    def find_peaks(
+            self,
+            temperature: np.ndarray,
+            heat_flow: np.ndarray,
+            baseline: Optional[np.ndarray] = None
+    ) -> List[DSCPeak]:
+        """Find peaks with adaptive thresholds."""
+        logger.info("Starting peak detection")
+
+        if len(temperature) < self.smoothing_window:
+            logger.warning("Data length too short for peak detection")
+            return []
+
+        # Apply baseline correction if provided
+        signal = heat_flow - baseline if baseline is not None else heat_flow
+
+        # Smooth signal
+        window_size = min(self.smoothing_window, len(signal) // 5)
+        window_size = window_size if window_size % 2 == 1 else window_size + 1
+        smooth_signal = signal.savgol_filter(signal, window_size, 3)
+
+        # Calculate adaptive threshold
+        noise_level = np.std(smooth_signal[:20])
+        prominence = max(self.peak_prominence, 2 * noise_level)
+
+        logger.info(f"Using prominence threshold: {prominence}")
+
+        # Find peaks
+        peaks, properties = signal.find_peaks(
+            smooth_signal,
+            prominence=prominence,
+            width=window_size // 2,
+            height=self.height_threshold * np.max(np.abs(smooth_signal))
+        )
+
+        # Analyze peaks
+        peak_list = []
+        for i, peak_idx in enumerate(peaks):
+            try:
+                peak_info = self._analyze_peak_region(
+                    temperature,
+                    signal,
+                    peak_idx,
+                    baseline
+                )
+                peak_list.append(peak_info)
+                logger.info(f"Analyzed peak {i + 1} at temperature {peak_info.peak_temperature:.2f}K")
+            except Exception as e:
+                logger.warning(f"Failed to analyze peak {i}: {str(e)}")
+
+        return peak_list
 
     def plot_segments(self) -> None:
         """Plot identified segments for user selection."""
@@ -109,37 +187,49 @@ def analyze_segment(segment: DSCExperiment) -> Dict:
     results = {}
 
     try:
+        logger.info(f"Starting analysis of segment with {len(segment.temperature)} points")
+
         # Validate data
         if len(segment.temperature) < 100:
             raise ValueError("Segment too short for analysis")
 
+        logger.info("Checking temperature ordering...")
         if not np.all(np.diff(segment.temperature) > 0):
-            logger.warning("Temperature not strictly increasing, sorting data...")
+            logger.info("Sorting data by temperature...")
             sort_idx = np.argsort(segment.temperature)
             segment.temperature = segment.temperature[sort_idx]
             segment.heat_flow = segment.heat_flow[sort_idx]
             segment.time = segment.time[sort_idx]
 
         # Baseline correction
-        baseline_corrector = BaselineCorrector(smoothing_window=min(21, len(segment.temperature) // 5))
+        logger.info("Starting baseline correction...")
+        window_size = min(21, len(segment.temperature) // 5)
+        window_size = window_size if window_size % 2 == 1 else window_size + 1
+        logger.info(f"Using smoothing window size: {window_size}")
+
+        baseline_corrector = BaselineCorrector(smoothing_window=window_size)
         baseline_result = baseline_corrector.correct(
             segment.temperature,
             segment.heat_flow,
-            method='linear'
+            method='linear'  # Cambio a 'linear' por ser más robusto
         )
+        logger.info("Baseline correction completed")
         results['baseline'] = baseline_result
 
         # Peak analysis
+        logger.info("Starting peak analysis...")
         peak_analyzer = PeakAnalyzer()
         peaks = peak_analyzer.find_peaks(
             segment.temperature,
             baseline_result.corrected_data,
             baseline_result.baseline
         )
+        logger.info(f"Found {len(peaks)} peaks")
         results['peaks'] = peaks
 
         # Event detection
         if len(peaks) > 0:
+            logger.info("Starting event detection...")
             event_detector = ThermalEventDetector()
             events = event_detector.detect_events(
                 segment.temperature,
@@ -147,10 +237,11 @@ def analyze_segment(segment: DSCExperiment) -> Dict:
                 peaks,
                 baseline_result.baseline
             )
+            logger.info("Event detection completed")
             results['events'] = events
 
     except Exception as e:
-        logger.error(f"Error analyzing segment: {str(e)}")
+        logger.error(f"Error analyzing segment: {str(e)}", exc_info=True)
         results['error'] = str(e)
 
     return results
