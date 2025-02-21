@@ -4,6 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pkynetics.data_preprocessing.common_preprocessing import smooth_data
+from pkynetics.technique_analysis.utilities import detect_segment_direction
 
 ReturnDict = Dict[str, Union[float, NDArray[np.float64], Dict[str, float]]]
 
@@ -139,29 +140,39 @@ def find_optimal_margin(
 
 
 def calculate_transformed_fraction_lever(
-    temperature: NDArray[np.float64],
-    strain: NDArray[np.float64],
-    start_temp: float,
-    end_temp: float,
-    margin_percent: float = 0.2,
+        temperature: NDArray[np.float64],
+        strain: NDArray[np.float64],
+        start_temp: float,
+        end_temp: float,
+        margin_percent: float = 0.2,
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """Calculate transformed fraction using the lever rule method."""
-    if start_temp >= end_temp:
-        raise ValueError("Start temperature must be less than end temperature")
-    if not (temperature.min() <= start_temp <= temperature.max()):
-        raise ValueError("Start temperature outside data range")
-    if not (temperature.min() <= end_temp <= temperature.max()):
-        raise ValueError("End temperature outside data range")
+    # Detect direction
+    is_cooling = detect_segment_direction(temperature, strain)
+
+    # Validate only range, direction was already validated in utilities.py
+    temp_min, temp_max = min(temperature), max(temperature)
+    if not (temp_min <= start_temp <= temp_max and temp_min <= end_temp <= temp_max):
+        raise ValueError("Temperature values outside data range")
 
     temp_range = temperature.max() - temperature.min()
     fit_range = temp_range * margin_percent
 
-    before_mask = (temperature >= temperature.min()) & (
-        temperature <= (temperature.min() + fit_range)
-    )
-    after_mask = (temperature <= temperature.max()) & (
-        temperature >= (temperature.max() - fit_range)
-    )
+    # Adjust masks based on direction
+    if is_cooling:
+        before_mask = (temperature <= temperature.max()) & (
+                temperature >= (temperature.max() - fit_range)
+        )
+        after_mask = (temperature >= temperature.min()) & (
+                temperature <= (temperature.min() + fit_range)
+        )
+    else:
+        before_mask = (temperature >= temperature.min()) & (
+                temperature <= (temperature.min() + fit_range)
+        )
+        after_mask = (temperature <= temperature.max()) & (
+                temperature >= (temperature.max() - fit_range)
+        )
 
     min_points = 5
     if np.sum(before_mask) < min_points or np.sum(after_mask) < min_points:
@@ -180,15 +191,26 @@ def calculate_transformed_fraction_lever(
 
     transformed_fraction = np.zeros_like(strain)
 
-    mask = (temperature >= start_temp) & (temperature <= end_temp)
+    # Adjust mask and calculation based on direction
+    if is_cooling:
+        mask = (temperature <= start_temp) & (temperature >= end_temp)
+    else:
+        mask = (temperature >= start_temp) & (temperature <= end_temp)
+
     height_total = after_extrap[mask] - before_extrap[mask]
     height_current = strain[mask] - before_extrap[mask]
 
     valid_total = height_total != 0
     transformed_fraction[mask] = np.where(valid_total, height_current / height_total, 0)
 
-    transformed_fraction[temperature > end_temp] = 1.0
-    transformed_fraction[temperature < start_temp] = 0.0
+    # Adjust transformation direction based on cooling/heating
+    if is_cooling:
+        transformed_fraction[temperature > start_temp] = 1.0
+        transformed_fraction[temperature < end_temp] = 0.0
+        transformed_fraction = 1 - transformed_fraction  # Invert for cooling
+    else:
+        transformed_fraction[temperature > end_temp] = 1.0
+        transformed_fraction[temperature < start_temp] = 0.0
 
     return np.clip(transformed_fraction, 0, 1), before_extrap, after_extrap
 
@@ -214,7 +236,8 @@ def lever_method(
     margin_percent: float = 0.2,
 ) -> ReturnDict:
     """Analyze dilatometry curve using the lever rule method."""
-    start_temp, end_temp = find_inflection_points(temperature, strain)
+    is_cooling = detect_segment_direction(temperature, strain)
+    start_temp, end_temp = find_inflection_points(temperature, strain, is_cooling)
 
     transformed_fraction, before_extrap, after_extrap = (
         calculate_transformed_fraction_lever(
@@ -233,6 +256,7 @@ def lever_method(
         "transformed_fraction": transformed_fraction,
         "before_extrapolation": before_extrap,
         "after_extrapolation": after_extrap,
+        "is_cooling": is_cooling,  # Add this to results
     }
 
 
@@ -296,14 +320,23 @@ def tangent_method(
 
 
 def find_inflection_points(
-    temperature: NDArray[np.float64], strain: NDArray[np.float64]
+        temperature: NDArray[np.float64],
+        strain: NDArray[np.float64],
+        is_cooling: bool = False
 ) -> Tuple[float, float]:
     """Find inflection points using second derivative."""
     smooth_strain = smooth_data(strain)
     second_derivative = np.gradient(np.gradient(smooth_strain))
     peaks = np.argsort(np.abs(second_derivative))[-2:]
-    start_temp = float(temperature[min(peaks)])
-    end_temp = float(temperature[max(peaks)])
+
+    # For cooling, reverse the order of start/end temps
+    if is_cooling:
+        start_temp = float(temperature[max(peaks)])
+        end_temp = float(temperature[min(peaks)])
+    else:
+        start_temp = float(temperature[min(peaks)])
+        end_temp = float(temperature[max(peaks)])
+
     return start_temp, end_temp
 
 
@@ -412,11 +445,12 @@ def find_deviation_point(
 
 
 def calculate_transformed_fraction(
-    strain: NDArray[np.float64],
-    pred_start: NDArray[np.float64],
-    pred_end: NDArray[np.float64],
-    start_idx: int,
-    end_idx: int,
+        strain: NDArray[np.float64],
+        pred_start: NDArray[np.float64],
+        pred_end: NDArray[np.float64],
+        start_idx: int,
+        end_idx: int,
+        is_cooling: bool = False,
 ) -> NDArray[np.float64]:
     """Calculate transformed fraction."""
     transformed_fraction = np.zeros_like(strain)
@@ -425,7 +459,12 @@ def calculate_transformed_fraction(
     height_total = pred_end[transformation_region] - pred_start[transformation_region]
     height_current = strain[transformation_region] - pred_start[transformation_region]
     transformed_fraction[transformation_region] = height_current / height_total
-    transformed_fraction[end_idx + 1 :] = 1.0
+
+    if is_cooling:
+        transformed_fraction = 1 - transformed_fraction
+        transformed_fraction[end_idx + 1:] = 0.0
+    else:
+        transformed_fraction[end_idx + 1:] = 1.0
 
     return np.clip(transformed_fraction, 0, 1)
 

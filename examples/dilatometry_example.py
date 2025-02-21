@@ -12,7 +12,7 @@ from pkynetics.technique_analysis.utilities import (
     analyze_range,
     validate_temperature_range,
     get_analysis_summary,
-    get_transformation_metrics
+    get_transformation_metrics, detect_segment_direction
 )
 from pkynetics.result_visualization import plot_dilatometry_analysis
 
@@ -23,17 +23,22 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 PKG_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'src', 'pkynetics', 'data')
 
 
-def get_analysis_range(temperature: np.ndarray) -> Tuple[float, float]:
+def get_analysis_range(temperature: np.ndarray, strain: np.ndarray) -> Tuple[float, float]:
     """
     Get temperature range for analysis from user input.
 
     Args:
         temperature: Full temperature array to show available range
+        strain: Strain data array
 
     Returns:
         Tuple of start and end temperatures for analysis
     """
-    print(f"\nAvailable temperature range: {temperature.min():.1f}°C to {temperature.max():.1f}°C")
+    is_cooling = detect_segment_direction(temperature, strain)
+    temp_min, temp_max = min(temperature), max(temperature)
+
+    print(f"\nAvailable temperature range: {temp_min:.1f}°C to {temp_max:.1f}°C")
+    print(f"Segment type: {'Cooling' if is_cooling else 'Heating'}")
 
     while True:
         try:
@@ -44,7 +49,10 @@ def get_analysis_range(temperature: np.ndarray) -> Tuple[float, float]:
                 return start_temp, end_temp
             else:
                 print("Invalid temperature range. Please ensure:")
-                print("- Start temperature is less than end temperature")
+                if is_cooling:
+                    print("- Start temperature is greater than end temperature (cooling segment)")
+                else:
+                    print("- Start temperature is less than end temperature (heating segment)")
                 print("- Temperatures are within the available range")
 
         except ValueError:
@@ -53,7 +61,7 @@ def get_analysis_range(temperature: np.ndarray) -> Tuple[float, float]:
 
 def dilatometry_analysis_example():
     """Example of importing and analyzing dilatometry data."""
-    dilatometry_file_path = os.path.join(PKG_DATA_DIR, 'sample_dilatometry_data.asc')
+    dilatometry_file_path = os.path.join(PKG_DATA_DIR, 'ejemplo_enfriamiento.asc')
 
     try:
         # Import data
@@ -64,7 +72,7 @@ def dilatometry_analysis_example():
         strain = data['relative_change']
 
         # Get analysis range from user
-        start_temp, end_temp = get_analysis_range(temperature)
+        start_temp, end_temp = get_analysis_range(temperature, strain)
         temperature_range, strain_range = analyze_range(temperature, strain, start_temp, end_temp)
 
         # Process and analyze data

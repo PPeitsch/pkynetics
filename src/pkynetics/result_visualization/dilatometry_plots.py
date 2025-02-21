@@ -122,7 +122,7 @@ def plot_lever_rule(
 
 
 def plot_transformed_fraction(
-    ax: plt.Axes, temperature: np.ndarray, results: Dict
+        ax: plt.Axes, temperature: np.ndarray, results: Dict
 ) -> None:
     """
     Plot transformed fraction vs temperature.
@@ -132,12 +132,19 @@ def plot_transformed_fraction(
         temperature: Temperature data array
         results: Dictionary containing analysis results
     """
-    ax.plot(temperature, results["transformed_fraction"], label="Transformed Fraction")
+    is_cooling = results.get('is_cooling', False)  # Add flag to results dict
+    transformed_fraction = results["transformed_fraction"]
+
+    ax.plot(temperature, transformed_fraction, label="Transformed Fraction")
+
+    # Ajustar los puntos según dirección
+    start_fraction = 1.0 if is_cooling else 0.0
+    end_fraction = 0.0 if is_cooling else 1.0
 
     points = {
-        "Start": ("start_temperature", "green", 0.0),
+        "Start": ("start_temperature", "green", start_fraction),
         "Mid": ("mid_temperature", "blue", 0.5),
-        "End": ("end_temperature", "red", 1.0),
+        "End": ("end_temperature", "red", end_fraction),
     }
 
     for label, (temp_key, color, fraction) in points.items():

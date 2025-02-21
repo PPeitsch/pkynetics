@@ -4,7 +4,7 @@ import numpy as np
 
 
 def analyze_range(
-    temperature: np.ndarray, strain: np.ndarray, start_temp: float, end_temp: float
+        temperature: np.ndarray, strain: np.ndarray, start_temp: float, end_temp: float
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Extract and return data within specified temperature range.
@@ -21,22 +21,25 @@ def analyze_range(
             - Strain array within specified range
 
     Raises:
-        ValueError: If start_temp >= end_temp or if temperatures are outside data range
+        ValueError: If temperatures are outside data range
     """
-    if start_temp >= end_temp:
-        raise ValueError("Start temperature must be less than end temperature")
-
-    if start_temp < temperature.min() or end_temp > temperature.max():
+    temp_min, temp_max = min(temperature), max(temperature)
+    if not (temp_min <= start_temp <= temp_max and temp_min <= end_temp <= temp_max):
         raise ValueError("Analysis temperatures must be within data range")
 
-    mask = (temperature >= start_temp) & (temperature <= end_temp)
+    is_cooling = detect_segment_direction(temperature, strain)
+    if is_cooling:
+        mask = (temperature <= start_temp) & (temperature >= end_temp)
+    else:
+        mask = (temperature >= start_temp) & (temperature <= end_temp)
+
     return temperature[mask], strain[mask]
 
 
 def validate_temperature_range(
-    temperature: np.ndarray,
-    start_temp: Optional[float] = None,
-    end_temp: Optional[float] = None,
+        temperature: np.ndarray,
+        start_temp: Optional[float] = None,
+        end_temp: Optional[float] = None,
 ) -> bool:
     """
     Validate if temperature range is valid for analysis.
@@ -53,13 +56,39 @@ def validate_temperature_range(
         return True
 
     if start_temp is not None and end_temp is not None:
-        if start_temp >= end_temp:
+        # Check temperatures are within data range
+        temp_min, temp_max = min(temperature), max(temperature)
+        if not (temp_min <= start_temp <= temp_max and temp_min <= end_temp <= temp_max):
             return False
 
-        if start_temp < temperature.min() or end_temp > temperature.max():
-            return False
+        # Determine if cooling or heating segment
+        is_cooling = detect_segment_direction(temperature, None)
+
+        # Validate direction-appropriate order
+        if is_cooling:
+            return start_temp > end_temp
+        else:
+            return start_temp < end_temp
 
     return True
+
+
+def detect_segment_direction(temperature: np.ndarray, strain: np.ndarray) -> bool:
+    """
+    Detect if the data segment represents cooling or heating.
+
+    Args:
+        temperature: Temperature data array
+        strain: Strain data array
+
+    Returns:
+        bool: True if cooling segment (decreasing temperature), False if heating
+    """
+    # Use linear regression to robustly determine overall trend
+    temp_norm = (temperature - temperature.min()) / (temperature.max() - temperature.min())
+    time_points = np.arange(len(temperature))
+    slope = np.polyfit(time_points, temp_norm, 1)[0]
+    return slope < 0
 
 
 def get_analysis_summary(results: Dict) -> str:
