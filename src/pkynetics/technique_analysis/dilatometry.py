@@ -245,8 +245,9 @@ def lever_method(
         )
     )
 
+    # Agregar is_cooling al llamado
     mid_temp = find_midpoint_temperature(
-        temperature, transformed_fraction, start_temp, end_temp
+        temperature, transformed_fraction, start_temp, end_temp, is_cooling
     )
 
     return {
@@ -256,7 +257,7 @@ def lever_method(
         "transformed_fraction": transformed_fraction,
         "before_extrapolation": before_extrap,
         "after_extrapolation": after_extrap,
-        "is_cooling": is_cooling,  # Add this to results
+        "is_cooling": is_cooling,  # Agregar al resultado
     }
 
 
@@ -327,30 +328,57 @@ def find_inflection_points(
     """Find inflection points using second derivative."""
     smooth_strain = smooth_data(strain)
     second_derivative = np.gradient(np.gradient(smooth_strain))
-    peaks = np.argsort(np.abs(second_derivative))[-2:]
 
-    # For cooling, reverse the order of start/end temps
+    # Encontrar máximos y mínimos locales significativos
+    from scipy.signal import find_peaks
+
+    # Ajustar prominence según la escala de los datos
+    prominence = np.std(second_derivative) * 0.5
+    peaks, _ = find_peaks(np.abs(second_derivative), prominence=prominence)
+
+    if len(peaks) < 2:
+        raise ValueError("Could not find clear transformation points")
+
+    # Ordenar por magnitud de la segunda derivada
+    peaks = peaks[np.argsort(np.abs(second_derivative[peaks]))[-2:]]
+
+    # Para enfriamiento, queremos el de mayor temperatura como inicio
     if is_cooling:
-        start_temp = float(temperature[max(peaks)])
-        end_temp = float(temperature[min(peaks)])
+        peaks = peaks[np.argsort(temperature[peaks])[::-1]]  # orden descendente
     else:
-        start_temp = float(temperature[min(peaks)])
-        end_temp = float(temperature[max(peaks)])
+        peaks = peaks[np.argsort(temperature[peaks])]  # orden ascendente
 
-    return start_temp, end_temp
+    return float(temperature[peaks[0]]), float(temperature[peaks[1]])
 
 
 def find_midpoint_temperature(
-    temperature: NDArray[np.float64],
-    transformed_fraction: NDArray[np.float64],
-    start_temp: float,
-    end_temp: float,
+        temperature: NDArray[np.float64],
+        transformed_fraction: NDArray[np.float64],
+        start_temp: float,
+        end_temp: float,
+        is_cooling: bool = False
 ) -> float:
     """Find temperature at 50% transformation."""
-    mask = (temperature >= start_temp) & (temperature <= end_temp)
+    # Asegurar que tenemos datos válidos primero
+    if len(transformed_fraction) == 0:
+        raise ValueError("Empty transformed fraction array")
+
+    # Ajustar máscara según dirección
+    if is_cooling:
+        mask = (temperature <= start_temp) & (temperature >= end_temp)
+    else:
+        mask = (temperature >= start_temp) & (temperature <= end_temp)
+
     valid_fraction = transformed_fraction[mask]
     valid_temp = temperature[mask]
-    mid_idx = np.argmin(np.abs(valid_fraction - 0.5))
+
+    if len(valid_fraction) == 0:
+        raise ValueError("No valid points found in transformation range")
+
+    # Para enfriamiento, buscamos 0.5 en los datos invertidos
+    target_value = 0.5
+    mid_idx = np.argmin(np.abs(valid_fraction - target_value))
+
     return float(valid_temp[mid_idx])
 
 
