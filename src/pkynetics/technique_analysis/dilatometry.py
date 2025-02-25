@@ -338,30 +338,112 @@ def find_inflection_points(
         strain: NDArray[np.float64],
         is_cooling: bool = False
 ) -> Tuple[float, float]:
-    """Find inflection points using second derivative."""
+    """Find transformation points where curve deviates from extrapolations."""
+    # Suavizar datos
     smooth_strain = smooth_data(strain)
-    second_derivative = np.gradient(np.gradient(smooth_strain))
 
-    # Encontrar máximos y mínimos locales significativos
-    from scipy.signal import find_peaks
+    # Obtener segmentos lineales iniciales (10-30% de los extremos)
+    temp_range = max(temperature) - min(temperature)
+    margin = temp_range * 0.3
 
-    # Ajustar prominence según la escala de los datos
-    prominence = np.std(second_derivative) * 0.5
-    peaks, _ = find_peaks(np.abs(second_derivative), prominence=prominence)
-
-    if len(peaks) < 2:
-        raise ValueError("Could not find clear transformation points")
-
-    # Ordenar por magnitud de la segunda derivada
-    peaks = peaks[np.argsort(np.abs(second_derivative[peaks]))[-2:]]
-
-    # Para enfriamiento, queremos el de mayor temperatura como inicio
+    # Definir regiones lineales según si es enfriamiento o calentamiento
     if is_cooling:
-        peaks = peaks[np.argsort(temperature[peaks])[::-1]]  # orden descendente
+        high_temp_mask = temperature >= (max(temperature) - margin)  # Región inicial (alta temp)
+        low_temp_mask = temperature <= (min(temperature) + margin)  # Región final (baja temp)
     else:
-        peaks = peaks[np.argsort(temperature[peaks])]  # orden ascendente
+        low_temp_mask = temperature <= (min(temperature) + margin)  # Región inicial (baja temp)
+        high_temp_mask = temperature >= (max(temperature) - margin)  # Región final (alta temp)
 
-    return float(temperature[peaks[0]]), float(temperature[peaks[1]])
+    # Ajustar líneas tangentes en regiones lineales
+    high_temp_fit = np.polyfit(temperature[high_temp_mask], smooth_strain[high_temp_mask], 1)
+    low_temp_fit = np.polyfit(temperature[low_temp_mask], smooth_strain[low_temp_mask], 1)
+
+    # Calcular extrapolaciones completas
+    high_temp_line = np.polyval(high_temp_fit, temperature)
+    low_temp_line = np.polyval(low_temp_fit, temperature)
+
+    # Calcular residuos (diferencias entre curva real y extrapolaciones)
+    high_temp_residuals = np.abs(smooth_strain - high_temp_line)
+    low_temp_residuals = np.abs(smooth_strain - low_temp_line)
+
+    # Calcular ruido base en regiones lineales
+    noise_high = np.std(high_temp_residuals[high_temp_mask]) * 3.0
+    noise_low = np.std(low_temp_residuals[low_temp_mask]) * 3.0
+
+    # Ordenar índices por temperatura (de acuerdo a la dirección)
+    if is_cooling:
+        temp_sorted_indices = np.argsort(-temperature)  # descendente
+    else:
+        temp_sorted_indices = np.argsort(temperature)  # ascendente
+
+    # Buscar punto de inicio - primer punto donde residuo excede significativamente el ruido base
+    # y continúa creciendo
+    start_idx = None
+    for i in range(len(temp_sorted_indices) // 10, len(temp_sorted_indices) * 9 // 10):
+        idx = temp_sorted_indices[i]
+
+        # Verificar si residuo excede umbral
+        if high_temp_residuals[idx] > noise_high:
+            # Confirmar con puntos adyacentes (tendencia creciente)
+            if i + 2 < len(temp_sorted_indices):
+                next_idx1 = temp_sorted_indices[i + 1]
+                next_idx2 = temp_sorted_indices[i + 2]
+
+                if (high_temp_residuals[next_idx1] > high_temp_residuals[idx] and
+                        high_temp_residuals[next_idx2] > high_temp_residuals[next_idx1]):
+
+                    # Buscar hacia atrás para encontrar punto exacto de inicio
+                    for j in range(i - 1, 0, -1):
+                        back_idx = temp_sorted_indices[j]
+                        if high_temp_residuals[back_idx] < noise_high:
+                            start_idx = temp_sorted_indices[j + 1]
+                            break
+                    else:
+                        start_idx = idx
+                    break
+
+    # Buscar punto final de manera similar
+    end_idx = None
+    for i in range(len(temp_sorted_indices) * 9 // 10, len(temp_sorted_indices) // 10, -1):
+        idx = temp_sorted_indices[i]
+
+        if low_temp_residuals[idx] > noise_low:
+            if i - 2 >= 0:
+                prev_idx1 = temp_sorted_indices[i - 1]
+                prev_idx2 = temp_sorted_indices[i - 2]
+
+                if (low_temp_residuals[prev_idx1] > low_temp_residuals[idx] and
+                        low_temp_residuals[prev_idx2] > low_temp_residuals[prev_idx1]):
+
+                    # Buscar hacia adelante para punto exacto
+                    for j in range(i + 1, len(temp_sorted_indices) - 1):
+                        fwd_idx = temp_sorted_indices[j]
+                        if low_temp_residuals[fwd_idx] < noise_low:
+                            end_idx = temp_sorted_indices[j - 1]
+                            break
+                    else:
+                        end_idx = idx
+                    break
+
+    # Fallback si no se encuentran puntos claros
+    if start_idx is None:
+        start_idx = temp_sorted_indices[len(temp_sorted_indices) // 4]
+    if end_idx is None:
+        end_idx = temp_sorted_indices[3 * len(temp_sorted_indices) // 4]
+
+    # Convertir a temperaturas
+    start_temp = float(temperature[start_idx])
+    end_temp = float(temperature[end_idx])
+
+    # Asegurar orden correcto según dirección
+    if is_cooling:
+        if start_temp < end_temp:
+            start_temp, end_temp = end_temp, start_temp
+    else:
+        if start_temp > end_temp:
+            start_temp, end_temp = end_temp, start_temp
+
+    return start_temp, end_temp
 
 
 def find_midpoint_temperature(
