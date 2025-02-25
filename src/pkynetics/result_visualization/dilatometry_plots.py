@@ -79,18 +79,11 @@ def plot_transformation_points(
     ax.grid(True)
 
 
+# Corregir cómo se grafica la palanca en ambos métodos
 def plot_lever_rule(
-    ax: plt.Axes, temperature: np.ndarray, smooth_strain: np.ndarray, results: Dict
+        ax: plt.Axes, temperature: np.ndarray, smooth_strain: np.ndarray, results: Dict
 ) -> None:
-    """
-    Plot lever rule representation.
-
-    Args:
-        ax: Matplotlib axes object
-        temperature: Temperature data array
-        smooth_strain: Smoothed strain data array
-        results: Dictionary containing analysis results
-    """
+    """Plot lever rule representation."""
     ax.plot(temperature, smooth_strain, label="Strain")
     ax.plot(
         temperature, results["before_extrapolation"], "--", label="Before extrapolation"
@@ -100,12 +93,17 @@ def plot_lever_rule(
     )
 
     mid_temp = results["mid_temperature"]
+    # Calcular el valor exacto en la curva para el punto medio
     mid_strain = np.interp(mid_temp, temperature, smooth_strain)
+    # Calcular valores en las extrapolaciones
     mid_before = np.interp(mid_temp, temperature, results["before_extrapolation"])
     mid_after = np.interp(mid_temp, temperature, results["after_extrapolation"])
 
+    # Dibujar línea de palanca entre las extrapolaciones
     ax.plot([mid_temp, mid_temp], [mid_before, mid_after], "k-", label="Lever")
+    # Punto medio debe estar en la curva real
     ax.plot(mid_temp, mid_strain, "ro", label="Mid point")
+
     ax.annotate(
         f"Mid point: {mid_temp:.1f}°C",
         xy=(mid_temp, mid_strain),
@@ -114,7 +112,7 @@ def plot_lever_rule(
         bbox=dict(boxstyle="round,pad=0.5", fc="white", alpha=0.7),
     )
 
-    ax.set_xlabel("Temperature (°C)")
+    ax.set_xlabel("Tempera  ture (°C)")
     ax.set_ylabel("Relative Change")
     ax.set_title("Lever Rule Representation")
     ax.legend()

@@ -139,6 +139,7 @@ def find_optimal_margin(
     return float(best_margin)
 
 
+# Corregir cómo se calcula la fracción transformada para enfriamiento
 def calculate_transformed_fraction_lever(
         temperature: NDArray[np.float64],
         strain: NDArray[np.float64],
@@ -147,70 +148,77 @@ def calculate_transformed_fraction_lever(
         margin_percent: float = 0.2,
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """Calculate transformed fraction using the lever rule method."""
-    # Detect direction
+    # Detectar dirección
     is_cooling = detect_segment_direction(temperature, strain)
 
-    # Validate only range, direction was already validated in utilities.py
+    # Validar rango
     temp_min, temp_max = min(temperature), max(temperature)
     if not (temp_min <= start_temp <= temp_max and temp_min <= end_temp <= temp_max):
         raise ValueError("Temperature values outside data range")
 
-    temp_range = temperature.max() - temperature.min()
+    # Determinar regiones para ajuste lineal
+    temp_range = temp_max - temp_min
     fit_range = temp_range * margin_percent
 
-    # Adjust masks based on direction
+    # Ajustar máscaras según dirección
     if is_cooling:
-        before_mask = (temperature <= temperature.max()) & (
-                temperature >= (temperature.max() - fit_range)
-        )
-        after_mask = (temperature >= temperature.min()) & (
-                temperature <= (temperature.min() + fit_range)
-        )
+        before_mask = temperature >= (temp_max - fit_range)
+        after_mask = temperature <= (temp_min + fit_range)
     else:
-        before_mask = (temperature >= temperature.min()) & (
-                temperature <= (temperature.min() + fit_range)
-        )
-        after_mask = (temperature <= temperature.max()) & (
-                temperature >= (temperature.max() - fit_range)
-        )
+        before_mask = temperature <= (temp_min + fit_range)
+        after_mask = temperature >= (temp_max - fit_range)
 
+    # Validar puntos suficientes
     min_points = 5
     if np.sum(before_mask) < min_points or np.sum(after_mask) < min_points:
-        raise ValueError(
-            f"Insufficient points for fitting. Need at least {min_points} points in each region."
-        )
+        raise ValueError(f"Insufficient points for fitting in linear regions")
 
+    # Ajuste lineal
     try:
         before_fit = np.polyfit(temperature[before_mask], strain[before_mask], 1)
         after_fit = np.polyfit(temperature[after_mask], strain[after_mask], 1)
     except np.linalg.LinAlgError:
         raise ValueError("Unable to perform linear fit on the data segments")
 
+    # Extrapolaciones
     before_extrap = np.polyval(before_fit, temperature)
     after_extrap = np.polyval(after_fit, temperature)
 
+    # Inicializar fracción
     transformed_fraction = np.zeros_like(strain)
 
-    # Adjust mask and calculation based on direction
+    # Calcular para región de transformación
     if is_cooling:
         mask = (temperature <= start_temp) & (temperature >= end_temp)
     else:
         mask = (temperature >= start_temp) & (temperature <= end_temp)
 
-    height_total = after_extrap[mask] - before_extrap[mask]
-    height_current = strain[mask] - before_extrap[mask]
+    # PUNTO CLAVE: Para enfriamiento, necesitamos calcular la altura de manera diferente
+    if is_cooling:
+        # Para enfriamiento: cambiar la relación para que sea 1.0 en start_temp y 0.0 en end_temp
+        # ESTA ES LA CORRECCIÓN CRÍTICA:
+        # Usamos (1 - ratio) para invertir correctamente la relación para enfriamiento
+        height_total = after_extrap[mask] - before_extrap[mask]
+        height_current = strain[mask] - before_extrap[mask]
+        valid_total = height_total != 0
+        # Invertir la relación dentro del cálculo mismo
+        transformed_fraction[mask] = np.where(valid_total,
+                                              1.0 - (height_current / height_total),
+                                              1.0)
+    else:
+        # Para calentamiento: cálculo normal
+        height_total = after_extrap[mask] - before_extrap[mask]
+        height_current = strain[mask] - before_extrap[mask]
+        valid_total = height_total != 0
+        transformed_fraction[mask] = np.where(valid_total, height_current / height_total, 0)
 
-    valid_total = height_total != 0
-    transformed_fraction[mask] = np.where(valid_total, height_current / height_total, 0)
-
-    # Adjust transformation direction based on cooling/heating
+    # Valores fuera del rango de transformación
     if is_cooling:
         transformed_fraction[temperature > start_temp] = 1.0
         transformed_fraction[temperature < end_temp] = 0.0
-        transformed_fraction = 1 - transformed_fraction  # Invert for cooling
     else:
-        transformed_fraction[temperature > end_temp] = 1.0
         transformed_fraction[temperature < start_temp] = 0.0
+        transformed_fraction[temperature > end_temp] = 1.0
 
     return np.clip(transformed_fraction, 0, 1), before_extrap, after_extrap
 
@@ -262,19 +270,23 @@ def lever_method(
 
 
 def tangent_method(
-    temperature: NDArray[np.float64],
-    strain: NDArray[np.float64],
-    margin_percent: Optional[float] = None,
-    deviation_threshold: Optional[float] = None,
+        temperature: NDArray[np.float64],
+        strain: NDArray[np.float64],
+        margin_percent: Optional[float] = None,
+        deviation_threshold: Optional[float] = None,
 ) -> ReturnDict:
     """Analyze dilatometry curve using the tangent method."""
     temperature = np.asarray(temperature)
     strain = np.asarray(strain)
 
+    # Detectar dirección del segmento
+    is_cooling = detect_segment_direction(temperature, strain)
+
     if margin_percent is None:
         margin_percent = find_optimal_margin(temperature, strain)
 
-    start_mask, end_mask = get_linear_segment_masks(temperature, float(margin_percent))
+    # Pasar is_cooling a todas las funciones relevantes
+    start_mask, end_mask = get_linear_segment_masks(temperature, float(margin_percent), is_cooling)
     p_start, p_end = fit_linear_segments(temperature, strain, start_mask, end_mask)
     pred_start, pred_end = get_extrapolated_values(temperature, p_start, p_end)
 
@@ -287,15 +299,15 @@ def tangent_method(
     )
 
     start_idx, end_idx = find_transformation_points(
-        temperature, strain, pred_start, pred_end, final_deviation_threshold
+        temperature, strain, pred_start, pred_end, final_deviation_threshold, is_cooling
     )
 
     transformed_fraction = calculate_transformed_fraction(
-        strain, pred_start, pred_end, start_idx, end_idx
+        strain, pred_start, pred_end, start_idx, end_idx, is_cooling
     )
 
     mid_temp = find_midpoint_temperature(
-        temperature, transformed_fraction, temperature[start_idx], temperature[end_idx]
+        temperature, transformed_fraction, temperature[start_idx], temperature[end_idx], is_cooling
     )
 
     fit_quality = calculate_fit_quality(
@@ -317,6 +329,7 @@ def tangent_method(
         "before_extrapolation": pred_start,
         "after_extrapolation": pred_end,
         "fit_quality": fit_quality,
+        "is_cooling": is_cooling,
     }
 
 
@@ -352,44 +365,63 @@ def find_inflection_points(
 
 
 def find_midpoint_temperature(
-        temperature: NDArray[np.float64],
-        transformed_fraction: NDArray[np.float64],
-        start_temp: float,
-        end_temp: float,
-        is_cooling: bool = False
+    temperature: NDArray[np.float64],
+    transformed_fraction: NDArray[np.float64],
+    start_temp: float,
+    end_temp: float,
+    is_cooling: bool = False
 ) -> float:
     """Find temperature at 50% transformation."""
-    # Asegurar que tenemos datos válidos primero
-    if len(transformed_fraction) == 0:
-        raise ValueError("Empty transformed fraction array")
-
-    # Ajustar máscara según dirección
+    # Asegurar el orden correcto para la máscara según dirección
     if is_cooling:
-        mask = (temperature <= start_temp) & (temperature >= end_temp)
+        # En enfriamiento, start_temp > end_temp
+        temp_high, temp_low = max(start_temp, end_temp), min(start_temp, end_temp)
+        mask = (temperature <= temp_high) & (temperature >= temp_low)
     else:
-        mask = (temperature >= start_temp) & (temperature <= end_temp)
+        # En calentamiento, start_temp < end_temp
+        temp_low, temp_high = min(start_temp, end_temp), max(start_temp, end_temp)
+        mask = (temperature >= temp_low) & (temperature <= temp_high)
 
     valid_fraction = transformed_fraction[mask]
     valid_temp = temperature[mask]
 
     if len(valid_fraction) == 0:
-        raise ValueError("No valid points found in transformation range")
+        # Fallback: interpolación lineal entre puntos de inicio y fin
+        from scipy.interpolate import interp1d
+        try:
+            temps = np.array([start_temp, end_temp])
+            fracs = np.array([0.0, 1.0])
+            if is_cooling:
+                fracs = np.array([1.0, 0.0])
+            f = interp1d(fracs, temps)
+            return float(f(0.5))
+        except:
+            # Si todo falla, simplemente promediar
+            return float((start_temp + end_temp) / 2)
 
-    # Para enfriamiento, buscamos 0.5 en los datos invertidos
-    target_value = 0.5
-    mid_idx = np.argmin(np.abs(valid_fraction - target_value))
-
+    # Encontrar el punto más cercano al 50% de transformación
+    mid_idx = np.argmin(np.abs(valid_fraction - 0.5))
     return float(valid_temp[mid_idx])
 
 
 def get_linear_segment_masks(
-    temperature: NDArray[np.float64], margin_percent: float
+        temperature: NDArray[np.float64],
+        margin_percent: float,
+        is_cooling: bool = False
 ) -> Tuple[NDArray[np.bool_], NDArray[np.bool_]]:
     """Get masks for linear segments at start and end."""
-    temp_range = temperature.max() - temperature.min()
+    temp_range = max(temperature) - min(temperature)
     margin = temp_range * margin_percent
-    start_mask = temperature <= (temperature.min() + margin)
-    end_mask = temperature >= (temperature.max() - margin)
+
+    if is_cooling:
+        # Para enfriamiento: segmento inicial en temperaturas altas, final en bajas
+        start_mask = temperature >= (max(temperature) - margin)
+        end_mask = temperature <= (min(temperature) + margin)
+    else:
+        # Para calentamiento: segmento inicial en temperaturas bajas, final en altas
+        start_mask = temperature <= (min(temperature) + margin)
+        end_mask = temperature >= (max(temperature) - margin)
+
     return start_mask, end_mask
 
 
@@ -416,33 +448,82 @@ def get_extrapolated_values(
     return pred_start, pred_end
 
 
+# Corregir cómo se detectan los puntos de transformación para el método tangente
 def find_transformation_points(
-    temperature: NDArray[np.float64],
-    strain: NDArray[np.float64],
-    pred_start: NDArray[np.float64],
-    pred_end: NDArray[np.float64],
-    deviation_threshold: float,
+        temperature: NDArray[np.float64],
+        strain: NDArray[np.float64],
+        pred_start: NDArray[np.float64],
+        pred_end: NDArray[np.float64],
+        deviation_threshold: float,
+        is_cooling: bool = False
 ) -> Tuple[int, int]:
-    """Find transformation start and end points.
-
-    Args:
-        temperature: Array of temperature values
-        strain: Array of strain values
-        pred_start: Predicted values from start linear fit
-        pred_end: Predicted values from end linear fit
-        deviation_threshold: Threshold for detecting significant deviations
-
-    Returns:
-        Tuple containing start and end indices of the transformation region
-    """
+    """Find transformation start and end points."""
+    # Calcular desviaciones entre curva real y extrapolaciones
     dev_start = np.abs(strain - pred_start)
     dev_end = np.abs(strain - pred_end)
 
-    window = max(int(len(temperature) * 0.05), 3)  # At least 3 points
-    start_idx = find_deviation_point(
-        dev_start > deviation_threshold, window, forward=True
-    )
-    end_idx = find_deviation_point(dev_end > deviation_threshold, window, forward=False)
+    # Suavizar desviaciones para detección más robusta
+    from scipy.signal import savgol_filter
+    window = min(max(int(len(temperature) * 0.05), 5), 21)  # Ventana razonable
+    if window % 2 == 0:
+        window += 1  # Asegurar ventana impar
+
+    smooth_dev_start = savgol_filter(dev_start, window, 2)
+    smooth_dev_end = savgol_filter(dev_end, window, 2)
+
+    # Calcular gradientes para encontrar puntos de desviación significativa
+    grad_start = np.gradient(smooth_dev_start)
+    grad_end = np.gradient(smooth_dev_end)
+
+    # Ordenar temperatura según dirección
+    if is_cooling:
+        temp_indices = np.argsort(-temperature)  # Descendente
+    else:
+        temp_indices = np.argsort(temperature)  # Ascendente
+
+    # Buscar puntos donde el gradiente supera un umbral
+    grad_threshold = np.std(grad_start) * 0.75
+
+    # Para enfriamiento, buscar desde temperatura alta
+    if is_cooling:
+        # Desde alto a bajo para start_idx
+        for i in temp_indices:
+            if grad_start[i] > grad_threshold and smooth_dev_start[i] > deviation_threshold:
+                start_idx = i
+                break
+        else:
+            start_idx = temp_indices[len(temp_indices) // 4]
+
+        # Desde bajo a alto para end_idx
+        for i in temp_indices[::-1]:
+            if grad_end[i] > grad_threshold and smooth_dev_end[i] > deviation_threshold:
+                end_idx = i
+                break
+        else:
+            end_idx = temp_indices[3 * len(temp_indices) // 4]
+    else:
+        # Para calentamiento, procedimiento similar pero en dirección opuesta
+        for i in temp_indices:
+            if grad_start[i] > grad_threshold and smooth_dev_start[i] > deviation_threshold:
+                start_idx = i
+                break
+        else:
+            start_idx = temp_indices[len(temp_indices) // 4]
+
+        for i in temp_indices[::-1]:
+            if grad_end[i] > grad_threshold and smooth_dev_end[i] > deviation_threshold:
+                end_idx = i
+                break
+        else:
+            end_idx = temp_indices[3 * len(temp_indices) // 4]
+
+    # Asegurar orden correcto
+    if is_cooling:
+        if temperature[start_idx] < temperature[end_idx]:
+            start_idx, end_idx = end_idx, start_idx
+    else:
+        if temperature[start_idx] > temperature[end_idx]:
+            start_idx, end_idx = end_idx, start_idx
 
     return start_idx, end_idx
 
