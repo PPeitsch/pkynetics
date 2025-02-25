@@ -45,7 +45,7 @@ def friedman_plot_data(temperature, conversion, heating_rate):
         heating_rate (List[float]): List of heating rates.
 
     Returns:
-        Tuple[List[np.ndarray], List[np.ndarray]]: 
+        Tuple[List[np.ndarray], List[np.ndarray]]:
             - List of x values (1/RT) for each dataset
             - List of y values (ln(dα/dt)) for each dataset
     """
@@ -74,7 +74,9 @@ heating_rates = [5, 10, 20]  # K/min
 t_range = (400, 800)  # K
 
 # Generate data
-temperature_data, conversion_data = generate_sample_data(e_a_true, a_true, heating_rates, t_range)
+temperature_data, conversion_data = generate_sample_data(
+    e_a_true, a_true, heating_rates, t_range
+)
 
 # Add some noise
 for i in range(len(conversion_data)):
@@ -82,8 +84,9 @@ for i in range(len(conversion_data)):
     conversion_data[i] = np.clip(conversion_data[i] + noise, 0, 1)
 
 # Perform Friedman analysis
-activation_energy, pre_exp_factor, conv_levels, r_squared = friedman_method(temperature_data, conversion_data,
-                                                                            heating_rates)
+activation_energy, pre_exp_factor, conv_levels, r_squared = friedman_method(
+    temperature_data, conversion_data, heating_rates
+)
 
 # Generate plot data
 x_data, y_data = friedman_plot_data(temperature_data, conversion_data, heating_rates)
@@ -94,21 +97,21 @@ plt.figure(figsize=(12, 10))
 # Plot 1: Friedman plot
 plt.subplot(2, 1, 1)
 for i, beta in enumerate(heating_rates):
-    plt.scatter(x_data[i], y_data[i], label=f'{beta} K/min', alpha=0.5)
+    plt.scatter(x_data[i], y_data[i], label=f"{beta} K/min", alpha=0.5)
 
-plt.xlabel('1/RT (mol/J)')
-plt.ylabel('ln(dα/dt) (1/s)')
-plt.title('Friedman Plot')
+plt.xlabel("1/RT (mol/J)")
+plt.ylabel("ln(dα/dt) (1/s)")
+plt.title("Friedman Plot")
 plt.legend()
 plt.grid(True)
 
 # Plot 2: Activation energy vs Conversion
 plt.subplot(2, 1, 2)
-plt.plot(conv_levels, activation_energy / 1000, 'bo-')
-plt.axhline(y=e_a_true / 1000, color='r', linestyle='--', label='True E_a')
-plt.xlabel('Conversion (α)')
-plt.ylabel('Activation Energy (kJ/mol)')
-plt.title('Activation Energy vs Conversion')
+plt.plot(conv_levels, activation_energy / 1000, "bo-")
+plt.axhline(y=e_a_true / 1000, color="r", linestyle="--", label="True E_a")
+plt.xlabel("Conversion (α)")
+plt.ylabel("Activation Energy (kJ/mol)")
+plt.title("Activation Energy vs Conversion")
 plt.legend()
 plt.grid(True)
 

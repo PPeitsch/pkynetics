@@ -12,18 +12,23 @@ from pkynetics.technique_analysis.utilities import (
     analyze_range,
     validate_temperature_range,
     get_analysis_summary,
-    get_transformation_metrics, detect_segment_direction
+    get_transformation_metrics,
+    detect_segment_direction,
 )
 from pkynetics.result_visualization import plot_dilatometry_analysis
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-PKG_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'src', 'pkynetics', 'data')
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+PKG_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "src", "pkynetics", "data")
 
 
-def get_analysis_range(temperature: np.ndarray, strain: np.ndarray) -> Tuple[float, float]:
+def get_analysis_range(
+    temperature: np.ndarray, strain: np.ndarray
+) -> Tuple[float, float]:
     """
     Get temperature range for analysis from user input.
 
@@ -50,9 +55,13 @@ def get_analysis_range(temperature: np.ndarray, strain: np.ndarray) -> Tuple[flo
             else:
                 print("Invalid temperature range. Please ensure:")
                 if is_cooling:
-                    print("- Start temperature is greater than end temperature (cooling segment)")
+                    print(
+                        "- Start temperature is greater than end temperature (cooling segment)"
+                    )
                 else:
-                    print("- Start temperature is less than end temperature (heating segment)")
+                    print(
+                        "- Start temperature is less than end temperature (heating segment)"
+                    )
                 print("- Temperatures are within the available range")
 
         except ValueError:
@@ -61,28 +70,32 @@ def get_analysis_range(temperature: np.ndarray, strain: np.ndarray) -> Tuple[flo
 
 def dilatometry_analysis_example():
     """Example of importing and analyzing dilatometry data."""
-    dilatometry_file_path = os.path.join(PKG_DATA_DIR, 'ejemplo_enfriamiento.asc')
+    dilatometry_file_path = os.path.join(PKG_DATA_DIR, "ejemplo_enfriamiento.asc")
 
     try:
         # Import data
         data = dilatometry_importer(dilatometry_file_path)
         logger.info("Dilatometry data imported successfully.")
 
-        temperature = data['temperature']
-        strain = data['relative_change']
+        temperature = data["temperature"]
+        strain = data["relative_change"]
 
         # Get analysis range from user
         start_temp, end_temp = get_analysis_range(temperature, strain)
-        temperature_range, strain_range = analyze_range(temperature, strain, start_temp, end_temp)
+        temperature_range, strain_range = analyze_range(
+            temperature, strain, start_temp, end_temp
+        )
 
         # Process and analyze data
         smooth_strain = smooth_data(strain_range)
 
-        for method in ['lever', 'tangent']:
+        for method in ["lever", "tangent"]:
             logger.info(f"\nAnalyzing using {method} method:")
 
             # Perform analysis
-            results = analyze_dilatometry_curve(temperature_range, smooth_strain, method=method)
+            results = analyze_dilatometry_curve(
+                temperature_range, smooth_strain, method=method
+            )
 
             # Calculate additional metrics
             metrics = get_transformation_metrics(results)
@@ -93,15 +106,15 @@ def dilatometry_analysis_example():
             print("\nAdditional Metrics:")
             print(f"Temperature range: {metrics['temperature_range']:.2f}°C")
             print(f"Normalized mid position: {metrics['normalized_mid_position']:.3f}")
-            if 'max_transformation_rate' in metrics:
-                print(f"Maximum transformation rate: {metrics['max_transformation_rate']:.3e} /°C")
+            if "max_transformation_rate" in metrics:
+                print(
+                    f"Maximum transformation rate: {metrics['max_transformation_rate']:.3e} /°C"
+                )
 
             # Plot results
-            fig = plot_dilatometry_analysis(temperature_range,
-                                            strain_range,
-                                            smooth_strain,
-                                            results,
-                                            method)
+            fig = plot_dilatometry_analysis(
+                temperature_range, strain_range, smooth_strain, results, method
+            )
             fig.show()
 
     except Exception as e:

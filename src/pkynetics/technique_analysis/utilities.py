@@ -4,7 +4,7 @@ import numpy as np
 
 
 def analyze_range(
-        temperature: np.ndarray, strain: np.ndarray, start_temp: float, end_temp: float
+    temperature: np.ndarray, strain: np.ndarray, start_temp: float, end_temp: float
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Extract and return data within specified temperature range.
@@ -37,9 +37,9 @@ def analyze_range(
 
 
 def validate_temperature_range(
-        temperature: np.ndarray,
-        start_temp: Optional[float] = None,
-        end_temp: Optional[float] = None,
+    temperature: np.ndarray,
+    start_temp: Optional[float] = None,
+    end_temp: Optional[float] = None,
 ) -> bool:
     """
     Validate if temperature range is valid for analysis.
@@ -58,7 +58,9 @@ def validate_temperature_range(
     if start_temp is not None and end_temp is not None:
         # Check temperatures are within data range
         temp_min, temp_max = min(temperature), max(temperature)
-        if not (temp_min <= start_temp <= temp_max and temp_min <= end_temp <= temp_max):
+        if not (
+            temp_min <= start_temp <= temp_max and temp_min <= end_temp <= temp_max
+        ):
             return False
 
         # Determine if cooling or heating segment
@@ -85,7 +87,9 @@ def detect_segment_direction(temperature: np.ndarray, strain: np.ndarray) -> boo
         bool: True if cooling segment (decreasing temperature), False if heating
     """
     # Use linear regression to robustly determine overall trend
-    temp_norm = (temperature - temperature.min()) / (temperature.max() - temperature.min())
+    temp_norm = (temperature - temperature.min()) / (
+        temperature.max() - temperature.min()
+    )
     time_points = np.arange(len(temperature))
     slope = np.polyfit(time_points, temp_norm, 1)[0]
     return slope < 0

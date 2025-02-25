@@ -5,11 +5,11 @@ import numpy as np
 
 
 def plot_raw_and_smoothed(
-        ax: plt.Axes,
-        temperature: np.ndarray,
-        strain: np.ndarray,
-        smooth_strain: np.ndarray,
-        method: str,
+    ax: plt.Axes,
+    temperature: np.ndarray,
+    strain: np.ndarray,
+    smooth_strain: np.ndarray,
+    method: str,
 ) -> None:
     """
     Plot raw and smoothed dilatometry data.
@@ -31,7 +31,7 @@ def plot_raw_and_smoothed(
 
 
 def plot_transformation_points(
-        ax: plt.Axes, temperature: np.ndarray, smooth_strain: np.ndarray, results: Dict
+    ax: plt.Axes, temperature: np.ndarray, smooth_strain: np.ndarray, results: Dict
 ) -> None:
     """
     Plot strain data with transformation points and extrapolations.
@@ -80,7 +80,7 @@ def plot_transformation_points(
 
 
 def plot_lever_rule(
-        ax: plt.Axes, temperature: np.ndarray, smooth_strain: np.ndarray, results: Dict
+    ax: plt.Axes, temperature: np.ndarray, smooth_strain: np.ndarray, results: Dict
 ) -> None:
     """Plot lever rule representation."""
     ax.plot(temperature, smooth_strain, label="Strain")
@@ -119,7 +119,7 @@ def plot_lever_rule(
 
 
 def plot_transformed_fraction(
-        ax: plt.Axes, temperature: np.ndarray, results: Dict
+    ax: plt.Axes, temperature: np.ndarray, results: Dict
 ) -> None:
     """
     Plot transformed fraction vs temperature.
@@ -129,7 +129,7 @@ def plot_transformed_fraction(
         temperature: Temperature data array
         results: Dictionary containing analysis results
     """
-    is_cooling = results.get('is_cooling', False)
+    is_cooling = results.get("is_cooling", False)
     transformed_fraction = results["transformed_fraction"]
 
     ax.plot(temperature, transformed_fraction, label="Transformed Fraction")
@@ -165,11 +165,11 @@ def plot_transformed_fraction(
 
 
 def plot_dilatometry_analysis(
-        temperature: np.ndarray,
-        strain: np.ndarray,
-        smooth_strain: np.ndarray,
-        results: Dict,
-        method: str,
+    temperature: np.ndarray,
+    strain: np.ndarray,
+    smooth_strain: np.ndarray,
+    results: Dict,
+    method: str,
 ) -> plt.Figure:
     """
     Create complete visualization of dilatometry analysis.
