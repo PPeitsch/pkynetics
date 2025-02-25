@@ -28,14 +28,15 @@ PKG_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "src", "pkynetics",
 
 
 def get_analysis_range(
-    temperature: np.ndarray, strain: np.ndarray
+    temperature: np.ndarray, strain: np.ndarray, auto_detect: bool = False
 ) -> Tuple[float, float]:
     """
-    Get temperature range for analysis from user input.
+    Get temperature range for analysis from user input or auto-detect.
 
     Args:
         temperature: Full temperature array to show available range
         strain: Strain data array
+        auto_detect: If True, automatically determine analysis range
 
     Returns:
         Tuple of start and end temperatures for analysis
@@ -46,6 +47,19 @@ def get_analysis_range(
 
     print(f"\nAvailable temperature range: {temp_min:.1f}°C to {temp_max:.1f}°C")
     print(f"Segment type: {segment_type}")
+
+    if auto_detect:
+        # Auto-detect a reasonable range (~30% from each end)
+        margin = (temp_max - temp_min) * 0.3
+        if is_cooling:
+            start_temp = temp_max - margin
+            end_temp = temp_min + margin
+        else:
+            start_temp = temp_min + margin
+            end_temp = temp_max - margin
+
+        print(f"Auto-detected range: {start_temp:.1f}°C to {end_temp:.1f}°C")
+        return start_temp, end_temp
 
     while True:
         try:
@@ -70,81 +84,91 @@ def get_analysis_range(
             print("Please enter valid numbers.")
 
 
-def dilatometry_analysis_example(filename=None):
+def dilatometry_analysis_example(filenames=None, auto_detect_range=False):
     """
     Example of importing and analyzing dilatometry data.
 
     Args:
-        filename: Optional specific filename to analyze. If None, uses default.
+        filenames: List of filenames to analyze. If None, uses default files.
+        auto_detect_range: If True, automatically determine analysis range
     """
-    if filename is None:
-        # Default file is the heating sample
-        dilatometry_file_path = os.path.join(
-            PKG_DATA_DIR, "sample_dilatometry_data.asc"
-        )
-    else:
-        # Use specified file (e.g., cooling sample)
+    # Default files if none specified
+    if filenames is None:
+        filenames = ["sample_dilatometry_data.asc", "ejemplo_enfriamiento.asc"]
+
+    # If a single string is passed, convert to list
+    if isinstance(filenames, str):
+        filenames = [filenames]
+
+    for filename in filenames:
         dilatometry_file_path = os.path.join(PKG_DATA_DIR, filename)
 
-    if not os.path.exists(dilatometry_file_path):
-        logger.error(f"File not found: {dilatometry_file_path}")
-        print(f"Available files in {PKG_DATA_DIR}:")
-        for file in os.listdir(PKG_DATA_DIR):
-            if file.endswith(".asc"):
-                print(f"  - {file}")
-        return
+        if not os.path.exists(dilatometry_file_path):
+            logger.error(f"File not found: {dilatometry_file_path}")
+            print(f"Available files in {PKG_DATA_DIR}:")
+            for file in os.listdir(PKG_DATA_DIR):
+                if file.endswith(".asc"):
+                    print(f"  - {file}")
+            continue  # Skip to next file if current file not found
 
-    try:
-        # Import data
-        data = dilatometry_importer(dilatometry_file_path)
-        logger.info("Dilatometry data imported successfully.")
+        try:
+            print(f"\n{'=' * 80}")
+            print(f"Analyzing file: {filename}")
+            print(f"{'=' * 80}")
 
-        temperature = data["temperature"]
-        strain = data["relative_change"]
+            # Import data
+            data = dilatometry_importer(dilatometry_file_path)
+            logger.info("Dilatometry data imported successfully.")
 
-        # Detect if cooling or heating segment
-        detect_segment_direction(temperature, strain)
+            temperature = data["temperature"]
+            strain = data["relative_change"]
 
-        # Get analysis range from user
-        start_temp, end_temp = get_analysis_range(temperature, strain)
-        temperature_range, strain_range = analyze_range(
-            temperature, strain, start_temp, end_temp
-        )
-
-        # Process and analyze data
-        smooth_strain = smooth_data(strain_range)
-
-        for method in ["lever", "tangent"]:
-            logger.info(f"\nAnalyzing using {method} method:")
-
-            # Perform analysis
-            results = analyze_dilatometry_curve(
-                temperature_range, smooth_strain, method=method
+            # Get analysis range (auto or from user)
+            start_temp, end_temp = get_analysis_range(
+                temperature, strain, auto_detect=auto_detect_range
+            )
+            temperature_range, strain_range = analyze_range(
+                temperature, strain, start_temp, end_temp
             )
 
-            # Calculate additional metrics
-            metrics = get_transformation_metrics(results)
+            # Process and analyze data
+            smooth_strain = smooth_data(strain_range)
 
-            # Print results
-            print(f"\n{method.capitalize()} Method Results:")
-            print(get_analysis_summary(results))
-            print("\nAdditional Metrics:")
-            print(f"Temperature range: {metrics['temperature_range']:.2f}°C")
-            print(f"Normalized mid position: {metrics['normalized_mid_position']:.3f}")
-            if "max_transformation_rate" in metrics:
-                print(
-                    f"Maximum transformation rate: {metrics['max_transformation_rate']:.3e} /°C"
+            for method in ["lever", "tangent"]:
+                logger.info(f"\nAnalyzing using {method} method:")
+
+                # Perform analysis
+                results = analyze_dilatometry_curve(
+                    temperature_range, smooth_strain, method=method
                 )
 
-            # Plot results
-            fig = plot_dilatometry_analysis(
-                temperature_range, strain_range, smooth_strain, results, method
-            )
-            fig.show()
+                # Calculate additional metrics
+                metrics = get_transformation_metrics(results)
 
-    except Exception as e:
-        logger.error(f"Error in dilatometry analysis: {str(e)}")
-        raise
+                # Print results
+                print(f"\n{method.capitalize()} Method Results:")
+                print(get_analysis_summary(results))
+                print("\nAdditional Metrics:")
+                print(f"Temperature range: {metrics['temperature_range']:.2f}°C")
+                print(
+                    f"Normalized mid position: {metrics['normalized_mid_position']:.3f}"
+                )
+                if "max_transformation_rate" in metrics:
+                    print(
+                        f"Maximum transformation rate: {metrics['max_transformation_rate']:.3e} /°C"
+                    )
+
+                # Plot results
+                fig = plot_dilatometry_analysis(
+                    temperature_range, strain_range, smooth_strain, results, method
+                )
+                fig.show()
+
+        except Exception as e:
+            logger.error(f"Error in dilatometry analysis: {str(e)}")
+            logger.exception("Detailed traceback:")
+            print(f"Error analyzing file {filename}: {str(e)}")
+            print("Continuing with next file...")
 
 
 if __name__ == "__main__":
@@ -152,8 +176,28 @@ if __name__ == "__main__":
     parser.add_argument(
         "--file",
         type=str,
-        help="Specific data file to analyze (e.g., ejemplo_enfriamiento.asc)",
+        nargs="+",
+        help="Specific data file(s) to analyze (e.g., ejemplo_enfriamiento.asc)",
+    )
+    parser.add_argument(
+        "--auto-range",
+        action="store_true",
+        help="Automatically determine analysis range without user input",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Process all example files",
     )
 
     args = parser.parse_args()
-    dilatometry_analysis_example(args.file)
+
+    if args.all:
+        # Process all example files
+        dilatometry_analysis_example(auto_detect_range=args.auto_range)
+    elif args.file:
+        # Process specified files
+        dilatometry_analysis_example(args.file, auto_detect_range=args.auto_range)
+    else:
+        # Default behavior: process both example files
+        dilatometry_analysis_example(auto_detect_range=args.auto_range)
