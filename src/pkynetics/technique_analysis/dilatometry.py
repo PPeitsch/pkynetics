@@ -240,6 +240,9 @@ def analyze_dilatometry_curve(
 
     Returns:
         Dictionary containing analysis results
+
+    Raises:
+        ValueError: If method is not supported
     """
     if method == "lever":
         return lever_method(temperature, strain, margin_percent, find_inflection_margin)
@@ -262,22 +265,29 @@ def lever_method(
         temperature: Array of temperature values
         strain: Array of strain values
         margin_percent: Margin percentage for calculating transformed fraction
-        find_inflection_margin: Margin percentage for finding inflection points
+        find_inflection_margin: Margin percentage for finding inflection points (0.1-0.4)
 
     Returns:
         Dictionary containing analysis results
     """
+    from pkynetics.technique_analysis.utilities import detect_segment_direction
+
+    # Detect if this is a cooling or heating segment
     is_cooling = detect_segment_direction(temperature, strain)
+
+    # Find transformation points using configurable margin
     start_temp, end_temp = find_inflection_points(
         temperature, strain, is_cooling, margin=find_inflection_margin
     )
 
+    # Calculate transformed fraction
     transformed_fraction, before_extrap, after_extrap = (
         calculate_transformed_fraction_lever(
             temperature, strain, start_temp, end_temp, margin_percent
         )
     )
 
+    # Find midpoint temperature
     mid_temp = find_midpoint_temperature(
         temperature, transformed_fraction, start_temp, end_temp, is_cooling
     )
@@ -397,16 +407,18 @@ def find_inflection_points(
 
     # Check if enough data points
     min_points = 5
-    if len(temperature) < min_points * 4:  # Need enough points for both regions
+    if len(temperature) < min_points * 4:
         raise ValueError(
             f"Insufficient data points. Need at least {min_points * 4} points."
         )
 
     # Define linear regions based on heating/cooling direction
     if is_cooling:
+        # For cooling: high temp region is at the beginning, low temp region at the end
         high_temp_mask = temperature >= (max(temperature) - margin_value)
         low_temp_mask = temperature <= (min(temperature) + margin_value)
     else:
+        # For heating: low temp region is at the beginning, high temp region at the end
         low_temp_mask = temperature <= (min(temperature) + margin_value)
         high_temp_mask = temperature >= (max(temperature) - margin_value)
 
@@ -432,26 +444,26 @@ def find_inflection_points(
     high_temp_residuals = np.abs(smooth_strain - high_temp_line)
     low_temp_residuals = np.abs(smooth_strain - low_temp_line)
 
-    # Set adaptive noise thresholds
+    # Set adaptive noise thresholds based on standard deviation of residuals
     noise_high = np.std(high_temp_residuals[high_temp_mask]) * 3.0
     noise_low = np.std(low_temp_residuals[low_temp_mask]) * 3.0
 
-    # Sort indices by temperature according to direction
+    # Sort indices by temperature based on direction
     if is_cooling:
-        temp_sorted_indices = np.argsort(-temperature)  # descending
+        temp_sorted_indices = np.argsort(-temperature)  # Descending for cooling
     else:
-        temp_sorted_indices = np.argsort(temperature)  # ascending
+        temp_sorted_indices = np.argsort(temperature)  # Ascending for heating
 
-    # Define search range
+    # Define search range (middle 80% of data to avoid edge effects)
     search_start_idx = len(temp_sorted_indices) // 10
     search_end_idx = len(temp_sorted_indices) * 9 // 10
 
-    # Find start point - first point with significant deviation
+    # Find start point - first significant deviation from high-temp fit
     start_idx = None
     for i in range(search_start_idx, search_end_idx):
         idx = temp_sorted_indices[i]
-
         if high_temp_residuals[idx] > noise_high:
+            # Look for consistent deviation pattern
             if i + 2 < len(temp_sorted_indices):
                 next_idx1 = temp_sorted_indices[i + 1]
                 next_idx2 = temp_sorted_indices[i + 2]
@@ -461,7 +473,8 @@ def find_inflection_points(
                     and high_temp_residuals[next_idx2] > high_temp_residuals[next_idx1]
                 ):
 
-                    for j in range(i - 1, 0, -1):
+                    # Look backward to find exact start point
+                    for j in range(i - 1, max(0, i - 10), -1):
                         back_idx = temp_sorted_indices[j]
                         if high_temp_residuals[back_idx] < noise_high:
                             start_idx = temp_sorted_indices[j + 1]
@@ -470,12 +483,12 @@ def find_inflection_points(
                         start_idx = idx
                     break
 
-    # Find end point
+    # Find end point - first significant deviation from low-temp fit
     end_idx = None
     for i in range(search_end_idx, search_start_idx, -1):
         idx = temp_sorted_indices[i]
-
         if low_temp_residuals[idx] > noise_low:
+            # Look for consistent deviation pattern
             if i - 2 >= 0:
                 prev_idx1 = temp_sorted_indices[i - 1]
                 prev_idx2 = temp_sorted_indices[i - 2]
@@ -485,7 +498,8 @@ def find_inflection_points(
                     and low_temp_residuals[prev_idx2] > low_temp_residuals[prev_idx1]
                 ):
 
-                    for j in range(i + 1, len(temp_sorted_indices) - 1):
+                    # Look forward to find exact end point
+                    for j in range(i + 1, min(len(temp_sorted_indices), i + 10)):
                         fwd_idx = temp_sorted_indices[j]
                         if low_temp_residuals[fwd_idx] < noise_low:
                             end_idx = temp_sorted_indices[j - 1]
@@ -496,8 +510,11 @@ def find_inflection_points(
 
     # Fallback if points cannot be detected reliably
     if start_idx is None:
+        # Use position-based fallback (first quarter of sorted data)
         start_idx = temp_sorted_indices[len(temp_sorted_indices) // 4]
+
     if end_idx is None:
+        # Use position-based fallback (third quarter of sorted data)
         end_idx = temp_sorted_indices[3 * len(temp_sorted_indices) // 4]
 
     # Convert to temperatures
@@ -506,9 +523,11 @@ def find_inflection_points(
 
     # Ensure correct order based on direction
     if is_cooling:
+        # For cooling, start_temp should be higher than end_temp
         if start_temp < end_temp:
             start_temp, end_temp = end_temp, start_temp
     else:
+        # For heating, start_temp should be lower than end_temp
         if start_temp > end_temp:
             start_temp, end_temp = end_temp, start_temp
 
