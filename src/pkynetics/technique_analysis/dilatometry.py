@@ -226,10 +226,23 @@ def analyze_dilatometry_curve(
     strain: NDArray[np.float64],
     method: str = "lever",
     margin_percent: float = 0.2,
+    find_inflection_margin: float = 0.3,
 ) -> ReturnDict:
-    """Analyze the dilatometry curve to extract key parameters."""
+    """
+    Analyze the dilatometry curve to extract key parameters.
+
+    Args:
+        temperature: Array of temperature values
+        strain: Array of strain values
+        method: Analysis method ('lever' or 'tangent')
+        margin_percent: Margin percentage for calculating transformed fraction
+        find_inflection_margin: Margin percentage for finding inflection points (lever method only)
+
+    Returns:
+        Dictionary containing analysis results
+    """
     if method == "lever":
-        return lever_method(temperature, strain, margin_percent)
+        return lever_method(temperature, strain, margin_percent, find_inflection_margin)
     elif method == "tangent":
         return tangent_method(temperature, strain, margin_percent)
     else:
@@ -240,10 +253,24 @@ def lever_method(
     temperature: NDArray[np.float64],
     strain: NDArray[np.float64],
     margin_percent: float = 0.2,
+    find_inflection_margin: float = 0.3,
 ) -> ReturnDict:
-    """Analyze dilatometry curve using the lever rule method."""
+    """
+    Analyze dilatometry curve using the lever rule method.
+
+    Args:
+        temperature: Array of temperature values
+        strain: Array of strain values
+        margin_percent: Margin percentage for calculating transformed fraction
+        find_inflection_margin: Margin percentage for finding inflection points
+
+    Returns:
+        Dictionary containing analysis results
+    """
     is_cooling = detect_segment_direction(temperature, strain)
-    start_temp, end_temp = find_inflection_points(temperature, strain, is_cooling)
+    start_temp, end_temp = find_inflection_points(
+        temperature, strain, is_cooling, margin=find_inflection_margin
+    )
 
     transformed_fraction, before_extrap, after_extrap = (
         calculate_transformed_fraction_lever(
@@ -337,25 +364,55 @@ def tangent_method(
 
 
 def find_inflection_points(
-    temperature: NDArray[np.float64],
-    strain: NDArray[np.float64],
-    is_cooling: bool = False,
+        temperature: NDArray[np.float64],
+        strain: NDArray[np.float64],
+        is_cooling: bool = False,
+        margin: float = 0.3,
 ) -> Tuple[float, float]:
-    """Find transformation points where curve deviates from extrapolations."""
+    """
+    Find transformation points where curve deviates from extrapolations.
+
+    Args:
+        temperature: Array of temperature values
+        strain: Array of strain values
+        is_cooling: Whether this is a cooling segment (decreasing temperature)
+        margin: Fraction of temperature range to use for linear fitting (0.1-0.4)
+
+    Returns:
+        Tuple containing start and end temperatures of the transformation
+
+    Raises:
+        ValueError: If margin is outside valid range or if insufficient data points
+    """
+    # Validate margin value
+    if not (0.1 <= margin <= 0.4):
+        raise ValueError("Margin must be between 0.1 and 0.4")
+
     # Smooth data for more robust analysis
     smooth_strain = smooth_data(strain)
 
-    # Define margin for linear regions detection (30% works best)
+    # Define margin for linear regions detection
     temp_range = max(temperature) - min(temperature)
-    margin = temp_range * 0.3
+    margin_value = temp_range * margin
+
+    # Check if enough data points
+    min_points = 5
+    if len(temperature) < min_points * 4:  # Need enough points for both regions
+        raise ValueError(f"Insufficient data points. Need at least {min_points * 4} points.")
 
     # Define linear regions based on heating/cooling direction
     if is_cooling:
-        high_temp_mask = temperature >= (max(temperature) - margin)
-        low_temp_mask = temperature <= (min(temperature) + margin)
+        high_temp_mask = temperature >= (max(temperature) - margin_value)
+        low_temp_mask = temperature <= (min(temperature) + margin_value)
     else:
-        low_temp_mask = temperature <= (min(temperature) + margin)
-        high_temp_mask = temperature >= (max(temperature) - margin)
+        low_temp_mask = temperature <= (min(temperature) + margin_value)
+        high_temp_mask = temperature >= (max(temperature) - margin_value)
+
+    # Ensure enough points in each region
+    if np.sum(high_temp_mask) < min_points or np.sum(low_temp_mask) < min_points:
+        raise ValueError(
+            f"Insufficient points for fitting with current margin. Need at least {min_points} points in each region."
+        )
 
     # Fit tangent lines to linear regions
     high_temp_fit = np.polyfit(
@@ -398,8 +455,8 @@ def find_inflection_points(
                 next_idx2 = temp_sorted_indices[i + 2]
 
                 if (
-                    high_temp_residuals[next_idx1] > high_temp_residuals[idx]
-                    and high_temp_residuals[next_idx2] > high_temp_residuals[next_idx1]
+                        high_temp_residuals[next_idx1] > high_temp_residuals[idx]
+                        and high_temp_residuals[next_idx2] > high_temp_residuals[next_idx1]
                 ):
 
                     for j in range(i - 1, 0, -1):
@@ -422,8 +479,8 @@ def find_inflection_points(
                 prev_idx2 = temp_sorted_indices[i - 2]
 
                 if (
-                    low_temp_residuals[prev_idx1] > low_temp_residuals[idx]
-                    and low_temp_residuals[prev_idx2] > low_temp_residuals[prev_idx1]
+                        low_temp_residuals[prev_idx1] > low_temp_residuals[idx]
+                        and low_temp_residuals[prev_idx2] > low_temp_residuals[prev_idx1]
                 ):
 
                     for j in range(i + 1, len(temp_sorted_indices) - 1):
