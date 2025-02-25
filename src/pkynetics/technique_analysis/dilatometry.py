@@ -364,10 +364,10 @@ def tangent_method(
 
 
 def find_inflection_points(
-        temperature: NDArray[np.float64],
-        strain: NDArray[np.float64],
-        is_cooling: bool = False,
-        margin: float = 0.3,
+    temperature: NDArray[np.float64],
+    strain: NDArray[np.float64],
+    is_cooling: bool = False,
+    margin: float = 0.3,
 ) -> Tuple[float, float]:
     """
     Find transformation points where curve deviates from extrapolations.
@@ -398,7 +398,9 @@ def find_inflection_points(
     # Check if enough data points
     min_points = 5
     if len(temperature) < min_points * 4:  # Need enough points for both regions
-        raise ValueError(f"Insufficient data points. Need at least {min_points * 4} points.")
+        raise ValueError(
+            f"Insufficient data points. Need at least {min_points * 4} points."
+        )
 
     # Define linear regions based on heating/cooling direction
     if is_cooling:
@@ -455,8 +457,8 @@ def find_inflection_points(
                 next_idx2 = temp_sorted_indices[i + 2]
 
                 if (
-                        high_temp_residuals[next_idx1] > high_temp_residuals[idx]
-                        and high_temp_residuals[next_idx2] > high_temp_residuals[next_idx1]
+                    high_temp_residuals[next_idx1] > high_temp_residuals[idx]
+                    and high_temp_residuals[next_idx2] > high_temp_residuals[next_idx1]
                 ):
 
                     for j in range(i - 1, 0, -1):
@@ -479,8 +481,8 @@ def find_inflection_points(
                 prev_idx2 = temp_sorted_indices[i - 2]
 
                 if (
-                        low_temp_residuals[prev_idx1] > low_temp_residuals[idx]
-                        and low_temp_residuals[prev_idx2] > low_temp_residuals[prev_idx1]
+                    low_temp_residuals[prev_idx1] > low_temp_residuals[idx]
+                    and low_temp_residuals[prev_idx2] > low_temp_residuals[prev_idx1]
                 ):
 
                     for j in range(i + 1, len(temp_sorted_indices) - 1):
