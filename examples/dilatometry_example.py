@@ -2,6 +2,7 @@
 
 import os
 import logging
+import argparse
 from typing import Tuple
 import numpy as np
 
@@ -39,11 +40,12 @@ def get_analysis_range(
     Returns:
         Tuple of start and end temperatures for analysis
     """
-    is_cooling = detect_segment_direction(temperature, strain)
     temp_min, temp_max = min(temperature), max(temperature)
+    is_cooling = detect_segment_direction(temperature, strain)
+    segment_type = "Cooling" if is_cooling else "Heating"
 
     print(f"\nAvailable temperature range: {temp_min:.1f}°C to {temp_max:.1f}°C")
-    print(f"Segment type: {'Cooling' if is_cooling else 'Heating'}")
+    print(f"Segment type: {segment_type}")
 
     while True:
         try:
@@ -68,9 +70,29 @@ def get_analysis_range(
             print("Please enter valid numbers.")
 
 
-def dilatometry_analysis_example():
-    """Example of importing and analyzing dilatometry data."""
-    dilatometry_file_path = os.path.join(PKG_DATA_DIR, "ejemplo_enfriamiento.asc")
+def dilatometry_analysis_example(filename=None):
+    """
+    Example of importing and analyzing dilatometry data.
+
+    Args:
+        filename: Optional specific filename to analyze. If None, uses default.
+    """
+    if filename is None:
+        # Default file is the heating sample
+        dilatometry_file_path = os.path.join(
+            PKG_DATA_DIR, "sample_dilatometry_data.asc"
+        )
+    else:
+        # Use specified file (e.g., cooling sample)
+        dilatometry_file_path = os.path.join(PKG_DATA_DIR, filename)
+
+    if not os.path.exists(dilatometry_file_path):
+        logger.error(f"File not found: {dilatometry_file_path}")
+        print(f"Available files in {PKG_DATA_DIR}:")
+        for file in os.listdir(PKG_DATA_DIR):
+            if file.endswith(".asc"):
+                print(f"  - {file}")
+        return
 
     try:
         # Import data
@@ -79,6 +101,9 @@ def dilatometry_analysis_example():
 
         temperature = data["temperature"]
         strain = data["relative_change"]
+
+        # Detect if cooling or heating segment
+        detect_segment_direction(temperature, strain)
 
         # Get analysis range from user
         start_temp, end_temp = get_analysis_range(temperature, strain)
@@ -123,4 +148,12 @@ def dilatometry_analysis_example():
 
 
 if __name__ == "__main__":
-    dilatometry_analysis_example()
+    parser = argparse.ArgumentParser(description="Analyze dilatometry data.")
+    parser.add_argument(
+        "--file",
+        type=str,
+        help="Specific data file to analyze (e.g., ejemplo_enfriamiento.asc)",
+    )
+
+    args = parser.parse_args()
+    dilatometry_analysis_example(args.file)
