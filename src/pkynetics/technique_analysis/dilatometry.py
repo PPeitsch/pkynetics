@@ -10,10 +10,10 @@ ReturnDict = Dict[str, Union[float, NDArray[np.float64], Dict[str, float]]]
 
 
 def extrapolate_linear_segments(
-    temperature: NDArray[np.float64],
-    strain: NDArray[np.float64],
-    start_temp: float,
-    end_temp: float,
+        temperature: NDArray[np.float64],
+        strain: NDArray[np.float64],
+        start_temp: float,
+        end_temp: float,
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64], np.poly1d, np.poly1d]:
     """
     Extrapolate linear segments before and after the transformation.
@@ -67,10 +67,10 @@ def extrapolate_linear_segments(
 
 
 def find_optimal_margin(
-    temperature: NDArray[np.float64],
-    strain: NDArray[np.float64],
-    min_r2: float = 0.99,
-    min_points: int = 10,
+        temperature: NDArray[np.float64],
+        strain: NDArray[np.float64],
+        min_r2: float = 0.99,
+        min_points: int = 10,
 ) -> float:
     """
     Determine the optimal margin percentage for linear segment fitting.
@@ -102,13 +102,13 @@ def find_optimal_margin(
             continue
 
         start_mask = temperature <= (
-            temperature.min() + (temperature.max() - temperature.min()) * margin
+                temperature.min() + (temperature.max() - temperature.min()) * margin
         )
         if np.sum(start_mask) < min_points:
             continue
 
         end_mask = temperature >= (
-            temperature.max() - (temperature.max() - temperature.min()) * margin
+                temperature.max() - (temperature.max() - temperature.min()) * margin
         )
         if np.sum(end_mask) < min_points:
             continue
@@ -139,7 +139,6 @@ def find_optimal_margin(
     return float(best_margin)
 
 
-# Corregir cómo se calcula la fracción transformada para enfriamiento
 def calculate_transformed_fraction_lever(
         temperature: NDArray[np.float64],
         strain: NDArray[np.float64],
@@ -148,19 +147,19 @@ def calculate_transformed_fraction_lever(
         margin_percent: float = 0.2,
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """Calculate transformed fraction using the lever rule method."""
-    # Detectar dirección
+    # Detect direction
     is_cooling = detect_segment_direction(temperature, strain)
 
-    # Validar rango
+    # Validate range
     temp_min, temp_max = min(temperature), max(temperature)
     if not (temp_min <= start_temp <= temp_max and temp_min <= end_temp <= temp_max):
         raise ValueError("Temperature values outside data range")
 
-    # Determinar regiones para ajuste lineal
+    # Determine regions for linear fitting
     temp_range = temp_max - temp_min
     fit_range = temp_range * margin_percent
 
-    # Ajustar máscaras según dirección
+    # Adjust masks based on direction
     if is_cooling:
         before_mask = temperature >= (temp_max - fit_range)
         after_mask = temperature <= (temp_min + fit_range)
@@ -168,51 +167,48 @@ def calculate_transformed_fraction_lever(
         before_mask = temperature <= (temp_min + fit_range)
         after_mask = temperature >= (temp_max - fit_range)
 
-    # Validar puntos suficientes
+    # Validate sufficient points
     min_points = 5
     if np.sum(before_mask) < min_points or np.sum(after_mask) < min_points:
         raise ValueError(f"Insufficient points for fitting in linear regions")
 
-    # Ajuste lineal
+    # Linear fitting
     try:
         before_fit = np.polyfit(temperature[before_mask], strain[before_mask], 1)
         after_fit = np.polyfit(temperature[after_mask], strain[after_mask], 1)
     except np.linalg.LinAlgError:
         raise ValueError("Unable to perform linear fit on the data segments")
 
-    # Extrapolaciones
+    # Extrapolations
     before_extrap = np.polyval(before_fit, temperature)
     after_extrap = np.polyval(after_fit, temperature)
 
-    # Inicializar fracción
+    # Initialize fraction
     transformed_fraction = np.zeros_like(strain)
 
-    # Calcular para región de transformación
+    # Calculate for transformation region
     if is_cooling:
         mask = (temperature <= start_temp) & (temperature >= end_temp)
     else:
         mask = (temperature >= start_temp) & (temperature <= end_temp)
 
-    # PUNTO CLAVE: Para enfriamiento, necesitamos calcular la altura de manera diferente
+    # Calculate based on cooling/heating direction
     if is_cooling:
-        # Para enfriamiento: cambiar la relación para que sea 1.0 en start_temp y 0.0 en end_temp
-        # ESTA ES LA CORRECCIÓN CRÍTICA:
-        # Usamos (1 - ratio) para invertir correctamente la relación para enfriamiento
+        # For cooling: invert the ratio to get correct direction
         height_total = after_extrap[mask] - before_extrap[mask]
         height_current = strain[mask] - before_extrap[mask]
         valid_total = height_total != 0
-        # Invertir la relación dentro del cálculo mismo
         transformed_fraction[mask] = np.where(valid_total,
                                               1.0 - (height_current / height_total),
                                               1.0)
     else:
-        # Para calentamiento: cálculo normal
+        # For heating: normal calculation
         height_total = after_extrap[mask] - before_extrap[mask]
         height_current = strain[mask] - before_extrap[mask]
         valid_total = height_total != 0
         transformed_fraction[mask] = np.where(valid_total, height_current / height_total, 0)
 
-    # Valores fuera del rango de transformación
+    # Values outside transformation range
     if is_cooling:
         transformed_fraction[temperature > start_temp] = 1.0
         transformed_fraction[temperature < end_temp] = 0.0
@@ -224,10 +220,10 @@ def calculate_transformed_fraction_lever(
 
 
 def analyze_dilatometry_curve(
-    temperature: NDArray[np.float64],
-    strain: NDArray[np.float64],
-    method: str = "lever",
-    margin_percent: float = 0.2,
+        temperature: NDArray[np.float64],
+        strain: NDArray[np.float64],
+        method: str = "lever",
+        margin_percent: float = 0.2,
 ) -> ReturnDict:
     """Analyze the dilatometry curve to extract key parameters."""
     if method == "lever":
@@ -239,9 +235,9 @@ def analyze_dilatometry_curve(
 
 
 def lever_method(
-    temperature: NDArray[np.float64],
-    strain: NDArray[np.float64],
-    margin_percent: float = 0.2,
+        temperature: NDArray[np.float64],
+        strain: NDArray[np.float64],
+        margin_percent: float = 0.2,
 ) -> ReturnDict:
     """Analyze dilatometry curve using the lever rule method."""
     is_cooling = detect_segment_direction(temperature, strain)
@@ -253,7 +249,6 @@ def lever_method(
         )
     )
 
-    # Agregar is_cooling al llamado
     mid_temp = find_midpoint_temperature(
         temperature, transformed_fraction, start_temp, end_temp, is_cooling
     )
@@ -265,7 +260,7 @@ def lever_method(
         "transformed_fraction": transformed_fraction,
         "before_extrapolation": before_extrap,
         "after_extrapolation": after_extrap,
-        "is_cooling": is_cooling,  # Agregar al resultado
+        "is_cooling": is_cooling,
     }
 
 
@@ -279,13 +274,13 @@ def tangent_method(
     temperature = np.asarray(temperature)
     strain = np.asarray(strain)
 
-    # Detectar dirección del segmento
+    # Detect segment direction
     is_cooling = detect_segment_direction(temperature, strain)
 
     if margin_percent is None:
         margin_percent = find_optimal_margin(temperature, strain)
 
-    # Pasar is_cooling a todas las funciones relevantes
+    # Pass is_cooling to relevant functions
     start_mask, end_mask = get_linear_segment_masks(temperature, float(margin_percent), is_cooling)
     p_start, p_end = fit_linear_segments(temperature, strain, start_mask, end_mask)
     pred_start, pred_end = get_extrapolated_values(temperature, p_start, p_end)
@@ -339,52 +334,53 @@ def find_inflection_points(
         is_cooling: bool = False
 ) -> Tuple[float, float]:
     """Find transformation points where curve deviates from extrapolations."""
-    # Suavizar datos
+    # Smooth data for more robust analysis
     smooth_strain = smooth_data(strain)
 
-    # Obtener segmentos lineales iniciales (10-30% de los extremos)
+    # Define margin for linear regions detection (30% works best)
     temp_range = max(temperature) - min(temperature)
     margin = temp_range * 0.3
 
-    # Definir regiones lineales según si es enfriamiento o calentamiento
+    # Define linear regions based on heating/cooling direction
     if is_cooling:
-        high_temp_mask = temperature >= (max(temperature) - margin)  # Región inicial (alta temp)
-        low_temp_mask = temperature <= (min(temperature) + margin)  # Región final (baja temp)
+        high_temp_mask = temperature >= (max(temperature) - margin)
+        low_temp_mask = temperature <= (min(temperature) + margin)
     else:
-        low_temp_mask = temperature <= (min(temperature) + margin)  # Región inicial (baja temp)
-        high_temp_mask = temperature >= (max(temperature) - margin)  # Región final (alta temp)
+        low_temp_mask = temperature <= (min(temperature) + margin)
+        high_temp_mask = temperature >= (max(temperature) - margin)
 
-    # Ajustar líneas tangentes en regiones lineales
+    # Fit tangent lines to linear regions
     high_temp_fit = np.polyfit(temperature[high_temp_mask], smooth_strain[high_temp_mask], 1)
     low_temp_fit = np.polyfit(temperature[low_temp_mask], smooth_strain[low_temp_mask], 1)
 
-    # Calcular extrapolaciones completas
+    # Calculate extrapolations
     high_temp_line = np.polyval(high_temp_fit, temperature)
     low_temp_line = np.polyval(low_temp_fit, temperature)
 
-    # Calcular residuos (diferencias entre curva real y extrapolaciones)
+    # Calculate residuals between real curve and extrapolations
     high_temp_residuals = np.abs(smooth_strain - high_temp_line)
     low_temp_residuals = np.abs(smooth_strain - low_temp_line)
 
-    # Calcular ruido base en regiones lineales
+    # Set adaptive noise thresholds
     noise_high = np.std(high_temp_residuals[high_temp_mask]) * 3.0
     noise_low = np.std(low_temp_residuals[low_temp_mask]) * 3.0
 
-    # Ordenar índices por temperatura (de acuerdo a la dirección)
+    # Sort indices by temperature according to direction
     if is_cooling:
-        temp_sorted_indices = np.argsort(-temperature)  # descendente
+        temp_sorted_indices = np.argsort(-temperature)  # descending
     else:
-        temp_sorted_indices = np.argsort(temperature)  # ascendente
+        temp_sorted_indices = np.argsort(temperature)  # ascending
 
-    # Buscar punto de inicio - primer punto donde residuo excede significativamente el ruido base
-    # y continúa creciendo
+    # Define search range
+    search_start_idx = len(temp_sorted_indices) // 10
+    search_end_idx = len(temp_sorted_indices) * 9 // 10
+
+    # Find start point - first point with significant deviation
     start_idx = None
-    for i in range(len(temp_sorted_indices) // 10, len(temp_sorted_indices) * 9 // 10):
+    for i in range(search_start_idx, search_end_idx):
         idx = temp_sorted_indices[i]
 
-        # Verificar si residuo excede umbral
         if high_temp_residuals[idx] > noise_high:
-            # Confirmar con puntos adyacentes (tendencia creciente)
             if i + 2 < len(temp_sorted_indices):
                 next_idx1 = temp_sorted_indices[i + 1]
                 next_idx2 = temp_sorted_indices[i + 2]
@@ -392,7 +388,6 @@ def find_inflection_points(
                 if (high_temp_residuals[next_idx1] > high_temp_residuals[idx] and
                         high_temp_residuals[next_idx2] > high_temp_residuals[next_idx1]):
 
-                    # Buscar hacia atrás para encontrar punto exacto de inicio
                     for j in range(i - 1, 0, -1):
                         back_idx = temp_sorted_indices[j]
                         if high_temp_residuals[back_idx] < noise_high:
@@ -402,9 +397,9 @@ def find_inflection_points(
                         start_idx = idx
                     break
 
-    # Buscar punto final de manera similar
+    # Find end point
     end_idx = None
-    for i in range(len(temp_sorted_indices) * 9 // 10, len(temp_sorted_indices) // 10, -1):
+    for i in range(search_end_idx, search_start_idx, -1):
         idx = temp_sorted_indices[i]
 
         if low_temp_residuals[idx] > noise_low:
@@ -415,7 +410,6 @@ def find_inflection_points(
                 if (low_temp_residuals[prev_idx1] > low_temp_residuals[idx] and
                         low_temp_residuals[prev_idx2] > low_temp_residuals[prev_idx1]):
 
-                    # Buscar hacia adelante para punto exacto
                     for j in range(i + 1, len(temp_sorted_indices) - 1):
                         fwd_idx = temp_sorted_indices[j]
                         if low_temp_residuals[fwd_idx] < noise_low:
@@ -425,17 +419,17 @@ def find_inflection_points(
                         end_idx = idx
                     break
 
-    # Fallback si no se encuentran puntos claros
+    # Fallback if points cannot be detected reliably
     if start_idx is None:
         start_idx = temp_sorted_indices[len(temp_sorted_indices) // 4]
     if end_idx is None:
         end_idx = temp_sorted_indices[3 * len(temp_sorted_indices) // 4]
 
-    # Convertir a temperaturas
+    # Convert to temperatures
     start_temp = float(temperature[start_idx])
     end_temp = float(temperature[end_idx])
 
-    # Asegurar orden correcto según dirección
+    # Ensure correct order based on direction
     if is_cooling:
         if start_temp < end_temp:
             start_temp, end_temp = end_temp, start_temp
@@ -447,20 +441,20 @@ def find_inflection_points(
 
 
 def find_midpoint_temperature(
-    temperature: NDArray[np.float64],
-    transformed_fraction: NDArray[np.float64],
-    start_temp: float,
-    end_temp: float,
-    is_cooling: bool = False
+        temperature: NDArray[np.float64],
+        transformed_fraction: NDArray[np.float64],
+        start_temp: float,
+        end_temp: float,
+        is_cooling: bool = False
 ) -> float:
     """Find temperature at 50% transformation."""
-    # Asegurar el orden correcto para la máscara según dirección
+    # Ensure correct mask based on direction
     if is_cooling:
-        # En enfriamiento, start_temp > end_temp
+        # For cooling, start_temp > end_temp
         temp_high, temp_low = max(start_temp, end_temp), min(start_temp, end_temp)
         mask = (temperature <= temp_high) & (temperature >= temp_low)
     else:
-        # En calentamiento, start_temp < end_temp
+        # For heating, start_temp < end_temp
         temp_low, temp_high = min(start_temp, end_temp), max(start_temp, end_temp)
         mask = (temperature >= temp_low) & (temperature <= temp_high)
 
@@ -468,7 +462,7 @@ def find_midpoint_temperature(
     valid_temp = temperature[mask]
 
     if len(valid_fraction) == 0:
-        # Fallback: interpolación lineal entre puntos de inicio y fin
+        # Fallback: linear interpolation between start and end points
         from scipy.interpolate import interp1d
         try:
             temps = np.array([start_temp, end_temp])
@@ -478,10 +472,10 @@ def find_midpoint_temperature(
             f = interp1d(fracs, temps)
             return float(f(0.5))
         except:
-            # Si todo falla, simplemente promediar
+            # If interpolation fails, use average
             return float((start_temp + end_temp) / 2)
 
-    # Encontrar el punto más cercano al 50% de transformación
+    # Find closest point to 50% transformation
     mid_idx = np.argmin(np.abs(valid_fraction - 0.5))
     return float(valid_temp[mid_idx])
 
@@ -496,11 +490,11 @@ def get_linear_segment_masks(
     margin = temp_range * margin_percent
 
     if is_cooling:
-        # Para enfriamiento: segmento inicial en temperaturas altas, final en bajas
+        # For cooling: initial segment at high temps, final at low temps
         start_mask = temperature >= (max(temperature) - margin)
         end_mask = temperature <= (min(temperature) + margin)
     else:
-        # Para calentamiento: segmento inicial en temperaturas bajas, final en altas
+        # For heating: initial segment at low temps, final at high temps
         start_mask = temperature <= (min(temperature) + margin)
         end_mask = temperature >= (max(temperature) - margin)
 
@@ -508,10 +502,10 @@ def get_linear_segment_masks(
 
 
 def fit_linear_segments(
-    temperature: NDArray[np.float64],
-    strain: NDArray[np.float64],
-    start_mask: NDArray[np.bool_],
-    end_mask: NDArray[np.bool_],
+        temperature: NDArray[np.float64],
+        strain: NDArray[np.float64],
+        start_mask: NDArray[np.bool_],
+        end_mask: NDArray[np.bool_],
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Fit linear functions to start and end segments."""
     p_start = np.polyfit(temperature[start_mask], strain[start_mask], 1)
@@ -520,9 +514,9 @@ def fit_linear_segments(
 
 
 def get_extrapolated_values(
-    temperature: NDArray[np.float64],
-    p_start: NDArray[np.float64],
-    p_end: NDArray[np.float64],
+        temperature: NDArray[np.float64],
+        p_start: NDArray[np.float64],
+        p_end: NDArray[np.float64],
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Calculate extrapolated values using linear fits."""
     pred_start = np.polyval(p_start, temperature)
@@ -530,7 +524,6 @@ def get_extrapolated_values(
     return pred_start, pred_end
 
 
-# Corregir cómo se detectan los puntos de transformación para el método tangente
 def find_transformation_points(
         temperature: NDArray[np.float64],
         strain: NDArray[np.float64],
@@ -539,36 +532,36 @@ def find_transformation_points(
         deviation_threshold: float,
         is_cooling: bool = False
 ) -> Tuple[int, int]:
-    """Find transformation start and end points."""
-    # Calcular desviaciones entre curva real y extrapolaciones
+    """Find transformation start and end points based on deviation from linear extrapolations."""
+    # Calculate deviations
     dev_start = np.abs(strain - pred_start)
     dev_end = np.abs(strain - pred_end)
 
-    # Suavizar desviaciones para detección más robusta
+    # Smooth deviations for more robust detection
     from scipy.signal import savgol_filter
-    window = min(max(int(len(temperature) * 0.05), 5), 21)  # Ventana razonable
+    window = min(max(int(len(temperature) * 0.05), 5), 21)
     if window % 2 == 0:
-        window += 1  # Asegurar ventana impar
+        window += 1  # Ensure odd window size
 
     smooth_dev_start = savgol_filter(dev_start, window, 2)
     smooth_dev_end = savgol_filter(dev_end, window, 2)
 
-    # Calcular gradientes para encontrar puntos de desviación significativa
+    # Calculate gradients to find significant deviation points
     grad_start = np.gradient(smooth_dev_start)
     grad_end = np.gradient(smooth_dev_end)
 
-    # Ordenar temperatura según dirección
+    # Sort temperature indices by direction
     if is_cooling:
-        temp_indices = np.argsort(-temperature)  # Descendente
+        temp_indices = np.argsort(-temperature)  # Descending
     else:
-        temp_indices = np.argsort(temperature)  # Ascendente
+        temp_indices = np.argsort(temperature)  # Ascending
 
-    # Buscar puntos donde el gradiente supera un umbral
+    # Set threshold for gradient
     grad_threshold = np.std(grad_start) * 0.75
 
-    # Para enfriamiento, buscar desde temperatura alta
+    # Find points based on direction
     if is_cooling:
-        # Desde alto a bajo para start_idx
+        # Start point: search from high to low temperature
         for i in temp_indices:
             if grad_start[i] > grad_threshold and smooth_dev_start[i] > deviation_threshold:
                 start_idx = i
@@ -576,7 +569,7 @@ def find_transformation_points(
         else:
             start_idx = temp_indices[len(temp_indices) // 4]
 
-        # Desde bajo a alto para end_idx
+        # End point: search from low to high temperature
         for i in temp_indices[::-1]:
             if grad_end[i] > grad_threshold and smooth_dev_end[i] > deviation_threshold:
                 end_idx = i
@@ -584,7 +577,7 @@ def find_transformation_points(
         else:
             end_idx = temp_indices[3 * len(temp_indices) // 4]
     else:
-        # Para calentamiento, procedimiento similar pero en dirección opuesta
+        # Similar process for heating segments
         for i in temp_indices:
             if grad_start[i] > grad_threshold and smooth_dev_start[i] > deviation_threshold:
                 start_idx = i
@@ -599,7 +592,7 @@ def find_transformation_points(
         else:
             end_idx = temp_indices[3 * len(temp_indices) // 4]
 
-    # Asegurar orden correcto
+    # Ensure correct order
     if is_cooling:
         if temperature[start_idx] < temperature[end_idx]:
             start_idx, end_idx = end_idx, start_idx
@@ -611,11 +604,11 @@ def find_transformation_points(
 
 
 def calculate_deviation_threshold(
-    strain: NDArray[np.float64],
-    pred_start: NDArray[np.float64],
-    pred_end: NDArray[np.float64],
-    start_mask: NDArray[np.bool_],
-    end_mask: NDArray[np.bool_],
+        strain: NDArray[np.float64],
+        pred_start: NDArray[np.float64],
+        pred_end: NDArray[np.float64],
+        start_mask: NDArray[np.bool_],
+        end_mask: NDArray[np.bool_],
 ) -> float:
     """Calculate threshold for deviation detection."""
     start_residuals = np.abs(strain[start_mask] - pred_start[start_mask])
@@ -624,7 +617,7 @@ def calculate_deviation_threshold(
 
 
 def find_deviation_point(
-    deviations: NDArray[np.bool_], window: int, forward: bool = True
+        deviations: NDArray[np.bool_], window: int, forward: bool = True
 ) -> int:
     """Find point where deviation becomes significant."""
     if forward:
@@ -661,14 +654,14 @@ def calculate_transformed_fraction(
 
 
 def calculate_fit_quality(
-    temperature: NDArray[np.float64],
-    strain: NDArray[np.float64],
-    p_start: NDArray[np.float64],
-    p_end: NDArray[np.float64],
-    start_mask: NDArray[np.bool_],
-    end_mask: NDArray[np.bool_],
-    margin_percent: float,
-    deviation_threshold: float,
+        temperature: NDArray[np.float64],
+        strain: NDArray[np.float64],
+        p_start: NDArray[np.float64],
+        p_end: NDArray[np.float64],
+        start_mask: NDArray[np.bool_],
+        end_mask: NDArray[np.bool_],
+        margin_percent: float,
+        deviation_threshold: float,
 ) -> Dict[str, float]:
     """Calculate quality metrics for the analysis."""
     r2_start = float(calculate_r2(temperature[start_mask], strain[start_mask], p_start))
@@ -683,7 +676,7 @@ def calculate_fit_quality(
 
 
 def calculate_r2(
-    x: NDArray[np.float64], y: NDArray[np.float64], p: NDArray[np.float64]
+        x: NDArray[np.float64], y: NDArray[np.float64], p: NDArray[np.float64]
 ) -> float:
     """Calculate R² value for a linear fit."""
     y_pred = np.polyval(p, x)

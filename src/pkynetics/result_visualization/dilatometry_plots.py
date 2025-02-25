@@ -5,11 +5,11 @@ import numpy as np
 
 
 def plot_raw_and_smoothed(
-    ax: plt.Axes,
-    temperature: np.ndarray,
-    strain: np.ndarray,
-    smooth_strain: np.ndarray,
-    method: str,
+        ax: plt.Axes,
+        temperature: np.ndarray,
+        strain: np.ndarray,
+        smooth_strain: np.ndarray,
+        method: str,
 ) -> None:
     """
     Plot raw and smoothed dilatometry data.
@@ -31,7 +31,7 @@ def plot_raw_and_smoothed(
 
 
 def plot_transformation_points(
-    ax: plt.Axes, temperature: np.ndarray, smooth_strain: np.ndarray, results: Dict
+        ax: plt.Axes, temperature: np.ndarray, smooth_strain: np.ndarray, results: Dict
 ) -> None:
     """
     Plot strain data with transformation points and extrapolations.
@@ -79,7 +79,6 @@ def plot_transformation_points(
     ax.grid(True)
 
 
-# Corregir cómo se grafica la palanca en ambos métodos
 def plot_lever_rule(
         ax: plt.Axes, temperature: np.ndarray, smooth_strain: np.ndarray, results: Dict
 ) -> None:
@@ -93,15 +92,15 @@ def plot_lever_rule(
     )
 
     mid_temp = results["mid_temperature"]
-    # Calcular el valor exacto en la curva para el punto medio
+    # Calculate exact value on curve for midpoint
     mid_strain = np.interp(mid_temp, temperature, smooth_strain)
-    # Calcular valores en las extrapolaciones
+    # Calculate values on extrapolations
     mid_before = np.interp(mid_temp, temperature, results["before_extrapolation"])
     mid_after = np.interp(mid_temp, temperature, results["after_extrapolation"])
 
-    # Dibujar línea de palanca entre las extrapolaciones
+    # Draw lever line between extrapolations
     ax.plot([mid_temp, mid_temp], [mid_before, mid_after], "k-", label="Lever")
-    # Punto medio debe estar en la curva real
+    # Midpoint should be on actual curve
     ax.plot(mid_temp, mid_strain, "ro", label="Mid point")
 
     ax.annotate(
@@ -112,7 +111,7 @@ def plot_lever_rule(
         bbox=dict(boxstyle="round,pad=0.5", fc="white", alpha=0.7),
     )
 
-    ax.set_xlabel("Tempera  ture (°C)")
+    ax.set_xlabel("Temperature (°C)")
     ax.set_ylabel("Relative Change")
     ax.set_title("Lever Rule Representation")
     ax.legend()
@@ -130,12 +129,12 @@ def plot_transformed_fraction(
         temperature: Temperature data array
         results: Dictionary containing analysis results
     """
-    is_cooling = results.get('is_cooling', False)  # Add flag to results dict
+    is_cooling = results.get('is_cooling', False)
     transformed_fraction = results["transformed_fraction"]
 
     ax.plot(temperature, transformed_fraction, label="Transformed Fraction")
 
-    # Ajustar los puntos según dirección
+    # Adjust points based on direction
     start_fraction = 1.0 if is_cooling else 0.0
     end_fraction = 0.0 if is_cooling else 1.0
 
@@ -166,11 +165,11 @@ def plot_transformed_fraction(
 
 
 def plot_dilatometry_analysis(
-    temperature: np.ndarray,
-    strain: np.ndarray,
-    smooth_strain: np.ndarray,
-    results: Dict,
-    method: str,
+        temperature: np.ndarray,
+        strain: np.ndarray,
+        smooth_strain: np.ndarray,
+        results: Dict,
+        method: str,
 ) -> plt.Figure:
     """
     Create complete visualization of dilatometry analysis.
