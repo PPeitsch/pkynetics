@@ -5,16 +5,16 @@ from pkynetics.data_import import CustomImporter
 import matplotlib.pyplot as plt
 
 # Get the absolute path of the project root directory
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-PKG_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'src', 'pkynetics', 'data')
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+PKG_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "src", "pkynetics", "data")
 
 
 def custom_import_example():
     """Example of using CustomImporter class."""
-    custom_file_path = os.path.join(PKG_DATA_DIR, 'sample_custom_data.csv')
+    custom_file_path = os.path.join(PKG_DATA_DIR, "sample_custom_data.csv")
 
     # Create a sample custom data file
-    with open(custom_file_path, 'w') as f:
+    with open(custom_file_path, "w") as f:
         f.write("Time(s);Temperature(C);Weight(mg)\n")
         f.write("0;25,0;100,0\n")
         f.write("1;26,5;99,8\n")
@@ -25,7 +25,9 @@ def custom_import_example():
     try:
         # Detect delimiter and suggest column names
         delimiter = CustomImporter.detect_delimiter(custom_file_path)
-        column_names = CustomImporter.suggest_column_names(custom_file_path, delimiter=delimiter)
+        column_names = CustomImporter.suggest_column_names(
+            custom_file_path, delimiter=delimiter
+        )
 
         print(f"Detected delimiter: {delimiter}")
         print(f"Suggested column names: {column_names}")
@@ -35,8 +37,8 @@ def custom_import_example():
             custom_file_path,
             column_names,
             separator=delimiter,
-            decimal=',',
-            skiprows=1  # Skip header row
+            decimal=",",
+            skiprows=1,  # Skip header row
         )
 
         # Import data
@@ -48,11 +50,11 @@ def custom_import_example():
 
         # Plot the data
         plt.figure(figsize=(10, 6))
-        plt.plot(data['Time(s)'], data['Temperature(C)'], label='Temperature')
-        plt.plot(data['Time(s)'], data['Weight(mg)'], label='Weight')
-        plt.xlabel('Time (s)')
-        plt.ylabel('Temperature (°C) / Weight (mg)')
-        plt.title('Custom Data Import Example')
+        plt.plot(data["Time(s)"], data["Temperature(C)"], label="Temperature")
+        plt.plot(data["Time(s)"], data["Weight(mg)"], label="Weight")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Temperature (°C) / Weight (mg)")
+        plt.title("Custom Data Import Example")
         plt.legend()
         plt.grid(True)
         plt.show()

@@ -132,3 +132,65 @@ def select_linear_region(
         y_selected = y[mask]
 
     return theta_selected, y_selected
+
+
+def horowitz_metzger_plot(
+    temperature: np.ndarray, alpha: np.ndarray, n: float = 1
+) -> Tuple[np.ndarray, np.ndarray, float, float, float, float, np.ndarray, np.ndarray]:
+    """
+    Prepare data for Horowitz-Metzger plot.
+
+    Args:
+        temperature (np.ndarray): Temperature data in Kelvin.
+        alpha (np.ndarray): Conversion data.
+        n (float): Reaction order. Default is 1.
+
+    Returns:
+        Tuple containing:
+        - theta: Theta values (T - T_s)
+        - y: Transformed y values
+        - e_a: Activation energy in J/mol
+        - a: Pre-exponential factor in min^-1
+        - t_s: Temperature of maximum decomposition rate in K
+        - r_squared: R-squared value
+        - theta_selected: Selected theta values used for fitting
+        - y_selected: Selected y values used for fitting
+    """
+    if len(temperature) != len(alpha):
+        raise ValueError("Temperature and alpha arrays must have the same length")
+
+    if np.any(alpha <= 0) or np.any(alpha >= 1):
+        raise ValueError("Alpha values must be between 0 and 1 (exclusive)")
+
+    if np.any(temperature <= 0):
+        raise ValueError("Temperature values must be positive")
+
+    # Find temperature of maximum decomposition rate
+    SAVGOL_WINDOW = 21
+    SAVGOL_POLY_ORDER = 3
+    d_alpha = savgol_filter(
+        np.gradient(alpha, temperature), SAVGOL_WINDOW, SAVGOL_POLY_ORDER
+    )  # Smooth the derivative
+    t_s = temperature[np.argmax(d_alpha)]
+
+    # Calculate theta
+    theta = temperature - t_s
+
+    # Prepare data for fitting
+    if n == 1:
+        y = np.log(-np.log(1 - alpha))
+    else:
+        y = np.log((1 - (1 - alpha) ** (1 - n)) / (1 - n))
+
+    # Select the most linear region
+    theta_selected, y_selected = select_linear_region(theta, y, alpha)
+
+    # Perform robust linear regression on selected data
+    slope, intercept, r_value, _, _ = linregress(theta_selected, y_selected)
+
+    # Calculate kinetic parameters
+    r = 8.314  # Gas constant in J/(mol·K)
+    e_a = slope * r * t_s**2  # Activation energy in J/mol
+    a = np.exp(intercept + e_a / (r * t_s))  # Pre-exponential factor in min^-1
+
+    return theta, y, e_a, a, t_s, r_value**2, theta_selected, y_selected

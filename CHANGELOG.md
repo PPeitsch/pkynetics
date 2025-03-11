@@ -5,23 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-[v0.3.3] - 2024-12-27
----------------------
+## [v0.3.4] - 2025-03-10
 
-Added
-^^^^^
+### Added
+- New `horowitz_metzger_plot` function in model_fitting_methods module
+- New `plot_horowitz_metzger` function in result_visualization module
+
+### Fixed
+- Fixed missing imports in examples/horowitz_metzger_method_example.py
+- Fixed references in documentation to non-existent functions
+- 
+## [v0.3.3] - 2024-12-27
+
+### Added
 - Enhanced DSC data import functionality for Setaram file formats
 - Support for multiple delimiter and decimal separator styles
 - Comprehensive file format detection for Setaram DSC files
 
-Changed
-^^^^^^^
+### Changed
 - Improved robustness of data import mechanisms
 - Enhanced logging for file format detection
 - Maintained backwards compatibility with existing import methods
 
-Fixed
-^^^^^
+### Fixed
 - Better handling of file import variations
 - Improved error handling for different file configurations
 
