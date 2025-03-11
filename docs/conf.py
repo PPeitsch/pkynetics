@@ -3,7 +3,7 @@
 project = "Pkynetics"
 copyright = "2024, Pablo Peitsch"
 author = "Pablo Peitsch"
-release = "0.1.0"
+release = "0.3.4"
 
 extensions = [
     "sphinx.ext.autodoc",
