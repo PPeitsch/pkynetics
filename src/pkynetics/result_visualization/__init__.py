@@ -16,7 +16,11 @@ from .kinetic_plot import (
     plot_kissinger,
     plot_modified_jmak_results,
 )
-from .model_specific_plots import plot_coats_redfern, plot_freeman_carroll
+from .model_specific_plots import (
+    plot_coats_redfern,
+    plot_freeman_carroll,
+    plot_horowitz_metzger,
+)
 
 __all__ = [
     "plot_arrhenius",
@@ -27,6 +31,7 @@ __all__ = [
     "plot_modified_jmak_results",
     "plot_coats_redfern",
     "plot_freeman_carroll",
+    "plot_horowitz_metzger",
     "plot_kissinger",
     "plot_raw_and_smoothed",
     "plot_transformation_points",
