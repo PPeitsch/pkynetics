@@ -2,7 +2,7 @@
 Pkynetics: A comprehensive library for thermal analysis kinetic methods.
 
 This library provides tools for data preprocessing, kinetic analysis using various
-methods (model-fitting, model-free), technique-specific analysis, and result 
+methods (model-fitting, model-free), technique-specific analysis, and result
 visualization for thermal analysis data.
 """
 
