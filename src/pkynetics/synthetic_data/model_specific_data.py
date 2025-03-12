@@ -18,6 +18,7 @@ def generate_coats_redfern_data(
     t_range: Tuple[float, float],
     n: float = 1.5,
     noise_level: float = 0,
+    reaction_model: str = "nth_order",
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Generate data specific to Coats-Redfern analysis.
@@ -29,6 +30,7 @@ def generate_coats_redfern_data(
         t_range (Tuple[float, float]): Temperature range (start, end) in K
         n (float): Reaction order. Default is 1.5
         noise_level (float): Standard deviation of Gaussian noise to add
+        reaction_model (str): Reaction model to use ('first_order' or 'nth_order'). Default is 'nth_order'
 
     Returns:
         Tuple[np.ndarray, np.ndarray]: Temperature and conversion data
@@ -38,7 +40,7 @@ def generate_coats_redfern_data(
         a,
         np.array([heating_rate], dtype=np.float64),
         t_range,
-        reaction_model="nth_order",
+        reaction_model=reaction_model,
         noise_level=noise_level,
         n=n,
     )

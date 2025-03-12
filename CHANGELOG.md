@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.3.5] - 2025-03-11
+
+### Added
+- Added `reaction_model` parameter to `generate_coats_redfern_data` function
+
+### Fixed
+- Fixed division by zero error in nth_order reaction model when n=1
+- Fixed NaN values in pre-exponential factor calculation in Coats-Redfern method
+
 ## [v0.3.4] - 2025-03-10
 
 ### Added
