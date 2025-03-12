@@ -6,13 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
-[v0.3.5] - 2025-03-15
+[v0.3.5] - 2025-03-11
 ---------------------
 
 Added
 ^^^^^
-- New ``horowitz_metzger_plot`` function in model_fitting_methods module
-- New ``plot_horowitz_metzger`` function in result_visualization module
 - Added ``reaction_model`` parameter to ``generate_coats_redfern_data`` function
 
 Fixed
