@@ -1,10 +1,13 @@
 """Implementation of the Coats-Redfern method for kinetic analysis."""
 
+import logging
 from typing import Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.stats import linregress
+
+logger = logging.getLogger(__name__)
 
 
 def coats_redfern_equation(
