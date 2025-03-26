@@ -1,8 +1,9 @@
 """Examples for using tga_importer, dsc_importer, and dilatometry_importer functions."""
 
 import os
-from pkynetics.data_import import tga_importer, dsc_importer, dilatometry_importer
 import time
+
+from pkynetics.data_import import dilatometry_importer, dsc_importer, tga_importer
 
 # Get the absolute path of the project root directory
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
