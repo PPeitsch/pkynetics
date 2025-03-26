@@ -612,7 +612,7 @@ def find_inflection_points(
     """
     Find transformation start/end points where the curve deviates significantly
     from linear tangents fitted to the initial and final segments defined by 'margin'.
-    Uses smoothed data and adaptive noise thresholds.
+    Uses smoothed data, adaptive noise thresholds, and directed search logic.
 
     Args:
         temperature: Array of temperature values.
@@ -632,10 +632,9 @@ def find_inflection_points(
     Raises:
         ValueError: If margin is invalid, data is insufficient, or fitting fails.
     """
-    # Validate margin value
+    # --- Start: Setup and Smoothing ---
     if not (0.1 <= margin <= 0.4):
         raise ValueError("Margin must be between 0.1 and 0.4")
-
     n_total = len(temperature)
     if n_total < max(
         min_points_fit * 4, min_points_smooth, 20
@@ -659,7 +658,9 @@ def find_inflection_points(
         )
     except ValueError as e:
         raise ValueError(f"Smoothing failed: {e}")
+    # --- End: Setup and Smoothing ---
 
+    # --- Start: Fit Tangents and Calculate Residuals ---
     # Define linear regions based on margin and heating/cooling direction
     start_fit_mask, end_fit_mask = get_linear_segment_masks(
         temperature, margin, is_cooling
@@ -702,90 +703,106 @@ def find_inflection_points(
     # Add a small floor value to prevent zero threshold if fit is perfect
     noise_start = max(noise_start, 1e-9)
     noise_end = max(noise_end, 1e-9)
+    # --- End: Fit Tangents and Calculate Residuals ---
 
-    # Find indices where residuals exceed the noise threshold
-    start_deviation_indices = np.where(start_residuals > noise_start)[0]
-    end_deviation_indices = np.where(end_residuals > noise_end)[0]
-
-    # Determine the first and last points of significant deviation
-    # Consider the direction:
-    # - Heating: Start deviation is the first index deviating from start_line.
-    #            End deviation is the last index deviating from end_line.
-    # - Cooling: Start deviation is the last index deviating from start_line (high temp).
-    #            End deviation is the first index deviating from end_line (low temp).
-
+    # --- Start: Directed Search Logic ---
     start_idx_transform: Optional[int] = None
     end_idx_transform: Optional[int] = None
 
-    if is_cooling:
-        # Start (high temp): Last index deviating significantly from the high-temp baseline
-        if len(start_deviation_indices) > 0:
-            start_idx_transform = start_deviation_indices[
-                -1
-            ]  # Last point where high-T fit is still good? No, first deviation point.
-            # Search from beginning (high temp) for first deviation from start_line
-            for idx in np.argsort(-temperature):  # Iterate high to low temp
-                if start_residuals[idx] > noise_start:
-                    start_idx_transform = idx
-                    break
+    # Define search ranges - avoid fitting regions themselves
+    search_mask = ~start_fit_mask & ~end_fit_mask
+    search_indices = np.where(search_mask)[0]
 
-        # End (low temp): First index deviating significantly from the low-temp baseline
-        if len(end_deviation_indices) > 0:
-            # Search from end (low temp) for first deviation from end_line
-            for idx in np.argsort(temperature):  # Iterate low to high temp
-                if end_residuals[idx] > noise_end:
-                    end_idx_transform = idx
-                    break
+    if len(search_indices) < 5:  # Need some points between the fit regions
+        py_warnings.warn(
+            "Very few points between linear fit regions. Detection might be unreliable.",
+            UserWarning,
+        )
+        # Use fallback immediately if search region is too small
+        search_indices = np.arange(
+            n_total
+        )  # Fallback to searching whole range if overlap
+
+    # Determine search direction based on heating/cooling
+    if is_cooling:
+        # Cooling: Start search from high temp (index 0), End search from low temp (index n-1)
+        # Indices sorted by temperature High -> Low
+        # We search within the `search_indices` range
+
+        # Find Start Point (First deviation from high-T line when moving towards lower T)
+        # Iterate through search_indices in their natural (low index to high index) order
+        for idx in search_indices:
+            if start_residuals[idx] > noise_start:
+                start_idx_transform = idx
+                break  # Found the first point deviating from the start baseline
+
+        # Find End Point (First deviation from low-T line when moving towards higher T - searching backwards in index)
+        # Iterate through search_indices in reverse order
+        for idx in search_indices[::-1]:
+            if end_residuals[idx] > noise_end:
+                end_idx_transform = idx
+                break  # Found the first point (from the end) deviating from the end baseline
 
     else:  # Heating
-        # Start (low temp): First index deviating significantly from the low-temp baseline
-        if len(start_deviation_indices) > 0:
-            # Search from beginning (low temp) for first deviation from start_line
-            for idx in np.argsort(temperature):  # Iterate low to high temp
-                if start_residuals[idx] > noise_start:
-                    start_idx_transform = idx
-                    break
+        # Heating: Start search from low temp (index 0), End search from high temp (index n-1)
+        # Indices sorted by temperature Low -> High
+        # We search within the `search_indices` range
 
-        # End (high temp): Last index deviating significantly from the high-temp baseline
-        if len(end_deviation_indices) > 0:
-            # Search from end (high temp) for first deviation from end_line
-            for idx in np.argsort(-temperature):  # Iterate high to low temp
-                if end_residuals[idx] > noise_end:
-                    end_idx_transform = idx
-                    break
+        # Find Start Point (First deviation from low-T line when moving towards higher T)
+        # Iterate through search_indices in their natural (low index to high index) order
+        for idx in search_indices:
+            if start_residuals[idx] > noise_start:
+                start_idx_transform = idx
+                break  # Found the first point deviating from the start baseline
 
-    # Fallback if points cannot be detected reliably using residuals
-    # Use a position-based fallback within the middle ~50% of data
-    fallback_start_idx = int(n_total * 0.25)
-    fallback_end_idx = int(n_total * 0.75)
-    if is_cooling:
-        # Sort descending for cooling
-        sorted_indices = np.argsort(-temperature)
-        fallback_start_idx = sorted_indices[fallback_start_idx]
-        fallback_end_idx = sorted_indices[fallback_end_idx]
-    else:
-        # Sort ascending for heating
-        sorted_indices = np.argsort(temperature)
-        fallback_start_idx = sorted_indices[fallback_start_idx]
-        fallback_end_idx = sorted_indices[fallback_end_idx]
+        # Find End Point (First deviation from high-T line when moving towards lower T - searching backwards in index)
+        # Iterate through search_indices in reverse order
+        for idx in search_indices[::-1]:
+            if end_residuals[idx] > noise_end:
+                end_idx_transform = idx
+                break  # Found the first point (from the end) deviating from the end baseline
+    # --- End: Directed Search Logic ---
 
-    if start_idx_transform is None:
+    # --- Start: Fallback Logic ---
+    if (
+        start_idx_transform is None
+        or end_idx_transform is None
+        or start_idx_transform >= end_idx_transform
+    ):
         py_warnings.warn(
-            f"Could not reliably detect transformation start point using margin {margin:.1%} and threshold multiplier {residual_std_multiplier}. "
-            f"Using fallback index {fallback_start_idx}.",
+            f"Initial deviation search failed or yielded invalid order (Start: {start_idx_transform}, End: {end_idx_transform}) using margin {margin:.1%}. "
+            f"Attempting fallback using peak derivative.",
             UserWarning,
         )
-        start_idx_transform = fallback_start_idx
+        # Fallback: Use quantiles on the *search indices*
+        if len(search_indices) >= 2:
+            fallback_start_idx = search_indices[
+                max(0, int(len(search_indices) * 0.1))
+            ]  # 10% into search region
+            fallback_end_idx = search_indices[
+                min(len(search_indices) - 1, int(len(search_indices) * 0.9))
+            ]  # 90% into search region
+        else:  # Very limited search region, use absolute quantiles
+            fallback_start_idx = int(n_total * 0.25)
+            fallback_end_idx = int(n_total * 0.75)
 
-    if end_idx_transform is None:
-        py_warnings.warn(
-            f"Could not reliably detect transformation end point using margin {margin:.1%} and threshold multiplier {residual_std_multiplier}. "
-            f"Using fallback index {fallback_end_idx}.",
-            UserWarning,
-        )
-        end_idx_transform = fallback_end_idx
+        if start_idx_transform is None:
+            start_idx_transform = fallback_start_idx
+        if end_idx_transform is None:
+            end_idx_transform = fallback_end_idx
+        # Ensure order after fallback
+        if start_idx_transform >= end_idx_transform:
+            start_idx_transform, end_idx_transform = min(
+                fallback_start_idx, fallback_end_idx
+            ), max(fallback_start_idx, fallback_end_idx)
+            py_warnings.warn(
+                f"Fallback also yielded invalid order. Forced to indices {start_idx_transform}, {end_idx_transform}.",
+                UserWarning,
+            )
 
-    # Convert indices to temperatures
+    # --- End: Fallback Logic ---
+
+    # Convert indices to temperatures and ensure correct order for return
     start_temp = float(temperature[start_idx_transform])
     end_temp = float(temperature[end_idx_transform])
 
@@ -972,7 +989,8 @@ def find_transformation_points(
 ) -> Tuple[int, int]:
     """
     Find transformation start and end point indices based on where the actual
-    strain deviates significantly from the extrapolated linear baselines.
+    strain deviates significantly from the extrapolated linear baselines, using
+    directed search logic.
 
     Args:
         temperature: Array of temperature values.
@@ -989,15 +1007,14 @@ def find_transformation_points(
     Returns:
         Tuple containing the indices (start_idx, end_idx) of the transformation.
         Indices refer to the original temperature/strain arrays.
-        The order (start_idx vs end_idx) reflects the position in the array, not necessarily the process start/end.
+        The order (start_idx vs end_idx) reflects the position in the array.
     """
     n_total = len(temperature)
 
-    # Calculate absolute deviations from both baselines
+    # --- Start: Calculate Deviations and Smooth ---
     dev_start = np.abs(strain - pred_start)
     dev_end = np.abs(strain - pred_end)
 
-    # Optionally smooth the deviation signals
     if smooth_deviation:
         window_length = int(n_total * smooth_window_fraction)
         window_length = max(min_points_smooth, window_length)
@@ -1020,56 +1037,60 @@ def find_transformation_points(
                 "Smoothing deviations failed, using raw deviation signals.", UserWarning
             )
             # Continue with raw dev_start, dev_end
+    # --- End: Calculate Deviations and Smooth ---
 
-    # Find indices where deviation exceeds the threshold
-    start_deviation_indices = np.where(dev_start > deviation_threshold)[0]
-    end_deviation_indices = np.where(dev_end > deviation_threshold)[0]
-
-    # Determine the start and end indices of the transformation region
+    # --- Start: Directed Search Logic ---
     start_idx: Optional[int] = None
     end_idx: Optional[int] = None
 
-    # Find the first point deviating from the initial baseline
-    if len(start_deviation_indices) > 0:
-        start_idx = start_deviation_indices[0]
+    # Find Start Point: Search forward from the beginning of the data array
+    for i in range(n_total):
+        # We look for the first index where the deviation from the initial state's baseline
+        # (represented by pred_start) exceeds the threshold.
+        if dev_start[i] > deviation_threshold:
+            start_idx = i
+            break  # Stop at the first occurrence
 
-    # Find the last point deviating from the final baseline
-    if len(end_deviation_indices) > 0:
-        end_idx = end_deviation_indices[-1]
+    # Find End Point: Search backward from the end of the data array
+    for i in range(n_total - 1, -1, -1):
+        # We look for the first index (moving backwards) where the deviation from the
+        # final state's baseline (represented by pred_end) exceeds the threshold.
+        if dev_end[i] > deviation_threshold:
+            end_idx = i
+            break  # Stop at the first occurrence (which is the last point in forward direction)
+    # --- End: Directed Search Logic ---
 
-    # --- Fallback logic if indices are not found or seem unreasonable ---
-    # Use position-based fallback within the middle ~50% of data if needed
-    fallback_start_idx = int(n_total * 0.25)
-    fallback_end_idx = int(n_total * 0.75)
-
-    if start_idx is None:
+    # --- Start: Fallback Logic ---
+    if start_idx is None or end_idx is None or start_idx >= end_idx:
         py_warnings.warn(
-            f"Could not detect transformation start index using deviation threshold {deviation_threshold:.2e}. "
-            f"Using fallback index {fallback_start_idx}.",
+            f"Initial deviation search failed or yielded invalid order (Start: {start_idx}, End: {end_idx}) "
+            f"using threshold {deviation_threshold:.2e}. Using quantile fallback.",
             UserWarning,
         )
-        start_idx = fallback_start_idx
+        # Use simple quantile fallbacks if search fails
+        start_idx_fallback = int(n_total * 0.15)  # 15% index
+        end_idx_fallback = int(n_total * 0.85)  # 85% index
 
-    if end_idx is None:
-        py_warnings.warn(
-            f"Could not detect transformation end index using deviation threshold {deviation_threshold:.2e}. "
-            f"Using fallback index {fallback_end_idx}.",
-            UserWarning,
-        )
-        end_idx = fallback_end_idx
+        # Only overwrite if the original search failed for that specific point
+        if start_idx is None:
+            start_idx = start_idx_fallback
+        if end_idx is None:
+            end_idx = end_idx_fallback
 
-    # Ensure indices are ordered (start_idx <= end_idx)
-    if start_idx > end_idx:
-        # This might happen if deviation detection is noisy or thresholds are wrong
-        py_warnings.warn(
-            f"Detected start index ({start_idx}) is after end index ({end_idx}). "
-            f"Swapping them. Check deviation threshold and data quality.",
-            UserWarning,
-        )
-        start_idx, end_idx = end_idx, start_idx
+        # Ensure order after fallback
+        if start_idx >= end_idx:
+            # If still invalid order, force them based on fallback values
+            start_idx, end_idx = min(start_idx_fallback, end_idx_fallback), max(
+                start_idx_fallback, end_idx_fallback
+            )
+            py_warnings.warn(
+                f"Fallback yielded invalid order. Forced to indices {start_idx}, {end_idx}.",
+                UserWarning,
+            )
 
-    # The returned indices define the segment [start_idx, end_idx] in the array.
-    # The physical start/end temps depend on the 'is_cooling' flag.
+    # --- End: Fallback Logic ---
+
+    # Return the indices found (start_idx <= end_idx)
     return start_idx, end_idx
 
 
