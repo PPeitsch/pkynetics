@@ -137,8 +137,8 @@ def detect_segment_direction(
     # Fit only valid points
     slope = np.polyfit(time_points[valid_mask], temperature[valid_mask], 1)[0]
 
-    # Negative slope indicates cooling
-    return slope < 0
+    # Negative slope indicates cooling - explicit bool conversion for mypy
+    return bool(slope < 0)
 
 
 def get_analysis_summary(results: Dict) -> str:
