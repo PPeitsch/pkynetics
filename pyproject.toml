@@ -87,7 +87,7 @@ line_length = 88
 multi_line_output = 3
 
 [tool.mypy]
-packages = ["pkynetics"]
+packages = ["src.pkynetics"]
 python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
@@ -102,6 +102,7 @@ warn_no_return = true
 warn_unreachable = true
 explicit_package_bases = true
 namespace_packages = true
+mypy_path = "src"
 
 [[tool.mypy.overrides]]
 module = ["scipy.*", "matplotlib.*", "seaborn.*", "statsmodels.*", "pandas.*", "chardet"]
