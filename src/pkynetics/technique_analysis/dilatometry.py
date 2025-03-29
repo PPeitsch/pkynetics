@@ -9,7 +9,8 @@ from pkynetics.technique_analysis.utilities import detect_segment_direction
 
 # Type hint for the dictionary returned by analysis functions
 ReturnDict = Dict[
-    str, Union[float, bool, NDArray[np.float64], Dict[str, Union[float, List[str]]]]
+    str,
+    Union[float, bool, str, NDArray[np.float64], Dict[str, Union[float, List[str]]]],
 ]
 
 
@@ -1290,7 +1291,6 @@ def calculate_r2(
     return float(r2)
 
 
-# Added function from dilatometry_preprocessing.py for self-containment if needed by tangent method
 def detect_noise_level(
     strain: NDArray[np.float64],
     window_size_fraction: float = 0.05,
@@ -1313,9 +1313,7 @@ def detect_noise_level(
     window_size = min(window_size, n_total // 2)  # Ensure window is not too large
 
     if window_size < 2:
-        return (
-            np.std(strain) if n_total > 1 else 0.0
-        )  # Use global std if window is too small
+        return float(np.std(strain) if n_total > 1 else 0.0)  # Explicit cast to float
 
     try:
         # Calculate standard deviation in sliding windows
@@ -1334,7 +1332,7 @@ def detect_noise_level(
         return (
             float(median_std)
             if not np.isnan(median_std)
-            else (np.std(strain) if n_total > 1 else 0.0)
+            else float(np.std(strain) if n_total > 1 else 0.0)
         )
 
     except ImportError:
@@ -1345,8 +1343,8 @@ def detect_noise_level(
             segment = strain[i : i + window_size]
             if len(segment) > 1:
                 local_std.append(np.std(segment))
-        return (
-            float(np.median(local_std))
+        return float(
+            np.median(local_std)
             if local_std
             else (np.std(strain) if n_total > 1 else 0.0)
         )
