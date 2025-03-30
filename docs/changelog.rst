@@ -6,6 +6,29 @@ All notable changes to this project will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[v0.3.6] - 2025-03-29
+---------------------
+
+Added
+^^^^^
+- New ``detect_segment_direction`` function to determine if data is from cooling or heating segments
+- Enhanced dilatometry analysis to properly handle cooling segments (decreasing temperature)
+- Direction indicators in visualizations to clearly show cooling vs heating segments
+- Improved command-line options for batch processing in dilatometry analysis
+
+Changed
+^^^^^^^
+- Modified ``find_inflection_points`` to adjust behavior based on segment direction
+- Updated ``calculate_transformed_fraction_lever`` to handle both cooling and heating
+- Enhanced lever rule and tangent methods to work with both heating and cooling directions
+- Improved error messages and validation for temperature ranges
+
+Fixed
+^^^^^
+- Fixed temperature validation that previously failed for cooling segments
+- Enhanced error handling for insufficient data points
+- Improved temperature range validation to accommodate both heating and cooling segments
+
 [v0.3.5] - 2025-03-11
 ---------------------
 
