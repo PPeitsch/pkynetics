@@ -87,7 +87,7 @@ line_length = 88
 multi_line_output = 3
 
 [tool.mypy]
-packages = ["src.pkynetics"]
+packages = ["pkynetics"]
 exclude = ["tests/", "examples/", "docs/", "build/", "dist/"]
 python_version = "3.9"
 warn_return_any = true
