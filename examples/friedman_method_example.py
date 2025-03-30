@@ -1,7 +1,8 @@
 """Example usage of the Friedman method for model-free kinetic analysis."""
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+
 from pkynetics.model_free_methods import friedman_method
 
 

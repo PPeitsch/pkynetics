@@ -1,7 +1,8 @@
 """Example usage of the improved Horowitz-Metzger method for non-isothermal kinetics analysis."""
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+
 from pkynetics.model_fitting_methods import (
     horowitz_metzger_method,
     horowitz_metzger_plot,

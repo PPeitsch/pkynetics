@@ -1,13 +1,14 @@
 """Example usage of the Freeman-Carroll method for non-isothermal kinetics analysis."""
 
-import sys
 import os
+import sys
 
 import numpy as np
-from pkynetics.synthetic_data import generate_freeman_carroll_data
+
 from pkynetics.model_fitting_methods import freeman_carroll_method, plot_diagnostic
 from pkynetics.result_visualization import plot_conversion_vs_temperature
 from pkynetics.result_visualization.model_specific_plots import plot_freeman_carroll
+from pkynetics.synthetic_data import generate_freeman_carroll_data
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 

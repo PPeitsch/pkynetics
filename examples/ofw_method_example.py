@@ -1,7 +1,8 @@
 """Example usage of the Ozawa-Flynn-Wall method for model-free kinetic analysis."""
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+
 from pkynetics.model_free_methods.ofw_method import ofw_method
 
 

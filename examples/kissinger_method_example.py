@@ -1,9 +1,10 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+
 from pkynetics.model_fitting_methods.kissinger import (
-    kissinger_method,
     calculate_t_p,
     kissinger_equation,
+    kissinger_method,
 )
 from pkynetics.synthetic_data import generate_basic_kinetic_data
 
