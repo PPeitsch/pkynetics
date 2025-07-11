@@ -5,23 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-[v0.3.3] - 2024-12-27
----------------------
+## [v0.3.6] - 2025-03-29
 
-Added
-^^^^^
+### Added
+- New `detect_segment_direction` function to determine if data is from cooling or heating segments
+- Enhanced dilatometry analysis to properly handle cooling segments (decreasing temperature)
+- Direction indicators in visualizations to clearly show cooling vs heating segments
+- Improved command-line options for batch processing in dilatometry analysis
+
+### Changed
+- Modified `find_inflection_points` to adjust behavior based on segment direction
+- Updated `calculate_transformed_fraction_lever` to handle both cooling and heating
+- Enhanced lever rule and tangent methods to work with both heating and cooling directions
+- Improved error messages and validation for temperature ranges
+
+### Fixed
+- Fixed temperature validation that previously failed for cooling segments
+- Enhanced error handling for insufficient data points
+- Improved temperature range validation to accommodate both heating and cooling segments
+
+## [v0.3.5] - 2025-03-11
+
+### Added
+- Added `reaction_model` parameter to `generate_coats_redfern_data` function
+
+### Fixed
+- Fixed division by zero error in nth_order reaction model when n=1
+- Fixed NaN values in pre-exponential factor calculation in Coats-Redfern method
+
+## [v0.3.4] - 2025-03-10
+
+### Added
+- New `horowitz_metzger_plot` function in model_fitting_methods module
+- New `plot_horowitz_metzger` function in result_visualization module
+
+### Fixed
+- Fixed missing imports in examples/horowitz_metzger_method_example.py
+- Fixed references in documentation to non-existent functions
+- 
+## [v0.3.3] - 2024-12-27
+
+### Added
 - Enhanced DSC data import functionality for Setaram file formats
 - Support for multiple delimiter and decimal separator styles
 - Comprehensive file format detection for Setaram DSC files
 
-Changed
-^^^^^^^
+### Changed
 - Improved robustness of data import mechanisms
 - Enhanced logging for file format detection
 - Maintained backwards compatibility with existing import methods
 
-Fixed
-^^^^^
+### Fixed
 - Better handling of file import variations
 - Improved error handling for different file configurations
 

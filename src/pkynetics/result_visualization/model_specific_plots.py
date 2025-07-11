@@ -1,5 +1,7 @@
 """Model-specific plotting functions for Pkynetics."""
 
+from typing import Optional, Tuple
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -129,3 +131,80 @@ def plot_freeman_carroll(
         bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
     )
     plt.show()
+
+
+def plot_horowitz_metzger(
+    temperature: np.ndarray,
+    alpha: np.ndarray,
+    n: float = 1,
+    show_plot: bool = True,
+    ax: Optional[plt.Axes] = None,
+) -> Tuple[plt.Figure, plt.Axes]:
+    """
+    Generate a Horowitz-Metzger plot for kinetic analysis.
+
+    Args:
+        temperature (np.ndarray): Temperature data in Kelvin.
+        alpha (np.ndarray): Conversion data.
+        n (float): Reaction order. Default is 1.
+        show_plot (bool): Whether to show the plot. Default is True.
+        ax (plt.Axes, optional): Matplotlib axes to plot on. If None, creates a new figure.
+
+    Returns:
+        Tuple[plt.Figure, plt.Axes]: Figure and axes objects of the plot.
+    """
+    from pkynetics.model_fitting_methods.horowitz_metzger import horowitz_metzger_plot
+
+    # Get plot data
+    theta, y, e_a, a, t_s, r_squared, theta_selected, y_selected = (
+        horowitz_metzger_plot(temperature, alpha, n)
+    )
+
+    # Create plot
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(10, 6))
+    else:
+        fig = ax.figure
+
+    # Plot all data points
+    ax.scatter(theta, y, label="All Data", alpha=0.3, s=10, color="lightblue")
+
+    # Highlight the fitted region
+    ax.scatter(
+        theta_selected, y_selected, label="Fitted Data", alpha=0.7, s=10, color="blue"
+    )
+
+    # Calculate and plot the fit line
+    fit = np.polyfit(theta_selected, y_selected, 1)
+    fit_line = np.poly1d(fit)
+    ax.plot(theta_selected, fit_line(theta_selected), "r-", label="Fit", linewidth=2)
+
+    ax.set_xlabel("θ (K)")
+    ax.set_ylabel("ln(-ln(1-α))")
+    ax.set_title("Horowitz-Metzger Plot")
+    ax.legend()
+    ax.grid(True)
+
+    # Add text box with results
+    textstr = (
+        f"E_a = {e_a / 1000:.2f} kJ/mol\n"
+        f"A = {a:.2e} min^-1\n"
+        f"T_s = {t_s:.2f} K\n"
+        f"R^2 = {r_squared:.4f}"
+    )
+    ax.text(
+        0.05,
+        0.95,
+        textstr,
+        transform=ax.transAxes,
+        fontsize=9,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
+    )
+
+    plt.tight_layout()
+
+    if show_plot:
+        plt.show()
+
+    return fig, ax

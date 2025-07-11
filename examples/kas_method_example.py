@@ -1,8 +1,10 @@
 """Example usage of the Kissinger-Akahira-Sunose (KAS) method for model-free kinetic analysis."""
 
-import numpy as np
-import matplotlib.pyplot as plt
 from typing import List, Tuple
+
+import matplotlib.pyplot as plt
+import numpy as np
+
 from pkynetics.model_free_methods import kas_method
 
 

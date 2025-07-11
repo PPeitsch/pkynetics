@@ -44,7 +44,11 @@ def generate_basic_kinetic_data(
         time = (t - t[0]) / beta
         k = a * np.exp(-e_a / (R * t))
 
-        if reaction_model == "first_order":
+        # Special case: if n is exactly 1 and reaction_model is nth_order, use first_order formula
+        if reaction_model == "nth_order" and abs(n - 1.0) < 1e-10:
+            logger.info("Using first_order model when n=1 to avoid division by zero")
+            alpha = 1 - np.exp(-k * time)
+        elif reaction_model == "first_order":
             alpha = 1 - np.exp(-k * time)
         elif reaction_model == "nth_order":
             alpha = 1 - (1 + (n - 1) * k * time) ** (1 / (1 - n))

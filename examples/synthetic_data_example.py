@@ -1,8 +1,9 @@
 import matplotlib.pyplot as plt
+
 from pkynetics.synthetic_data import (
-    generate_basic_kinetic_data,
     add_gaussian_noise,
     add_outliers,
+    generate_basic_kinetic_data,
 )
 
 # Example usage of generate_basic_kinetic_data

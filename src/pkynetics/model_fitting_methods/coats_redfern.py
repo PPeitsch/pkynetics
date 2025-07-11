@@ -1,10 +1,13 @@
 """Implementation of the Coats-Redfern method for kinetic analysis."""
 
+import logging
 from typing import Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.stats import linregress
+
+logger = logging.getLogger(__name__)
 
 
 def coats_redfern_equation(
@@ -50,7 +53,14 @@ def coats_redfern_method(
         n (float): Reaction order. Default is 1.
 
     Returns:
-        Tuple[float, float, float]: Activation energy (J/mol), pre-exponential factor (min^-1), and R-squared value.
+        Tuple[float, float, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+            - Activation energy (J/mol)
+            - Pre-exponential factor (min^-1)
+            - R-squared value
+            - x values for plotting (1000/T)
+            - y values for plotting
+            - x values used for fitting
+            - y values used for fitting
 
     Raises:
         ValueError: If input arrays have different lengths or contain invalid values.
@@ -61,7 +71,7 @@ def coats_redfern_method(
     alpha = np.clip(alpha, 0, 1)
 
     x = 1000 / temperature
-    y = _prepare_y_data(alpha, temperature, n)
+    y = _prepare_y_data(temperature, alpha, n)
 
     # Focus on the most linear part (typically 20% to 80% conversion)
     mask = (alpha >= 0.2) & (alpha <= 0.8)
@@ -79,9 +89,25 @@ def coats_redfern_method(
     # Calculate kinetic parameters
     r = 8.314  # Gas constant in J/(mol·K)
     e_a = -slope * r  # Activation energy in J/mol
-    a = np.exp(
-        intercept + np.log(heating_rate / e_a)
-    )  # Pre-exponential factor in min^-1
+
+    # Check if activation energy is physically plausible
+    if e_a <= 0:
+        logger.warning(
+            "Calculated activation energy is negative or zero. "
+            "This is physically implausible and indicates potential issues with the data or fitting."
+        )
+        # Use absolute value to proceed with calculation while avoiding math errors
+        e_a_for_calc = abs(e_a)
+    else:
+        e_a_for_calc = e_a
+
+    # Safely calculate pre-exponential factor
+    try:
+        ln_a = intercept + np.log(heating_rate / e_a_for_calc)
+        a = np.exp(ln_a)
+    except (ValueError, RuntimeWarning, FloatingPointError) as e:
+        logger.error(f"Error calculating pre-exponential factor: {str(e)}")
+        a = float("nan")
 
     return e_a, a, r_value**2, x, y, x_filtered, y_filtered
 
