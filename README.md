@@ -30,6 +30,7 @@ A Python library for thermal analysis kinetic methods, providing tools for data 
   - Kissinger-Akahira-Sunose (KAS)
   - Ozawa-Flynn-Wall (OFW)
 - Dilatometry analysis
+- DSC analysis
 - Data preprocessing capabilities
 - Error handling and validation
 
@@ -90,11 +91,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you use Pkynetics in your research, please cite it as:
 
 ```bibtex
-@software{pkynetics2024,
+@software{pkynetics2025,
   author = {Pablo Peitsch},
   title = {Pkynetics: A Python Library for Thermal Analysis Kinetic Methods},
-  year = {2024},
+  year = {2025},
   publisher = {GitHub},
   url = {https://github.com/PPeitsch/pkynetics}
 }
-```
