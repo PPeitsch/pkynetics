@@ -219,17 +219,15 @@ def test_validate_heat_flow_data():
 
 
 def test_check_sampling_rate():
-    """Test sampling rate checking."""
-    # Uniform sampling
-    temp = generate_temperature_ramp()
-    rate = DataValidator.check_sampling_rate(temp)
-    assert isinstance(rate, float)
-    assert rate > 0
+    """Test check for uniform sampling rate."""
+    time_uniform = np.linspace(0, 10, 101)
+    temp_uniform = np.linspace(25, 125, 101)
+    assert DataValidator.check_sampling_rate(temp_uniform, time_uniform) > 0
 
-    # Non-uniform sampling
-    non_uniform = np.cumsum(np.random.exponential(1, 1000))
-    with pytest.raises(ValueError):
-        DataValidator.check_sampling_rate(non_uniform)
+    time_non_uniform = np.array([0, 1, 2, 4, 5])
+    temp_non_uniform = np.linspace(25, 75, 5)
+    with pytest.raises(ValueError, match="Non-uniform time sampling detected"):
+        DataValidator.check_sampling_rate(temp_non_uniform, time_non_uniform)
 
 
 # Integration Tests

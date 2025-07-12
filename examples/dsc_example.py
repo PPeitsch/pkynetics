@@ -1,18 +1,19 @@
 """Example of DSC analysis with segment selection and improved error handling."""
 
-import os
 import logging
-from typing import Dict, Tuple, Optional, List
-import numpy as np
+import os
+from typing import Dict, List, Optional, Tuple
+
 import matplotlib.pyplot as plt
+import numpy as np
 from scipy import signal
 from scipy.signal import find_peaks
 
 from pkynetics.data_import import dsc_importer
-from pkynetics.technique_analysis.dsc.types import DSCExperiment, DSCPeak
 from pkynetics.technique_analysis.dsc.baseline import BaselineCorrector
 from pkynetics.technique_analysis.dsc.peak_analysis import PeakAnalyzer
 from pkynetics.technique_analysis.dsc.thermal_events import ThermalEventDetector
+from pkynetics.technique_analysis.dsc.types import DSCExperiment, DSCPeak
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
