@@ -98,65 +98,69 @@ class ThermalEventDetector:
         Returns:
             GlassTransition object if detected, None otherwise
         """
+        if len(temperature) != len(heat_flow):
+            raise ValueError(
+                "Temperature and heat flow arrays must have the same length."
+            )
         if temperature.size < self.smoothing_window:
             return None
 
-        # Calculate derivatives
-        dT = np.gradient(temperature)
-        dHf_dt = np.gradient(heat_flow, dT)
-
+        # Calculate first derivative of heat flow w.r.t. temperature
+        dHf_dt = np.gradient(heat_flow, temperature)
         dHf_smooth = signal.savgol_filter(
             dHf_dt, self.smoothing_window, self.smoothing_order
         )
 
-        # The peak of the first derivative corresponds to the midpoint of the transition
+        # A glass transition is a peak in the first derivative
+        prominence = np.ptp(dHf_smooth) * self.peak_prominence
         peaks, properties = signal.find_peaks(
-            np.abs(dHf_smooth),
-            prominence=(np.ptp(dHf_smooth) * self.peak_prominence),
-            height=self.noise_threshold,
+            dHf_smooth, prominence=prominence, height=self.noise_threshold
+        )
+        neg_peaks, neg_properties = signal.find_peaks(
+            -dHf_smooth, prominence=prominence, height=self.noise_threshold
         )
 
-        if len(peaks) == 0:
+        all_peaks = np.concatenate((peaks, neg_peaks))
+        all_prominences = np.concatenate(
+            (properties.get("prominences", []), neg_properties.get("prominences", []))
+        )
+
+        if len(all_peaks) == 0:
             return None
 
-        # Select the most prominent glass transition
-        mid_idx = peaks[np.argmax(properties["prominences"])]
+        # Select the most prominent transition
+        mid_idx = all_peaks[np.argmax(all_prominences)]
 
-        # Estimate onset and endset from the peak width properties
-        width_info = signal.peak_widths(np.abs(dHf_smooth), [mid_idx], rel_height=0.8)
-
+        width_info = signal.peak_widths(dHf_smooth, [mid_idx], rel_height=0.8)
         if len(width_info[0]) == 0:
             return None
 
         start_idx = int(np.floor(width_info[2][0]))
         end_idx = int(np.ceil(width_info[3][0]))
 
-        region = heat_flow[start_idx:end_idx]
-        if self._is_glass_transition_shape(region):
-            onset_temp = temperature[start_idx]
-            end_temp = temperature[end_idx]
-            mid_temp = temperature[mid_idx]
+        onset_temp = temperature[start_idx]
+        end_temp = temperature[end_idx]
+        mid_temp = temperature[mid_idx]
 
-            delta_cp = np.nan
-            if baseline is not None:
-                delta_cp = self._calculate_delta_cp(
-                    temperature, heat_flow, baseline, start_idx, end_idx
-                )
-
-            return GlassTransition(
-                onset_temperature=float(onset_temp),
-                midpoint_temperature=float(mid_temp),
-                endpoint_temperature=float(end_temp),
-                delta_cp=float(delta_cp),
-                width=float(end_temp - onset_temp),
-                quality_metrics=self._calculate_gt_quality(
-                    temperature[start_idx:end_idx],
-                    heat_flow[start_idx:end_idx],
-                    dHf_smooth[start_idx:end_idx],
-                ),
+        delta_cp = np.nan
+        if baseline is not None:
+            delta_cp = self._calculate_delta_cp(
+                temperature, heat_flow, baseline, start_idx, end_idx
             )
 
-        return None
+        return GlassTransition(
+            onset_temperature=float(onset_temp),
+            midpoint_temperature=float(mid_temp),
+            endpoint_temperature=float(end_temp),
+            delta_cp=float(delta_cp),
+            width=float(end_temp - onset_temp),
+            quality_metrics=self._calculate_gt_quality(
+                temperature[start_idx:end_idx],
+                heat_flow[start_idx:end_idx],
+                dHf_smooth[start_idx:end_idx],
+            ),
+            baseline_subtracted=baseline is not None,
+        )
 
     def detect_crystallization(
         self,
@@ -175,36 +179,39 @@ class ThermalEventDetector:
         Returns:
             List of CrystallizationEvent objects
         """
-        if temperature.size == 0 or heat_flow.size == 0:
-            raise ValueError("Input arrays cannot be empty.")
+        if temperature.size < self.smoothing_window:
+            return []
 
-        # Adjust heat flow direction (crystallization is exothermic)
-        heat_flow_adj = -heat_flow if np.mean(heat_flow) > 0 else heat_flow
+        exothermic_signal = -heat_flow
+        prominence = max(
+            np.ptp(exothermic_signal) * self.peak_prominence, self.noise_threshold
+        )
 
-        # Find peaks
         peaks, properties = signal.find_peaks(
-            heat_flow_adj, prominence=self.peak_prominence
+            exothermic_signal, prominence=prominence, distance=self.smoothing_window
         )
 
         events = []
         for i, peak_idx in enumerate(peaks):
-            # Find onset and endpoint
-            onset_idx = self._find_onset_index(temperature, heat_flow_adj, peak_idx)
-            end_idx = self._find_endpoint_index(temperature, heat_flow_adj, peak_idx)
+            width_info = signal.peak_widths(
+                exothermic_signal, [peak_idx], rel_height=0.5
+            )
+            if len(width_info[0]) == 0:
+                continue
 
-            # Calculate baseline-corrected heat flow
+            onset_idx = int(np.floor(width_info[2][0]))
+            end_idx = int(np.ceil(width_info[3][0]))
+
             if baseline is not None:
-                heat_flow_corr = heat_flow_adj - baseline
+                heat_flow_corr = heat_flow - baseline
             else:
-                heat_flow_corr = heat_flow_adj
+                heat_flow_corr = heat_flow
 
-            # Calculate enthalpy
             enthalpy = self._calculate_peak_enthalpy(
                 temperature[onset_idx : end_idx + 1],
                 heat_flow_corr[onset_idx : end_idx + 1],
             )
 
-            # Calculate crystallization rate
             rate = self._calculate_crystallization_rate(
                 temperature[onset_idx : end_idx + 1],
                 heat_flow_corr[onset_idx : end_idx + 1],
@@ -216,13 +223,14 @@ class ThermalEventDetector:
                     peak_temperature=float(temperature[peak_idx]),
                     endpoint_temperature=float(temperature[end_idx]),
                     enthalpy=float(enthalpy),
-                    peak_height=float(properties["prominences"][i]),
+                    peak_height=float(-properties["prominences"][i]),
                     width=float(temperature[end_idx] - temperature[onset_idx]),
                     crystallization_rate=float(rate) if rate is not None else None,
                     quality_metrics=self._calculate_peak_quality(
                         temperature[onset_idx : end_idx + 1],
                         heat_flow_corr[onset_idx : end_idx + 1],
                     ),
+                    baseline_subtracted=baseline is not None,
                 )
             )
 
@@ -245,18 +253,21 @@ class ThermalEventDetector:
         Returns:
             List of MeltingEvent objects
         """
+        if len(temperature) != len(heat_flow):
+            raise ValueError(
+                "Temperature and heat flow arrays must have the same length."
+            )
         if temperature.size < self.smoothing_window:
             return []
 
-        # Find endothermic peaks
-        prominence = np.ptp(heat_flow) * self.peak_prominence
+        prominence = max(np.ptp(heat_flow) * self.peak_prominence, self.noise_threshold)
         peaks, properties = signal.find_peaks(
-            heat_flow, prominence=prominence, height=self.noise_threshold
+            heat_flow, prominence=prominence, distance=self.smoothing_window
         )
 
         events = []
         for i, peak_idx in enumerate(peaks):
-            width_info = signal.peak_widths(heat_flow, [peak_idx], rel_height=0.95)
+            width_info = signal.peak_widths(heat_flow, [peak_idx], rel_height=0.5)
             if len(width_info[0]) == 0:
                 continue
 
@@ -285,6 +296,7 @@ class ThermalEventDetector:
                         temperature[onset_idx : end_idx + 1],
                         heat_flow_corr[onset_idx : end_idx + 1],
                     ),
+                    baseline_subtracted=baseline is not None,
                 )
             )
 

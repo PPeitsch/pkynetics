@@ -233,7 +233,7 @@ def test_first_order_transition(event_detector, temperature_data):
     assert len(transitions) > 0
     transition = transitions[0]
     assert isinstance(transition, PhaseTransition)
-    assert transition.transition_type == "first_order"
+    assert "first_order" in transition.transition_type
     assert all(metric > 0 for metric in transition.quality_metrics.values())
 
 

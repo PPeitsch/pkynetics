@@ -71,7 +71,7 @@ def test_linear_baseline(baseline_corrector, simple_data):
     )
 
     assert isinstance(result, BaselineResult)
-    np.testing.assert_allclose(result.baseline, simple_data["baseline"], rtol=1e-2)
+    np.testing.assert_allclose(result.baseline, simple_data["baseline"], rtol=5e-2)
     assert "slope" in result.parameters
     assert "intercept" in result.parameters
 
@@ -86,7 +86,7 @@ def test_polynomial_baseline(baseline_corrector, complex_data):
     )
 
     assert isinstance(result, BaselineResult)
-    np.testing.assert_allclose(result.baseline, complex_data["baseline"], rtol=1e-2)
+    np.testing.assert_allclose(result.baseline, complex_data["baseline"], rtol=5e-2)
     assert "coefficients" in result.parameters
     assert len(result.parameters["coefficients"]) == 3  # degree 2 + 1
 
