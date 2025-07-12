@@ -194,8 +194,10 @@ class PeakAnalyzer:
             baseline if baseline is not None else np.zeros_like(heat_flow)
         )
 
-        # Use extended pre-peak region for derivative
-        pre_peak_slice = slice(0, peak_idx)
+        # Use a more focused pre-peak region for the derivative
+        search_start = np.argmax(heat_flow[:peak_idx] < (heat_flow[peak_idx] * 0.05))
+        pre_peak_slice = slice(search_start, peak_idx)
+
         if len(temperature[pre_peak_slice]) < 3:
             return temperature[0]
 
@@ -208,10 +210,11 @@ class PeakAnalyzer:
         if len(dydx) == 0:
             return temperature[0]
 
-        max_slope_idx = np.argmax(np.abs(dydx))
+        max_slope_idx_local = np.argmax(np.abs(dydx))
+        max_slope_idx = search_start + max_slope_idx_local
 
         # Tangent line from point of max slope
-        slope = dydx[max_slope_idx]
+        slope = dydx[max_slope_idx_local]
         intercept = heat_flow[max_slope_idx] - slope * temperature[max_slope_idx]
         tangent_line = slope * temperature + intercept
 
@@ -248,8 +251,15 @@ class PeakAnalyzer:
             baseline if baseline is not None else np.zeros_like(heat_flow)
         )
 
-        # Use post-peak region for derivative
-        post_peak_slice = slice(peak_idx, len(temperature))
+        # Use a more focused post-peak region for the derivative
+        search_end_offset = np.argmax(
+            heat_flow[peak_idx:] < (heat_flow[peak_idx] * 0.05)
+        )
+        search_end = (
+            peak_idx + search_end_offset if search_end_offset > 0 else len(temperature)
+        )
+        post_peak_slice = slice(peak_idx, search_end)
+
         if len(temperature[post_peak_slice]) < 3:
             return temperature[-1]
 
@@ -355,16 +365,38 @@ class PeakAnalyzer:
             heat_flow, validate_window_size(len(heat_flow), self.smoothing_window), 3
         )
 
+        min_prominence = np.max(smooth_flow) * 0.05
+        min_width = 5
+        min_distance = len(temperature) // (n_peaks * 4) if n_peaks > 0 else 1
+
         peaks, properties = signal.find_peaks(
             smooth_flow,
-            prominence=np.max(smooth_flow) * 0.1,
-            width=5,
-            distance=len(temperature) // (n_peaks * 2) if n_peaks > 0 else 1,
+            prominence=min_prominence,
+            width=min_width,
+            distance=min_distance,
         )
 
         if len(peaks) < n_peaks:
-            peak_indices = np.linspace(0, len(temperature) - 1, n_peaks, dtype=int)
+            # Fallback for fewer detected peaks: use the most prominent ones found
+            # and add estimated peaks if needed
+            prominences = properties.get("prominences", np.array([]))
+            if len(prominences) > 0:
+                peak_indices = peaks[np.argsort(prominences)[-len(peaks) :]]
+            else:
+                peak_indices = peaks
+
+            if len(peak_indices) < n_peaks:
+                # Add estimated peaks if still not enough
+                current_peaks = set(peak_indices)
+                additional_indices = np.linspace(
+                    0, len(temperature) - 1, n_peaks + 2, dtype=int
+                )[1:-1]
+                for idx in additional_indices:
+                    if len(current_peaks) < n_peaks and idx not in current_peaks:
+                        current_peaks.add(idx)
+                peak_indices = np.array(list(current_peaks))
         else:
+            # If more peaks are found than requested, take the most prominent ones
             prominences = properties["prominences"]
             peak_indices = peaks[np.argsort(prominences)[-n_peaks:]]
 
