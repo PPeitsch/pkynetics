@@ -66,7 +66,9 @@ class PeakAnalyzer:
         # Apply baseline correction if provided
         signal_to_analyze = smooth_heat_flow.copy()
         if baseline is not None:
-            signal_to_analyze = smooth_heat_flow - baseline
+            if len(baseline) != len(signal_to_analyze):
+                raise ValueError("Baseline must have same length as heat flow data")
+            signal_to_analyze -= baseline
 
         # Find peaks with enhanced criteria
         peaks, properties = signal.find_peaks(
@@ -82,16 +84,24 @@ class PeakAnalyzer:
 
         peak_list = []
         for i, peak_idx in enumerate(peaks):
-            left_idx = int(properties["left_bases"][i])
-            right_idx = int(properties["right_bases"][i])
+            left_base_idx = int(properties["left_bases"][i])
+            right_base_idx = int(properties["right_bases"][i])
+
+            # Ensure indices are within bounds
+            left_idx = max(0, left_base_idx - 10)
+            right_idx = min(len(temperature) - 1, right_base_idx + 10)
+
+            # Recalculate peak_idx relative to the sliced region
+            relative_peak_idx = peak_idx - left_idx
 
             peak_info = self._analyze_peak_region(
                 temperature[left_idx : right_idx + 1],
                 heat_flow[left_idx : right_idx + 1],
-                peak_idx - left_idx,
+                relative_peak_idx,
                 baseline[left_idx : right_idx + 1] if baseline is not None else None,
             )
 
+            # Store global indices
             peak_info.peak_indices = (left_idx, right_idx)
             peak_list.append(peak_info)
 
@@ -105,49 +115,56 @@ class PeakAnalyzer:
         baseline: Optional[NDArray[np.float64]] = None,
     ) -> DSCPeak:
         """
-        Analyze a single peak region.
+        Analyze a single peak region with enhanced characterization.
 
         Args:
-            temperature: Temperature array
-            heat_flow: Heat flow array
-            peak_idx: Index of peak maximum
-            baseline: Optional baseline array
+            temperature: Temperature array for the peak region
+            heat_flow: Heat flow array for the peak region
+            peak_idx: Index of peak maximum relative to the region
+            baseline: Optional baseline array for the region
 
         Returns:
             DSCPeak object with peak characteristics
         """
-        # Calculate onset and endset using existing methods
+        self._validate_peak_index(peak_idx, len(temperature))
+
+        # Calculate onset and endset
         onset_temp = self._calculate_onset(temperature, heat_flow, peak_idx, baseline)
         endset_temp = self._calculate_endset(temperature, heat_flow, peak_idx, baseline)
 
-        # Get peak characteristics
+        # Get peak temperature
         peak_temp = temperature[peak_idx]
-        peak_height = heat_flow[peak_idx]
-        if baseline is not None:
-            peak_height -= baseline[peak_idx]
 
-        # Calculate peak width
+        # Calculate baseline-corrected heat flow
+        heat_flow_corr = heat_flow.copy()
+        if baseline is not None:
+            heat_flow_corr -= baseline
+
+        # Calculate peak characteristics
+        peak_height = float(heat_flow_corr[peak_idx])
         peak_width = self._calculate_peak_width(
             temperature, heat_flow, peak_idx, baseline
         )
 
-        # Calculate peak area
-        signal_to_integrate = heat_flow
-        if baseline is not None:
-            signal_to_integrate = heat_flow - baseline
-        peak_area = trapz(signal_to_integrate, temperature)
+        # Calculate area and enthalpy
+        peak_mask = (temperature >= onset_temp) & (temperature <= endset_temp)
+        peak_area = float(trapz(heat_flow_corr[peak_mask], temperature[peak_mask]))
+        enthalpy = abs(peak_area)
 
         return DSCPeak(
             onset_temperature=float(onset_temp),
             peak_temperature=float(peak_temp),
             endset_temperature=float(endset_temp),
-            enthalpy=float(abs(peak_area)),
-            peak_height=float(peak_height),
+            enthalpy=enthalpy,
+            peak_height=peak_height,
             peak_width=float(peak_width),
-            peak_area=float(peak_area),
-            baseline_type="none" if baseline is None else "provided",
+            peak_area=peak_area,
+            baseline_type="provided" if baseline is not None else "none",
             baseline_params={},
-            peak_indices=(0, len(temperature) - 1),
+            peak_indices=(
+                int(np.searchsorted(temperature, onset_temp)),
+                int(np.searchsorted(temperature, endset_temp)),
+            ),
         )
 
     def _calculate_onset(
@@ -170,56 +187,39 @@ class PeakAnalyzer:
             Onset temperature (float)
         """
         self._validate_peak_index(peak_idx, len(temperature))
+        if peak_idx < 2:
+            return temperature[0]
 
-        if baseline is None:
-            baseline = np.zeros_like(heat_flow)
+        effective_baseline = (
+            baseline if baseline is not None else np.zeros_like(heat_flow)
+        )
 
-        # Use extended pre-peak region
-        pre_peak = slice(0, peak_idx)
+        # Use extended pre-peak region for derivative
+        pre_peak_slice = slice(0, peak_idx)
+        if len(temperature[pre_peak_slice]) < 3:
+            return temperature[0]
 
-        # Smooth data for derivative calculation
         smooth_flow = safe_savgol_filter(
-            heat_flow[pre_peak],
-            min(len(heat_flow[pre_peak]), self.smoothing_window),
+            heat_flow[pre_peak_slice],
+            self.smoothing_window,
             self.smoothing_order,
         )
+        dydx = np.gradient(smooth_flow, temperature[pre_peak_slice])
+        if len(dydx) == 0:
+            return temperature[0]
 
-        # Calculate derivative
-        dydx = np.gradient(smooth_flow, temperature[pre_peak])
-
-        # Find point of maximum slope
         max_slope_idx = np.argmax(np.abs(dydx))
 
-        # Calculate tangent line parameters
+        # Tangent line from point of max slope
         slope = dydx[max_slope_idx]
         intercept = heat_flow[max_slope_idx] - slope * temperature[max_slope_idx]
+        tangent_line = slope * temperature + intercept
 
-        # Calculate tangent line for intersection search
-        search_temp = temperature[:peak_idx]  # Solo hasta el pico
-        tangent = slope * search_temp + intercept
-
-        # Find intersection using multiple points for improved precision
-        window = min(
-            validate_window_size(len(temperature), self.smoothing_window), max_slope_idx
+        # Intersection with the baseline
+        intersection_temp, _ = find_intersection_point(
+            temperature, tangent_line, effective_baseline, max_slope_idx, "backward"
         )
-
-        onset_temps = []
-        for i in range(max(0, max_slope_idx - window), peak_idx - 1):
-            y_current = tangent[i] - baseline[i]
-            y_next = tangent[i + 1] - baseline[i + 1]
-
-            if y_current * y_next <= 0:
-                x1, x2 = temperature[i], temperature[i + 1]
-                y1, y2 = y_current, y_next
-
-                if abs(y2 - y1) > 1e-10:
-                    x_int = x1 - y1 * (x2 - x1) / (y2 - y1)
-                    onset_temps.append(x_int)
-
-        if not onset_temps:
-            return temperature[max_slope_idx]
-
-        return float(np.median(onset_temps))
+        return intersection_temp
 
     def _calculate_endset(
         self,
@@ -240,53 +240,46 @@ class PeakAnalyzer:
         Returns:
             Endset temperature
         """
-        if baseline is None:
-            baseline = np.zeros_like(heat_flow)
+        self._validate_peak_index(peak_idx, len(temperature))
+        if peak_idx >= len(temperature) - 2:
+            return temperature[-1]
 
-        # Use post-peak region
-        post_peak = slice(peak_idx, len(temperature))
-
-        # Smooth data for derivative calculation
-        smooth_flow = safe_savgol_filter(
-            heat_flow[post_peak],
-            min(len(heat_flow[post_peak]), self.smoothing_window),
-            self.smoothing_order,
+        effective_baseline = (
+            baseline if baseline is not None else np.zeros_like(heat_flow)
         )
 
-        # Calculate derivative in post-peak region
-        dydx = np.gradient(smooth_flow, temperature[post_peak])
+        # Use post-peak region for derivative
+        post_peak_slice = slice(peak_idx, len(temperature))
+        if len(temperature[post_peak_slice]) < 3:
+            return temperature[-1]
 
-        # Find point of maximum negative slope
-        max_slope_idx = peak_idx + np.argmin(dydx)
+        smooth_flow = safe_savgol_filter(
+            heat_flow[post_peak_slice],
+            self.smoothing_window,
+            self.smoothing_order,
+        )
+        dydx = np.gradient(smooth_flow, temperature[post_peak_slice])
+        if len(dydx) == 0:
+            return temperature[-1]
 
-        # Calculate tangent line parameters
-        slope = np.min(dydx)
-        intercept = heat_flow[max_slope_idx] - slope * temperature[max_slope_idx]
+        max_slope_idx_local = np.argmin(dydx)
+        max_slope_idx_global = peak_idx + max_slope_idx_local
 
-        # Calculate tangent line for intersection search
-        search_temp = temperature[peak_idx:]  # Solo después del pico
-        tangent = slope * search_temp + intercept
+        slope = dydx[max_slope_idx_local]
+        intercept = (
+            heat_flow[max_slope_idx_global] - slope * temperature[max_slope_idx_global]
+        )
+        tangent_line = slope * temperature + intercept
 
-        search_baseline = baseline[peak_idx:]
-
-        endset_temps = []
-        for i in range(len(search_temp) - 1):
-            y_current = tangent[i] - search_baseline[i]
-            y_next = tangent[i + 1] - search_baseline[i + 1]
-
-            # Verificar cambio de signo
-            if y_current * y_next <= 0:
-                x1, x2 = search_temp[i], search_temp[i + 1]
-                y1, y2 = y_current, y_next
-
-                if abs(y2 - y1) > 1e-10:
-                    x_int = x1 - y1 * (x2 - x1) / (y2 - y1)
-                    endset_temps.append(x_int)
-
-        if not endset_temps:
-            return temperature[max_slope_idx]
-
-        return float(np.median(endset_temps))
+        # Intersection with the baseline
+        intersection_temp, _ = find_intersection_point(
+            temperature,
+            tangent_line,
+            effective_baseline,
+            max_slope_idx_global,
+            "forward",
+        )
+        return intersection_temp
 
     def _calculate_peak_width(
         self,
@@ -307,31 +300,24 @@ class PeakAnalyzer:
         Returns:
             Peak width at half height
         """
-        if baseline is None:
-            baseline = np.zeros_like(heat_flow)
+        effective_baseline = (
+            baseline if baseline is not None else np.zeros_like(heat_flow)
+        )
 
-        # Calculate peak height from baseline
-        peak_height = heat_flow[peak_idx] - baseline[peak_idx]
-        half_height = peak_height / 2 + baseline[peak_idx]
+        peak_height = heat_flow[peak_idx] - effective_baseline[peak_idx]
+        half_height = peak_height / 2 + effective_baseline[peak_idx]
+        half_height_line = np.full_like(heat_flow, half_height)
 
-        # Find intersection points at half height
         left_temp, _ = find_intersection_point(
-            temperature,
-            heat_flow,
-            np.full_like(heat_flow, half_height),
-            peak_idx,
-            "backward",
+            temperature, heat_flow, half_height_line, peak_idx, "backward"
         )
-
         right_temp, _ = find_intersection_point(
-            temperature,
-            heat_flow,
-            np.full_like(heat_flow, half_height),
-            peak_idx,
-            "forward",
+            temperature, heat_flow, half_height_line, peak_idx, "forward"
         )
 
-        return right_temp - left_temp
+        if right_temp > left_temp:
+            return right_temp - left_temp
+        return 0.0
 
     def deconvolute_peaks(
         self,
@@ -365,51 +351,35 @@ class PeakAnalyzer:
 
         peak_func = gaussian if peak_shape == "gaussian" else lorentzian
 
-        # Apply smoothing for better peak detection
         smooth_flow = safe_savgol_filter(
             heat_flow, validate_window_size(len(heat_flow), self.smoothing_window), 3
         )
 
-        # Find all potential peaks
         peaks, properties = signal.find_peaks(
             smooth_flow,
             prominence=np.max(smooth_flow) * 0.1,
             width=5,
-            distance=len(temperature) // (n_peaks * 2),
+            distance=len(temperature) // (n_peaks * 2) if n_peaks > 0 else 1,
         )
 
         if len(peaks) < n_peaks:
-            # Divide temperature range into n_peaks regions
-            temp_range = temperature.max() - temperature.min()
-            region_size = temp_range / n_peaks
-            peak_positions = [
-                temperature.min() + region_size * (i + 0.5) for i in range(n_peaks)
-            ]
-            peak_indices = [
-                np.abs(temperature - pos).argmin() for pos in peak_positions
-            ]
+            peak_indices = np.linspace(0, len(temperature) - 1, n_peaks, dtype=int)
         else:
-            # Select peaks with highest prominence
             prominences = properties["prominences"]
             peak_indices = peaks[np.argsort(prominences)[-n_peaks:]]
 
-        # Generate initial parameters and bounds
-        p0 = []
-        bounds_low = []
-        bounds_high = []
-
+        p0, bounds_low, bounds_high = [], [], []
         temp_range = temperature.max() - temperature.min()
-        min_width = temp_range * 0.02  # 2% of temperature range
-        max_width = temp_range * 0.2  # 20% of temperature range
+        min_width, max_width = temp_range * 0.01, temp_range * 0.5
 
-        for idx in peak_indices:
+        for idx in sorted(peak_indices):
             amp = smooth_flow[idx]
             cen = temperature[idx]
-            wid = temp_range * 0.05  # Initial width 5% of temperature range
+            wid = temp_range * 0.05
 
             p0.extend([amp, cen, wid])
-            bounds_low.extend([0, cen - temp_range * 0.15, min_width])
-            bounds_high.extend([amp * 2, cen + temp_range * 0.15, max_width])
+            bounds_low.extend([0, cen - temp_range * 0.2, min_width])
+            bounds_high.extend([amp * 2, cen + temp_range * 0.2, max_width])
 
         def fit_function(x: NDArray[np.float64], *params) -> NDArray[np.float64]:
             result = np.zeros_like(x)
@@ -418,39 +388,28 @@ class PeakAnalyzer:
             return result
 
         try:
-            # Perform curve fitting with improved bounds
             popt, _ = optimize.curve_fit(
                 fit_function,
                 temperature,
                 heat_flow,
                 p0=p0,
                 bounds=(bounds_low, bounds_high),
-                maxfev=10000,
-                ftol=1e-8,
-                xtol=1e-8,
+                maxfev=20000,
             )
-
             peak_params = []
             fitted_curve = np.zeros_like(temperature)
-
             for i in range(0, len(popt), 3):
+                peak_component = peak_func(temperature, *popt[i : i + 3])
                 params = {
                     "amplitude": float(popt[i]),
                     "center": float(popt[i + 1]),
                     "width": float(popt[i + 2]),
-                    "area": float(
-                        trapz(
-                            peak_func(temperature, popt[i], popt[i + 1], popt[i + 2]),
-                            temperature,
-                        )
-                    ),
+                    "area": float(trapz(peak_component, temperature)),
                 }
                 peak_params.append(params)
-                fitted_curve += peak_func(temperature, *popt[i : i + 3])
-
+                fitted_curve += peak_component
             return peak_params, fitted_curve
-
-        except (optimize.OptimizeWarning, RuntimeError):
+        except (optimize.OptimizeWarning, RuntimeError, ValueError):
             return [], np.zeros_like(temperature)
 
     def _validate_peak_index(self, peak_idx: int, array_length: int) -> None:
@@ -460,69 +419,10 @@ class PeakAnalyzer:
         Args:
             peak_idx: Peak index to validate
             array_length: Length of data array
-
         Raises:
             IndexError: If peak_idx is out of bounds
         """
-        if peak_idx < 0 or peak_idx >= array_length:
+        if not 0 <= peak_idx < array_length:
             raise IndexError(
                 f"Peak index {peak_idx} out of bounds for array of length {array_length}"
             )
-
-    def analyze_peak_region(
-        self,
-        temperature: NDArray[np.float64],
-        heat_flow: NDArray[np.float64],
-        peak_idx: int,
-        baseline: Optional[NDArray[np.float64]] = None,
-    ) -> DSCPeak:
-        """
-        Analyze a single peak region with enhanced characterization.
-
-        Args:
-            temperature: Temperature array
-            heat_flow: Heat flow array
-            peak_idx: Index of peak maximum
-            baseline: Optional baseline array
-
-        Returns:
-            DSCPeak object with peak characteristics
-        """
-        # Calculate onset and endset
-        onset_temp = self._calculate_onset(temperature, heat_flow, peak_idx, baseline)
-        endset_temp = self._calculate_endset(temperature, heat_flow, peak_idx, baseline)
-
-        # Get peak temperature
-        peak_temp = temperature[peak_idx]
-
-        # Calculate baseline-corrected heat flow
-        if baseline is None:
-            baseline = np.zeros_like(heat_flow)
-        heat_flow_corr = heat_flow - baseline
-
-        # Calculate peak characteristics
-        peak_height = float(heat_flow_corr[peak_idx])
-        peak_width = self._calculate_peak_width(
-            temperature, heat_flow, peak_idx, baseline
-        )
-
-        # Calculate area and enthalpy
-        peak_mask = (temperature >= onset_temp) & (temperature <= endset_temp)
-        peak_area = float(trapz(heat_flow_corr[peak_mask], temperature[peak_mask]))
-        enthalpy = abs(peak_area)
-
-        return DSCPeak(
-            onset_temperature=float(onset_temp),
-            peak_temperature=float(peak_temp),
-            endset_temperature=float(endset_temp),
-            enthalpy=enthalpy,
-            peak_height=peak_height,
-            peak_width=float(peak_width),
-            peak_area=peak_area,
-            baseline_type="provided" if baseline is not None else "none",
-            baseline_params={},
-            peak_indices=(
-                int(np.searchsorted(temperature, onset_temp)),
-                int(np.searchsorted(temperature, endset_temp)),
-            ),
-        )

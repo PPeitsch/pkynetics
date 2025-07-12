@@ -547,88 +547,79 @@ class CpCalculator:
         uncertainty: NDArray[np.float64],
     ) -> Dict[str, float]:
         """Calculate comprehensive quality metrics."""
-        metrics = {}
+        metrics: Dict[str, float] = {}
 
-        # Debug original shapes
-        print("\nDebug: Original array shapes:")
-        print(f"Temperature: shape={temperature.shape}, type={type(temperature)}")
-        print(f"Cp: shape={cp.shape}, type={type(cp)}")
-        print(f"Uncertainty: shape={uncertainty.shape}, type={type(uncertainty)}")
-
-        # Ensure arrays are 1D
+        # Ensure arrays are 1D and have content
         temp = temperature.ravel()
         cp_vals = cp.ravel()
         unc = uncertainty.ravel()
 
-        # Debug after ravel
-        print("\nDebug: Array lengths after ravel:")
-        print(f"Temperature: len={len(temp)}, shape={temp.shape}")
-        print(f"Cp: len={len(cp_vals)}, shape={cp_vals.shape}")
-        print(f"Uncertainty: len={len(unc)}, shape={unc.shape}")
-
-        # Print some values
-        print("\nDebug: First few values of each array:")
-        print(f"Temperature: {temp[:5]}")
-        print(f"Cp: {cp_vals[:5]}")
-        print(f"Uncertainty: {unc[:5]}")
-
-        if not (len(temp) == len(cp_vals) == len(unc)):
-            raise ValueError(
-                f"All input arrays must have the same length. Got: temperature={len(temp)}, cp={len(cp_vals)}, uncertainty={len(unc)}"
-            )
-
-        # Signal-to-noise ratio
-        noise = np.std(np.diff(cp_vals))
-        signal = np.ptp(cp_vals)
-        metrics["snr"] = float(signal / noise if noise > 0 else np.inf)
-
-        # Relative uncertainty
-        metrics["avg_uncertainty"] = float(np.mean(unc / cp_vals))
-        metrics["max_uncertainty"] = float(np.max(unc / cp_vals))
-
-        # Smoothness metric
-        try:
-            dcp_dt = np.gradient(cp_vals)
-            smoothness = 1 / (1 + np.std(dcp_dt))
-            metrics["smoothness"] = float(smoothness)
-        except Exception as e:
-            print(f"Warning: Smoothness calculation failed: {str(e)}")
-            metrics["smoothness"] = 0.0
-
-        # Linear fit metrics
-        try:
-            # Make sure arrays are properly shaped for linregress
-            if len(temp) > 1 and len(cp_vals) > 1:
-                slope, intercept, r_value, _, stderr = stats.linregress(temp, cp_vals)
-                metrics.update(
-                    {
-                        "slope": float(slope),
-                        "intercept": float(intercept),
-                        "r_squared": float(r_value**2),
-                        "std_error": float(stderr),
-                    }
-                )
-            else:
-                raise ValueError("Insufficient data points for linear regression")
-        except Exception as e:
-            print(f"Warning: Linear regression failed: {str(e)}")
+        if not (len(temp) > 1 and len(cp_vals) > 1 and len(unc) > 1):
+            # Not enough data to calculate metrics
             metrics.update(
                 {
+                    "snr": 0.0,
+                    "avg_uncertainty": 0.0,
+                    "max_uncertainty": 0.0,
+                    "smoothness": 0.0,
                     "slope": 0.0,
                     "intercept": 0.0,
                     "r_squared": 0.0,
                     "std_error": 0.0,
+                    "quality_score": 0.0,
                 }
+            )
+            return metrics
+
+        # Signal-to-noise ratio
+        noise = np.std(np.diff(cp_vals))
+        signal_range = np.ptp(cp_vals)
+        metrics["snr"] = float(signal_range / noise if noise > 0 else np.inf)
+
+        # Relative uncertainty, avoid division by zero
+        valid_cp = cp_vals[np.abs(cp_vals) > 1e-9]
+        valid_unc = unc[np.abs(cp_vals) > 1e-9]
+        if len(valid_cp) > 0:
+            rel_unc = valid_unc / valid_cp
+            metrics["avg_uncertainty"] = float(np.mean(rel_unc))
+            metrics["max_uncertainty"] = float(np.max(rel_unc))
+        else:
+            metrics["avg_uncertainty"] = float("inf")
+            metrics["max_uncertainty"] = float("inf")
+
+        # Smoothness metric
+        dcp_dt = np.gradient(cp_vals)
+        smoothness = 1 / (1 + np.std(dcp_dt))
+        metrics["smoothness"] = float(smoothness)
+
+        # Linear fit metrics
+        try:
+            slope, intercept, r_value, _, stderr = stats.linregress(temp, cp_vals)
+            metrics.update(
+                {
+                    "slope": float(slope),
+                    "intercept": float(intercept),
+                    "r_squared": float(r_value**2),
+                    "std_error": float(stderr),
+                }
+            )
+        except ValueError:
+            metrics.update(
+                {"slope": 0.0, "intercept": 0.0, "r_squared": 0.0, "std_error": 0.0}
             )
 
         # Overall quality score (0 to 1)
-        valid_metrics = [
-            metrics["snr"] / (metrics["snr"] + 1),
-            1 - metrics["avg_uncertainty"],
-            metrics["smoothness"],
-            metrics["r_squared"],
+        valid_metrics_list = [
+            metrics["snr"] / (metrics["snr"] + 1) if np.isfinite(metrics["snr"]) else 0,
+            (
+                1 - metrics.get("avg_uncertainty", 1.0)
+                if np.isfinite(metrics.get("avg_uncertainty", 1.0))
+                else 0
+            ),
+            metrics.get("smoothness", 0.0),
+            metrics.get("r_squared", 0.0),
         ]
-        metrics["quality_score"] = float(np.mean(valid_metrics))
+        metrics["quality_score"] = float(np.mean(valid_metrics_list))
 
         return metrics
 
