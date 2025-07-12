@@ -23,8 +23,8 @@ class ThermalEventDetector:
         self,
         smoothing_window: int = 21,
         smoothing_order: int = 3,
-        peak_prominence: float = 0.1,
-        noise_threshold: float = 0.05,
+        peak_prominence: float = 0.05,
+        noise_threshold: float = 0.01,
     ):
         """
         Initialize thermal event detector.
@@ -98,61 +98,63 @@ class ThermalEventDetector:
         Returns:
             GlassTransition object if detected, None otherwise
         """
-        # Calculate derivatives
-        dT = np.gradient(temperature)
-        dHf = np.gradient(heat_flow)
-        d2Hf = np.gradient(dHf)
-
-        # Smooth second derivative
-        d2Hf_smooth = signal.savgol_filter(
-            d2Hf, self.smoothing_window, self.smoothing_order
-        )
-
-        # Find inflection points
-        inflection_points = signal.find_peaks(
-            np.abs(d2Hf_smooth), prominence=self.peak_prominence
-        )[0]
-
-        if len(inflection_points) < 2:
+        if temperature.size < self.smoothing_window:
             return None
 
-        # Find the region with characteristic glass transition shape
-        for i in range(len(inflection_points) - 1):
-            start_idx = inflection_points[i]
-            end_idx = inflection_points[i + 1]
+        # Calculate derivatives
+        dT = np.gradient(temperature)
+        dHf_dt = np.gradient(heat_flow, dT)
 
-            # Check if region has characteristic sigmoid shape
-            region = heat_flow[start_idx:end_idx]
-            if self._is_glass_transition_shape(region):
-                # Calculate glass transition parameters
-                onset_temp = temperature[start_idx]
-                end_temp = temperature[end_idx]
-                mid_temp = temperature[
-                    start_idx + np.argmax(np.abs(dHf[start_idx:end_idx]))
-                ]
+        dHf_smooth = signal.savgol_filter(
+            dHf_dt, self.smoothing_window, self.smoothing_order
+        )
 
-                # Calculate change in heat capacity
-                if baseline is not None:
-                    delta_cp = self._calculate_delta_cp(
-                        temperature[start_idx:end_idx],
-                        heat_flow[start_idx:end_idx],
-                        baseline[start_idx:end_idx],
-                    )
-                else:
-                    delta_cp = np.nan
+        # The peak of the first derivative corresponds to the midpoint of the transition
+        peaks, properties = signal.find_peaks(
+            np.abs(dHf_smooth),
+            prominence=(np.ptp(dHf_smooth) * self.peak_prominence),
+            height=self.noise_threshold,
+        )
 
-                return GlassTransition(
-                    onset_temperature=float(onset_temp),
-                    midpoint_temperature=float(mid_temp),
-                    endpoint_temperature=float(end_temp),
-                    delta_cp=float(delta_cp),
-                    width=float(end_temp - onset_temp),
-                    quality_metrics=self._calculate_gt_quality(
-                        temperature[start_idx:end_idx],
-                        heat_flow[start_idx:end_idx],
-                        d2Hf_smooth[start_idx:end_idx],
-                    ),
+        if len(peaks) == 0:
+            return None
+
+        # Select the most prominent glass transition
+        mid_idx = peaks[np.argmax(properties["prominences"])]
+
+        # Estimate onset and endset from the peak width properties
+        width_info = signal.peak_widths(np.abs(dHf_smooth), [mid_idx], rel_height=0.8)
+
+        if len(width_info[0]) == 0:
+            return None
+
+        start_idx = int(np.floor(width_info[2][0]))
+        end_idx = int(np.ceil(width_info[3][0]))
+
+        region = heat_flow[start_idx:end_idx]
+        if self._is_glass_transition_shape(region):
+            onset_temp = temperature[start_idx]
+            end_temp = temperature[end_idx]
+            mid_temp = temperature[mid_idx]
+
+            delta_cp = np.nan
+            if baseline is not None:
+                delta_cp = self._calculate_delta_cp(
+                    temperature, heat_flow, baseline, start_idx, end_idx
                 )
+
+            return GlassTransition(
+                onset_temperature=float(onset_temp),
+                midpoint_temperature=float(mid_temp),
+                endpoint_temperature=float(end_temp),
+                delta_cp=float(delta_cp),
+                width=float(end_temp - onset_temp),
+                quality_metrics=self._calculate_gt_quality(
+                    temperature[start_idx:end_idx],
+                    heat_flow[start_idx:end_idx],
+                    dHf_smooth[start_idx:end_idx],
+                ),
+            )
 
         return None
 
@@ -243,24 +245,29 @@ class ThermalEventDetector:
         Returns:
             List of MeltingEvent objects
         """
+        if temperature.size < self.smoothing_window:
+            return []
+
         # Find endothermic peaks
+        prominence = np.ptp(heat_flow) * self.peak_prominence
         peaks, properties = signal.find_peaks(
-            heat_flow, prominence=self.peak_prominence
+            heat_flow, prominence=prominence, height=self.noise_threshold
         )
 
         events = []
         for i, peak_idx in enumerate(peaks):
-            # Find onset and endpoint
-            onset_idx = self._find_onset_index(temperature, heat_flow, peak_idx)
-            end_idx = self._find_endpoint_index(temperature, heat_flow, peak_idx)
+            width_info = signal.peak_widths(heat_flow, [peak_idx], rel_height=0.95)
+            if len(width_info[0]) == 0:
+                continue
 
-            # Calculate baseline-corrected heat flow
+            onset_idx = int(np.floor(width_info[2][0]))
+            end_idx = int(np.ceil(width_info[3][0]))
+
             if baseline is not None:
                 heat_flow_corr = heat_flow - baseline
             else:
                 heat_flow_corr = heat_flow
 
-            # Calculate enthalpy
             enthalpy = self._calculate_peak_enthalpy(
                 temperature[onset_idx : end_idx + 1],
                 heat_flow_corr[onset_idx : end_idx + 1],
@@ -300,82 +307,57 @@ class ThermalEventDetector:
         Returns:
             List of PhaseTransition objects
         """
-        # Calculate derivatives
-        d1 = np.gradient(heat_flow, temperature)
-        d2 = np.gradient(d1, temperature)
-
-        # Smooth derivatives
-        d1_smooth = signal.savgol_filter(
-            d1, self.smoothing_window, self.smoothing_order
-        )
-        d2_smooth = signal.savgol_filter(
-            d2, self.smoothing_window, self.smoothing_order
-        )
+        if temperature.size < self.smoothing_window:
+            return []
 
         transitions = []
 
-        # Find first-order transitions (peaks in heat flow)
-        peaks, _ = signal.find_peaks(np.abs(heat_flow), prominence=self.peak_prominence)
-        for peak_idx in peaks:
-            # Find transition boundaries
-            start_idx = self._find_onset_index(temperature, heat_flow, peak_idx)
-            end_idx = self._find_endpoint_index(temperature, heat_flow, peak_idx)
-
-            # Calculate enthalpy if baseline is provided
-            if baseline is not None:
-                heat_flow_corr = heat_flow - baseline
-                enthalpy = self._calculate_peak_enthalpy(
-                    temperature[start_idx : end_idx + 1],
-                    heat_flow_corr[start_idx : end_idx + 1],
-                )
-            else:
-                enthalpy = None
-
+        # Detect first-order transitions (melting/crystallization)
+        melting_events = self.detect_melting(temperature, heat_flow, baseline)
+        for event in melting_events:
             transitions.append(
                 PhaseTransition(
-                    transition_type="first_order",
-                    start_temperature=float(temperature[start_idx]),
-                    peak_temperature=float(temperature[peak_idx]),
-                    end_temperature=float(temperature[end_idx]),
-                    enthalpy=float(enthalpy) if enthalpy is not None else None,
-                    transition_width=float(
-                        temperature[end_idx] - temperature[start_idx]
-                    ),
-                    quality_metrics=self._calculate_transition_quality(
-                        temperature[start_idx : end_idx + 1],
-                        heat_flow[start_idx : end_idx + 1],
-                        d1_smooth[start_idx : end_idx + 1],
-                        d2_smooth[start_idx : end_idx + 1],
-                    ),
+                    transition_type="first_order_endothermic",
+                    start_temperature=event.onset_temperature,
+                    peak_temperature=event.peak_temperature,
+                    end_temperature=event.endpoint_temperature,
+                    enthalpy=event.enthalpy,
+                    transition_width=event.width,
+                    quality_metrics=event.quality_metrics,
                 )
             )
 
-        # Find second-order transitions (steps in heat flow)
-        steps = signal.find_peaks(np.abs(d1_smooth), prominence=self.peak_prominence)[0]
-        for step_idx in steps:
-            if not any(
-                abs(step_idx - peak_idx) < len(temperature) // 20 for peak_idx in peaks
-            ):
-                start_idx = max(0, step_idx - len(temperature) // 40)
-                end_idx = min(len(temperature) - 1, step_idx + len(temperature) // 40)
-
-                transitions.append(
-                    PhaseTransition(
-                        transition_type="second_order",
-                        start_temperature=float(temperature[start_idx]),
-                        peak_temperature=float(temperature[step_idx]),
-                        end_temperature=float(temperature[end_idx]),
-                        transition_width=float(
-                            temperature[end_idx] - temperature[start_idx]
-                        ),
-                        quality_metrics=self._calculate_transition_quality(
-                            temperature[start_idx : end_idx + 1],
-                            heat_flow[start_idx : end_idx + 1],
-                            d1_smooth[start_idx : end_idx + 1],
-                            d2_smooth[start_idx : end_idx + 1],
-                        ),
-                    )
+        cryst_events = self.detect_crystallization(temperature, heat_flow, baseline)
+        for event in cryst_events:
+            transitions.append(
+                PhaseTransition(
+                    transition_type="first_order_exothermic",
+                    start_temperature=event.onset_temperature,
+                    peak_temperature=event.peak_temperature,
+                    end_temperature=event.endpoint_temperature,
+                    enthalpy=event.enthalpy,
+                    transition_width=event.width,
+                    quality_metrics=event.quality_metrics,
                 )
+            )
+
+        # Detect second-order transitions (glass transitions)
+        gt_event = self.detect_glass_transition(temperature, heat_flow, baseline)
+        if gt_event:
+            transitions.append(
+                PhaseTransition(
+                    transition_type="second_order",
+                    start_temperature=gt_event.onset_temperature,
+                    peak_temperature=gt_event.midpoint_temperature,
+                    end_temperature=gt_event.endpoint_temperature,
+                    enthalpy=None,
+                    transition_width=gt_event.width,
+                    quality_metrics=gt_event.quality_metrics,
+                )
+            )
+
+        # Sort transitions by peak temperature
+        transitions.sort(key=lambda t: t.peak_temperature)
 
         return transitions
 
@@ -409,13 +391,23 @@ class ThermalEventDetector:
         temperature: NDArray[np.float64],
         heat_flow: NDArray[np.float64],
         baseline: NDArray[np.float64],
+        start_idx: int,
+        end_idx: int,
     ) -> float:
         """Calculate change in heat capacity across glass transition."""
-        # Use first and last 20% of points to calculate pre and post Cp
-        n_points = len(temperature) // 5
+        # Use regions before and after the transition to calculate Cp
+        pre_region_end = max(0, start_idx - 10)
+        post_region_start = min(len(temperature), end_idx + 10)
 
-        pre_cp = np.mean(heat_flow[:n_points] - baseline[:n_points])
-        post_cp = np.mean(heat_flow[-n_points:] - baseline[-n_points:])
+        pre_cp = np.mean(
+            heat_flow[pre_region_end:start_idx] - baseline[pre_region_end:start_idx]
+        )
+        post_cp = np.mean(
+            heat_flow[end_idx:post_region_start] - baseline[end_idx:post_region_start]
+        )
+
+        if np.isnan(pre_cp) or np.isnan(post_cp):
+            return np.nan
 
         return post_cp - pre_cp
 
