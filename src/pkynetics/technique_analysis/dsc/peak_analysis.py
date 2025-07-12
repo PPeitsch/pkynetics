@@ -53,12 +53,12 @@ class PeakAnalyzer:
             List of DSCPeak objects containing peak information
 
         Raises:
-            ValueError: If temperature and heat flow arrays have different lengths
+            ValueError: If temperature and heat flow arrays have different lengths or are empty.
         """
         if len(temperature) != len(heat_flow):
             raise ValueError("Temperature and heat flow arrays must have same length")
-        if len(temperature) == 0:
-            return []
+        if not len(temperature):
+            raise ValueError("Input arrays cannot be empty.")
 
         # Apply signal smoothing with safe window size
         smooth_heat_flow = safe_savgol_filter(
@@ -72,13 +72,15 @@ class PeakAnalyzer:
                 raise ValueError("Baseline must have same length as heat flow data")
             signal_to_analyze -= baseline
 
-        # Find peaks with enhanced criteria, including interpolated positions for bases
+        height = np.ptp(signal_to_analyze) * self.height_threshold
+        prominence = np.ptp(signal_to_analyze) * self.peak_prominence
+
         peaks, properties = signal.find_peaks(
             signal_to_analyze,
-            prominence=self.peak_prominence,
-            height=self.height_threshold,
+            prominence=prominence,
+            height=height,
             width=validate_window_size(len(signal_to_analyze), self.smoothing_window)
-            // 2,
+            // 4,
             distance=validate_window_size(
                 len(signal_to_analyze), self.smoothing_window
             ),
@@ -86,48 +88,33 @@ class PeakAnalyzer:
 
         peak_list = []
         for i, peak_idx in enumerate(peaks):
-            # Use interpolated peak boundaries for higher accuracy
-            left_ip = properties["left_ips"][i]
-            right_ip = properties["right_ips"][i]
+            left_base_idx = int(properties["left_bases"][i])
+            right_base_idx = int(properties["right_bases"][i])
 
-            left_idx = int(np.floor(left_ip))
-            right_idx = int(np.ceil(right_ip))
-
-            # Ensure indices are within bounds
-            if left_idx >= right_idx:
-                continue
-
-            # Interpolate temperature at the exact peak boundaries
-            onset_temp = np.interp(left_ip, np.arange(len(temperature)), temperature)
-            endset_temp = np.interp(right_ip, np.arange(len(temperature)), temperature)
+            onset_temp = temperature[left_base_idx]
+            endset_temp = temperature[right_base_idx]
             peak_temp = temperature[peak_idx]
 
-            # Calculate baseline-corrected heat flow for integration
             heat_flow_corr = heat_flow.copy()
             if baseline is not None:
                 heat_flow_corr -= baseline
 
-            peak_mask = np.arange(left_idx, right_idx + 1)
-            temp_slice = temperature[peak_mask]
-            heat_flow_slice = heat_flow_corr[peak_mask]
-
-            # Integrate over the precise peak region
-            peak_area = float(trapz(heat_flow_slice, temp_slice))
+            peak_mask = slice(left_base_idx, right_base_idx + 1)
+            peak_area = float(trapz(heat_flow_corr[peak_mask], temperature[peak_mask]))
             enthalpy = abs(peak_area)
-            peak_height = float(signal_to_analyze[peak_idx])
+            peak_height = float(properties["prominences"][i])
 
-            # Calculate width at half height using peak_widths
+            # Width calculation
             width_properties = signal.peak_widths(
                 signal_to_analyze, [peak_idx], rel_height=0.5
             )
-            peak_width = float(
-                np.interp(
-                    width_properties[3][0], np.arange(len(temperature)), temperature
-                )
-                - np.interp(
-                    width_properties[2][0], np.arange(len(temperature)), temperature
-                )
+            w_left_temp = np.interp(
+                width_properties[2][0], np.arange(len(temperature)), temperature
             )
+            w_right_temp = np.interp(
+                width_properties[3][0], np.arange(len(temperature)), temperature
+            )
+            peak_width = w_right_temp - w_left_temp
 
             peak_info = DSCPeak(
                 onset_temperature=float(onset_temp),
@@ -135,11 +122,11 @@ class PeakAnalyzer:
                 endset_temperature=float(endset_temp),
                 enthalpy=enthalpy,
                 peak_height=peak_height,
-                peak_width=peak_width,
+                peak_width=float(peak_width),
                 peak_area=peak_area,
                 baseline_type="provided" if baseline is not None else "none",
                 baseline_params={},
-                peak_indices=(left_idx, right_idx),
+                peak_indices=(left_base_idx, right_base_idx),
             )
             peak_list.append(peak_info)
 
@@ -193,8 +180,6 @@ class PeakAnalyzer:
         )
 
         if len(peaks) < n_peaks:
-            # Fallback for fewer detected peaks: use the most prominent ones found
-            # and add estimated peaks if needed
             prominences = properties.get("prominences", np.array([]))
             if len(prominences) > 0:
                 peak_indices = peaks[np.argsort(prominences)[-len(peaks) :]]
@@ -202,7 +187,6 @@ class PeakAnalyzer:
                 peak_indices = peaks
 
             if len(peak_indices) < n_peaks:
-                # Add estimated peaks if still not enough
                 current_peaks = set(peak_indices)
                 additional_indices = np.linspace(
                     0, len(temperature) - 1, n_peaks + 2, dtype=int
@@ -212,7 +196,6 @@ class PeakAnalyzer:
                         current_peaks.add(idx)
                 peak_indices = np.array(list(current_peaks))
         else:
-            # If more peaks are found than requested, take the most prominent ones
             prominences = properties["prominences"]
             peak_indices = peaks[np.argsort(prominences)[-n_peaks:]]
 
