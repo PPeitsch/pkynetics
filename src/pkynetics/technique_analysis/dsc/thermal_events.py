@@ -173,6 +173,9 @@ class ThermalEventDetector:
         Returns:
             List of CrystallizationEvent objects
         """
+        if temperature.size == 0 or heat_flow.size == 0:
+            raise ValueError("Input arrays cannot be empty.")
+
         # Adjust heat flow direction (crystallization is exothermic)
         heat_flow_adj = -heat_flow if np.mean(heat_flow) > 0 else heat_flow
 

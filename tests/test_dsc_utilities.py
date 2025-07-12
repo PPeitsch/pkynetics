@@ -189,7 +189,9 @@ def test_validate_temperature_data():
 
     # Non-monotonic data
     with pytest.raises(ValueError):
-        DataValidator.validate_temperature_data(np.random.rand(100))
+        DataValidator.validate_temperature_data(
+            np.random.rand(100), strict_monotonic=True
+        )
 
     # Out of range data
     with pytest.raises(ValueError):

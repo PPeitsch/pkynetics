@@ -44,13 +44,13 @@ class BaselineCorrector:
         """
         Apply baseline correction with specified method.
         """
+        self._validate_data(temperature, heat_flow)
+
         if method == "auto":
             return self._auto_baseline(temperature, heat_flow, regions, **kwargs)
 
         if method not in self.methods:
             raise ValueError(f"Unknown baseline method: {method}")
-
-        self._validate_data(temperature, heat_flow)
 
         heat_flow_smooth = signal.savgol_filter(
             heat_flow, self.smoothing_window, self.smoothing_order
@@ -221,7 +221,7 @@ class BaselineCorrector:
     ) -> Tuple[NDArray[np.float64], Dict]:
         """Fit asymmetric least squares baseline."""
         L = len(heat_flow)
-        D = np.diff(np.eye(L), 2)
+        D = np.diff(np.eye(L), 2, axis=0)
         w = np.ones(L)
 
         for _ in range(niter):
