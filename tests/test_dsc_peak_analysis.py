@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 from numpy.typing import NDArray
+from scipy.integrate import trapz
 
 from pkynetics.technique_analysis.dsc.peak_analysis import PeakAnalyzer
 
