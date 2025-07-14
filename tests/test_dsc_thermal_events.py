@@ -57,8 +57,9 @@ def generate_phase_transition(
     if transition_type == "first_order":
         return amplitude * np.exp(-(((temperature - transition_temp) / width) ** 2))
     else:  # second_order
-        x = (temperature - transition_temp) / width
-        return amplitude * (1 / (1 + np.exp(-x)) - 0.5)
+        return generate_glass_transition(
+            temperature, tg=transition_temp, width=width, delta_cp=amplitude
+        )
 
 
 @pytest.fixture

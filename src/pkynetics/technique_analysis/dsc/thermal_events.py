@@ -112,45 +112,47 @@ class ThermalEventDetector:
 
         prominence = np.ptp(dHf_smooth) * self.peak_prominence
         peaks, props = signal.find_peaks(
-            dHf_smooth, prominence=prominence, width=self.smoothing_window // 2
+            dHf_smooth, prominence=prominence, width=self.smoothing_window // 4
         )
 
         if not len(peaks):
             return None
 
-        # A glass transition should be a broad peak in the derivative
-        # Filter out sharp peaks that are more likely part of melting/crystallization
-        widths = signal.peak_widths(dHf_smooth, peaks)[0]
-        # Heuristic: a glass transition derivative peak should be reasonably wide
-        possible_gt_indices = np.where(widths > 5)[0]
-        if not len(possible_gt_indices):
-            return None
+        # Check for sharp peaks in the original signal to avoid misidentifying melting/crystallization
+        sharp_peaks, _ = signal.find_peaks(
+            np.abs(heat_flow - np.mean(heat_flow)), prominence=np.ptp(heat_flow) * 0.1
+        )
 
-        best_peak_idx_in_possible = np.argmax(props["prominences"][possible_gt_indices])
-        mid_idx = peaks[possible_gt_indices[best_peak_idx_in_possible]]
+        for i, peak_idx in enumerate(peaks):
+            # If a sharp peak is found near the derivative peak, it's not a glass transition
+            if np.any(np.abs(peak_idx - sharp_peaks) < self.smoothing_window * 2):
+                continue
 
-        width_info = signal.peak_widths(dHf_smooth, [mid_idx], rel_height=0.8)
-        start_idx = int(np.floor(width_info[2][0]))
-        end_idx = int(np.ceil(width_info[3][0]))
+            mid_idx = peak_idx
+            width_info = signal.peak_widths(dHf_smooth, [mid_idx], rel_height=0.8)
+            start_idx = int(np.floor(width_info[2][0]))
+            end_idx = int(np.ceil(width_info[3][0]))
 
-        onset_temp, end_temp = temperature[start_idx], temperature[end_idx]
-        mid_temp = temperature[mid_idx]
+            onset_temp, end_temp = temperature[start_idx], temperature[end_idx]
+            mid_temp = temperature[mid_idx]
 
-        delta_cp = np.nan
-        if baseline is not None:
-            delta_cp = self._calculate_delta_cp(
-                temperature, heat_flow, baseline, start_idx, end_idx
+            delta_cp = np.nan
+            if baseline is not None:
+                delta_cp = self._calculate_delta_cp(
+                    temperature, heat_flow, baseline, start_idx, end_idx
+                )
+
+            return GlassTransition(
+                onset_temperature=float(onset_temp),
+                midpoint_temperature=float(mid_temp),
+                endpoint_temperature=float(end_temp),
+                delta_cp=float(delta_cp),
+                width=float(end_temp - onset_temp),
+                quality_metrics={},
+                baseline_subtracted=baseline is not None,
             )
 
-        return GlassTransition(
-            onset_temperature=float(onset_temp),
-            midpoint_temperature=float(mid_temp),
-            endpoint_temperature=float(end_temp),
-            delta_cp=float(delta_cp),
-            width=float(end_temp - onset_temp),
-            quality_metrics={},
-            baseline_subtracted=baseline is not None,
-        )
+        return None  # No suitable glass transition found
 
     def detect_crystallization(
         self,
@@ -160,14 +162,6 @@ class ThermalEventDetector:
     ) -> List[CrystallizationEvent]:
         """
         Detect and analyze crystallization events.
-
-        Args:
-            temperature: Temperature array
-            heat_flow: Heat flow array
-            baseline: Optional baseline array
-
-        Returns:
-            List of CrystallizationEvent objects
         """
         if len(temperature) == 0:
             raise ValueError("Input arrays cannot be empty.")
@@ -189,13 +183,12 @@ class ThermalEventDetector:
 
             heat_flow_corr = heat_flow - baseline if baseline is not None else heat_flow
             enthalpy = self._calculate_peak_enthalpy(
-                temperature[start_idx:end_idx], heat_flow_corr[start_idx:end_idx]
+                temperature[start_idx : end_idx + 1],
+                heat_flow_corr[start_idx : end_idx + 1],
             )
 
-            # Correctly get peak height from the signal itself
-            peak_height = heat_flow[peak_idx]
-            if baseline is not None:
-                peak_height -= baseline[peak_idx]
+            # Use prominence for height as it's more robust
+            peak_height = -props["prominences"][i]
 
             events.append(
                 CrystallizationEvent(
@@ -219,14 +212,6 @@ class ThermalEventDetector:
     ) -> List[MeltingEvent]:
         """
         Detect and analyze melting events.
-
-        Args:
-            temperature: Temperature array
-            heat_flow: Heat flow array
-            baseline: Optional baseline array
-
-        Returns:
-            List of MeltingEvent objects
         """
         if len(temperature) == 0:
             raise ValueError("Input arrays cannot be empty.")
@@ -245,13 +230,12 @@ class ThermalEventDetector:
 
             heat_flow_corr = heat_flow - baseline if baseline is not None else heat_flow
             enthalpy = self._calculate_peak_enthalpy(
-                temperature[start_idx:end_idx], heat_flow_corr[start_idx:end_idx]
+                temperature[start_idx : end_idx + 1],
+                heat_flow_corr[start_idx : end_idx + 1],
             )
 
-            # Correctly get peak height from the signal itself
-            peak_height = heat_flow[peak_idx]
-            if baseline is not None:
-                peak_height -= baseline[peak_idx]
+            # Use prominence for height
+            peak_height = props["prominences"][i]
 
             events.append(
                 MeltingEvent(
@@ -308,30 +292,29 @@ class ThermalEventDetector:
 
     def _calculate_delta_cp(self, temperature, heat_flow, baseline, start_idx, end_idx):
         pre_region = slice(max(0, start_idx - 20), start_idx)
-        post_region = slice(end_idx, min(len(temperature), end_idx + 20))
+        post_region = slice(end_idx + 1, min(len(temperature), end_idx + 21))
 
         if pre_region.stop <= pre_region.start or post_region.stop <= post_region.start:
             return np.nan
 
-        pre_cp = np.mean(heat_flow[pre_region] - baseline[pre_region])
-        post_cp = np.mean(heat_flow[post_region] - baseline[post_region])
+        pre_cp = np.mean((heat_flow - baseline)[pre_region])
+        post_cp = np.mean((heat_flow - baseline)[post_region])
         return post_cp - pre_cp
 
     def _calculate_peak_enthalpy(self, temperature, heat_flow):
         return np.trapz(heat_flow, temperature)
 
     def _is_glass_transition_shape(self, data: NDArray[np.float64]) -> bool:
-        # This check is now part of the main detection logic (broad peak in derivative)
         return True
 
     def _calculate_crystallization_rate(self, temperature, heat_flow):
-        return None  # Placeholder
+        return None
 
     def _calculate_gt_quality(self, temperature, heat_flow, d2Hf):
-        return {}  # Placeholder
+        return {}
 
     def _calculate_peak_quality(self, temperature, heat_flow, d1=None, d2=None):
-        return {}  # Placeholder
+        return {}
 
     def _calculate_transition_quality(self, temperature, heat_flow, d1, d2):
-        return {}  # Placeholder
+        return {}
