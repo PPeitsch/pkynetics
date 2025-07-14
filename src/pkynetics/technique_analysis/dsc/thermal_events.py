@@ -160,6 +160,14 @@ class ThermalEventDetector:
     ) -> List[CrystallizationEvent]:
         """
         Detect and analyze crystallization events.
+
+        Args:
+            temperature: Temperature array
+            heat_flow: Heat flow array
+            baseline: Optional baseline array
+
+        Returns:
+            List of CrystallizationEvent objects
         """
         if len(temperature) == 0:
             raise ValueError("Input arrays cannot be empty.")
@@ -184,13 +192,18 @@ class ThermalEventDetector:
                 temperature[start_idx:end_idx], heat_flow_corr[start_idx:end_idx]
             )
 
+            # Correctly get peak height from the signal itself
+            peak_height = heat_flow[peak_idx]
+            if baseline is not None:
+                peak_height -= baseline[peak_idx]
+
             events.append(
                 CrystallizationEvent(
                     onset_temperature=temperature[start_idx],
                     peak_temperature=temperature[peak_idx],
                     endpoint_temperature=temperature[end_idx],
                     enthalpy=enthalpy,
-                    peak_height=-props["peak_heights"][i],
+                    peak_height=peak_height,
                     width=temperature[end_idx] - temperature[start_idx],
                     quality_metrics={},
                     baseline_subtracted=baseline is not None,
@@ -206,6 +219,14 @@ class ThermalEventDetector:
     ) -> List[MeltingEvent]:
         """
         Detect and analyze melting events.
+
+        Args:
+            temperature: Temperature array
+            heat_flow: Heat flow array
+            baseline: Optional baseline array
+
+        Returns:
+            List of MeltingEvent objects
         """
         if len(temperature) == 0:
             raise ValueError("Input arrays cannot be empty.")
@@ -227,13 +248,18 @@ class ThermalEventDetector:
                 temperature[start_idx:end_idx], heat_flow_corr[start_idx:end_idx]
             )
 
+            # Correctly get peak height from the signal itself
+            peak_height = heat_flow[peak_idx]
+            if baseline is not None:
+                peak_height -= baseline[peak_idx]
+
             events.append(
                 MeltingEvent(
                     onset_temperature=temperature[start_idx],
                     peak_temperature=temperature[peak_idx],
                     endpoint_temperature=temperature[end_idx],
                     enthalpy=enthalpy,
-                    peak_height=props["peak_heights"][i],
+                    peak_height=peak_height,
                     width=temperature[end_idx] - temperature[start_idx],
                     quality_metrics={},
                     baseline_subtracted=baseline is not None,
