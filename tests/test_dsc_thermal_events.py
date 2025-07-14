@@ -233,7 +233,7 @@ def test_first_order_transition(event_detector, temperature_data):
 def test_second_order_transition(event_detector, temperature_data):
     """Test detection of second-order phase transition."""
     heat_flow = generate_phase_transition(
-        temperature_data, transition_type="second_order", tg=400.0
+        temperature_data, transition_type="second_order", transition_temp=400.0
     )
 
     transitions = event_detector.detect_phase_transitions(temperature_data, heat_flow)
