@@ -336,7 +336,7 @@ class SignalProcessor:
                 local_std.append(np.std(data[i : i + win]))
 
         if not local_std:
-            return np.std(data)  # esta línea
+            return float(np.std(data))
 
         # Use median of local standard deviations as noise estimate
         return float(np.median(local_std))
