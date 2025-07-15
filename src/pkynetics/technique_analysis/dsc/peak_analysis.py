@@ -1,6 +1,6 @@
 """Peak analysis implementation for DSC data."""
 
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -88,6 +88,7 @@ class PeakAnalyzer:
 
         peak_list = []
         for i, peak_idx in enumerate(peaks):
+            # Use properties from find_peaks which are generally robust
             left_base_idx = int(properties["left_bases"][i])
             right_base_idx = int(properties["right_bases"][i])
 
@@ -108,13 +109,17 @@ class PeakAnalyzer:
             width_properties = signal.peak_widths(
                 signal_to_analyze, [peak_idx], rel_height=0.5
             )
-            w_left_temp = np.interp(
-                width_properties[2][0], np.arange(len(temperature)), temperature
-            )
-            w_right_temp = np.interp(
-                width_properties[3][0], np.arange(len(temperature)), temperature
-            )
-            peak_width = w_right_temp - w_left_temp
+            peak_width: float
+            if not width_properties[0].size > 0:
+                peak_width = 0.0
+            else:
+                w_left_temp = np.interp(
+                    width_properties[2][0], np.arange(len(temperature)), temperature
+                )
+                w_right_temp = np.interp(
+                    width_properties[3][0], np.arange(len(temperature)), temperature
+                )
+                peak_width = float(w_right_temp) - float(w_left_temp)
 
             peak_info = DSCPeak(
                 onset_temperature=float(onset_temp),
@@ -122,7 +127,7 @@ class PeakAnalyzer:
                 endset_temperature=float(endset_temp),
                 enthalpy=enthalpy,
                 peak_height=peak_height,
-                peak_width=float(peak_width),
+                peak_width=peak_width,
                 peak_area=peak_area,
                 baseline_type="provided" if baseline is not None else "none",
                 baseline_params={},
@@ -138,7 +143,7 @@ class PeakAnalyzer:
         heat_flow: NDArray[np.float64],
         n_peaks: int,
         peak_shape: str = "gaussian",
-    ) -> Tuple[List[Dict], NDArray[np.float64]]:
+    ) -> Tuple[List[Dict[str, Any]], NDArray[np.float64]]:
         """
         Deconvolute overlapping peaks.
 
@@ -155,12 +160,14 @@ class PeakAnalyzer:
         def gaussian(
             x: NDArray[np.float64], amp: float, cen: float, wid: float
         ) -> NDArray[np.float64]:
-            return amp * np.exp(-(((x - cen) / wid) ** 2))
+            result = amp * np.exp(-(((x - cen) / wid) ** 2))
+            return cast(NDArray[np.float64], result)
 
         def lorentzian(
             x: NDArray[np.float64], amp: float, cen: float, wid: float
         ) -> NDArray[np.float64]:
-            return amp * wid**2 / ((x - cen) ** 2 + wid**2)
+            result = amp * wid**2 / ((x - cen) ** 2 + wid**2)
+            return cast(NDArray[np.float64], result)
 
         peak_func = gaussian if peak_shape == "gaussian" else lorentzian
 
@@ -179,8 +186,11 @@ class PeakAnalyzer:
             distance=min_distance,
         )
 
+        prominences = properties.get("prominences")
+        if prominences is None:
+            prominences = np.array([])
+
         if len(peaks) < n_peaks:
-            prominences = properties.get("prominences", np.array([]))
             if len(prominences) > 0:
                 peak_indices = peaks[np.argsort(prominences)[-len(peaks) :]]
             else:
@@ -196,12 +206,13 @@ class PeakAnalyzer:
                         current_peaks.add(idx)
                 peak_indices = np.array(list(current_peaks))
         else:
-            prominences = properties["prominences"]
             peak_indices = peaks[np.argsort(prominences)[-n_peaks:]]
 
-        p0, bounds_low, bounds_high = [], [], []
+        p0: List[float] = []
+        bounds_low: List[float] = []
+        bounds_high: List[float] = []
         temp_range = temperature.max() - temperature.min()
-        min_width, max_width = temp_range * 0.01, temp_range * 0.5
+        min_w, max_w = temp_range * 0.01, temp_range * 0.5
 
         for idx in sorted(peak_indices):
             amp = smooth_flow[idx]
@@ -209,10 +220,10 @@ class PeakAnalyzer:
             wid = temp_range * 0.05
 
             p0.extend([amp, cen, wid])
-            bounds_low.extend([0, cen - temp_range * 0.2, min_width])
-            bounds_high.extend([amp * 2, cen + temp_range * 0.2, max_width])
+            bounds_low.extend([0, cen - temp_range * 0.2, min_w])
+            bounds_high.extend([amp * 2, cen + temp_range * 0.2, max_w])
 
-        def fit_function(x: NDArray[np.float64], *params) -> NDArray[np.float64]:
+        def fit_function(x: NDArray[np.float64], *params: float) -> NDArray[np.float64]:
             result = np.zeros_like(x)
             for i in range(0, len(params), 3):
                 result += peak_func(x, params[i], params[i + 1], params[i + 2])
@@ -227,7 +238,7 @@ class PeakAnalyzer:
                 bounds=(bounds_low, bounds_high),
                 maxfev=20000,
             )
-            peak_params = []
+            peak_params: List[Dict[str, Any]] = []
             fitted_curve = np.zeros_like(temperature)
             for i in range(0, len(popt), 3):
                 peak_component = peak_func(temperature, *popt[i : i + 3])
