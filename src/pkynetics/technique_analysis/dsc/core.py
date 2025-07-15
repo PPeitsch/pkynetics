@@ -1,6 +1,6 @@
 """Core DSC analysis functionality."""
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -17,9 +17,9 @@ class DSCAnalyzer:
     def __init__(
         self,
         experiment: DSCExperiment,
-        baseline_corrector: Optional["BaselineCorrector"] = None,
-        peak_analyzer: Optional["PeakAnalyzer"] = None,
-        event_detector: Optional["ThermalEventDetector"] = None,
+        baseline_corrector: Optional[BaselineCorrector] = None,
+        peak_analyzer: Optional[PeakAnalyzer] = None,
+        event_detector: Optional[ThermalEventDetector] = None,
     ):
         """Initialize DSC analyzer with experiment data."""
         self.experiment = experiment
@@ -30,15 +30,22 @@ class DSCAnalyzer:
         self.baseline: Optional[NDArray[np.float64]] = None
         self.corrected_heat_flow: Optional[NDArray[np.float64]] = None
         self.peaks: List[DSCPeak] = []
-        self.events: Dict = {}
+        self.events: Dict[str, Any] = {}
 
-    def analyze(self) -> Dict:
+    def analyze(self) -> Dict[str, Any]:
         """Perform complete DSC analysis."""
         # Correct baseline
-        self.baseline, baseline_params = self.baseline_corrector.correct(
+        baseline_result = self.baseline_corrector.correct(
             self.experiment.temperature, self.experiment.heat_flow
         )
-        self.corrected_heat_flow = self.experiment.heat_flow - self.baseline
+        self.baseline = baseline_result.baseline
+        self.corrected_heat_flow = baseline_result.corrected_data
+
+        # mypy needs assurance that corrected_heat_flow is not None
+        if self.corrected_heat_flow is None:
+            raise RuntimeError(
+                "Baseline correction failed to produce corrected heat flow data."
+            )
 
         # Analyze peaks
         self.peaks = self.peak_analyzer.find_peaks(
@@ -54,7 +61,7 @@ class DSCAnalyzer:
             "peaks": self.peaks,
             "events": self.events,
             "baseline": {
-                "type": baseline_params["type"],
-                "parameters": baseline_params,
+                "type": baseline_result.method,
+                "parameters": baseline_result.parameters,
             },
         }
