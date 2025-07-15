@@ -69,13 +69,11 @@ class DSCExperiment:
 
     def __post_init__(self) -> None:
         """Validate data and calculate heating rate."""
-        # This check is primarily for cases where list-like data is passed.
-        if not isinstance(self.temperature, np.ndarray):
-            self.temperature = np.array(self.temperature, dtype=np.float64)
-        if not isinstance(self.heat_flow, np.ndarray):
-            self.heat_flow = np.array(self.heat_flow, dtype=np.float64)
-        if not isinstance(self.time, np.ndarray):
-            self.time = np.array(self.time, dtype=np.float64)
+        # Ensure all data arrays are numpy arrays.
+        # The type hint is NDArray, but list-like data might be passed during instantiation.
+        self.temperature = np.array(self.temperature, dtype=np.float64)
+        self.heat_flow = np.array(self.heat_flow, dtype=np.float64)
+        self.time = np.array(self.time, dtype=np.float64)
 
         # Calculate heating rate if not provided and data is sufficient
         if self.heating_rate is None:
