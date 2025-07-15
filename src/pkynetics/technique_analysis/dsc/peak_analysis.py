@@ -60,20 +60,31 @@ class PeakAnalyzer:
         if not len(temperature):
             raise ValueError("Input arrays cannot be empty.")
 
-        # Apply signal smoothing with safe window size
         smooth_heat_flow = safe_savgol_filter(
             heat_flow, self.smoothing_window, self.smoothing_order
         )
 
-        # Apply baseline correction if provided
         signal_to_analyze = smooth_heat_flow.copy()
         if baseline is not None:
             if len(baseline) != len(signal_to_analyze):
                 raise ValueError("Baseline must have same length as heat flow data")
             signal_to_analyze -= baseline
 
-        height = np.ptp(signal_to_analyze) * self.height_threshold
-        prominence = np.ptp(signal_to_analyze) * self.peak_prominence
+        noise_estimation_window = min(20, len(signal_to_analyze) // 5)
+        if noise_estimation_window > 1:
+            noise_level = np.std(signal_to_analyze[:noise_estimation_window])
+        else:
+            noise_level = 0.0
+
+        noise_based_prominence = 3.0 * noise_level
+        relative_prominence = np.ptp(signal_to_analyze) * self.peak_prominence
+        prominence = max(relative_prominence, noise_based_prominence)
+
+        relative_height = np.ptp(signal_to_analyze) * self.height_threshold
+        height = max(relative_height, noise_level)
+
+        if prominence <= 0:
+            prominence = np.finfo(float).eps
 
         peaks, properties = signal.find_peaks(
             signal_to_analyze,
@@ -88,7 +99,6 @@ class PeakAnalyzer:
 
         peak_list = []
         for i, peak_idx in enumerate(peaks):
-            # Use properties from find_peaks which are generally robust
             left_base_idx = int(properties["left_bases"][i])
             right_base_idx = int(properties["right_bases"][i])
 
@@ -105,7 +115,6 @@ class PeakAnalyzer:
             enthalpy = abs(peak_area)
             peak_height = float(properties["prominences"][i])
 
-            # Width calculation
             width_properties = signal.peak_widths(
                 signal_to_analyze, [peak_idx], rel_height=0.5
             )
