@@ -1,7 +1,7 @@
 """Utility functions for DSC data analysis."""
 
 from enum import Enum
-from typing import Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -53,7 +53,10 @@ def safe_savgol_filter(
     """
     valid_window = validate_window_size(len(data), window_length)
     valid_polyorder = min(valid_window - 1, polyorder)
-    return signal.savgol_filter(data, valid_window, valid_polyorder)
+    # Cast to assure mypy of the return type
+    return cast(
+        NDArray[np.float64], signal.savgol_filter(data, valid_window, valid_polyorder)
+    )
 
 
 def find_intersection_point(
@@ -76,11 +79,13 @@ def find_intersection_point(
     Returns:
         Tuple of (intersection x value, index)
     """
+    search_range: range
     if direction == "forward":
         search_range = range(start_idx, len(x) - 1)
     else:
         search_range = range(start_idx, 0, -1)
 
+    i = start_idx
     for i in search_range:
         if direction == "forward":
             if (y1[i] <= y2[i] and y1[i + 1] >= y2[i + 1]) or (
@@ -93,9 +98,11 @@ def find_intersection_point(
             ):
                 break
     else:
-        return x[start_idx], start_idx
+        return float(x[start_idx]), start_idx
 
     # Linear interpolation to find precise intersection
+    idx1: int
+    idx2: int
     if direction == "forward":
         idx1, idx2 = i, i + 1
     else:
@@ -111,7 +118,7 @@ def find_intersection_point(
     dy2 = y2_2 - y2_1
 
     if abs(dy1 - dy2) < 1e-10:  # Parallel lines
-        return x[i], i
+        return float(x[i]), i
 
     x_int = x1 + (y2_1 - y1_1) * dx / (dy1 - dy2)
     return float(x_int), i
@@ -183,15 +190,15 @@ class SignalProcessor:
             window += 1  # Ensure odd window length
 
         if method == "savgol":
-            return signal.savgol_filter(data, window, polyorder)
+            return safe_savgol_filter(data, window, polyorder)
         elif method == "moving_average":
             kernel = np.ones(window) / window
-            return np.convolve(data, kernel, mode="same")
+            return cast(NDArray[np.float64], np.convolve(data, kernel, mode="same"))
         elif method == "lowess":
             x = np.arange(len(data))
             frac = min(1.0, max(0.01, window / len(data)))
             lowess = sm.nonparametric.lowess(data, x, frac=frac, return_sorted=False)
-            return lowess
+            return cast(NDArray[np.float64], lowess)
         else:
             raise ValueError(f"Unknown smoothing method: {method}")
 
@@ -212,16 +219,20 @@ class SignalProcessor:
         Returns:
             Signal array with outliers removed
         """
-        window = window or self.default_window
+        win = window or self.default_window
         cleaned_data = data.copy()
 
         # Use rolling window to detect local outliers
         for i in range(len(data)):
-            start = max(0, i - window // 2)
-            end = min(len(data), i + window // 2)
+            start = max(0, i - win // 2)
+            end = min(len(data), i + win // 2)
             local_data = data[start:end]
 
-            z_score = abs(stats.zscore(local_data))
+            # zscore of an empty or single-element array is NaN, handle this
+            if local_data.size < 2:
+                continue
+
+            z_score = np.abs(stats.zscore(local_data))
             local_mask = z_score < threshold
 
             if not local_mask[i - start]:
@@ -234,7 +245,7 @@ class SignalProcessor:
         self,
         data: NDArray[np.float64],
         sampling_rate: float,
-        cutoff_freq: float,
+        cutoff_freq: Union[float, Tuple[float, float]],
         filter_type: str = "lowpass",
         order: int = 4,
     ) -> NDArray[np.float64]:
@@ -252,20 +263,26 @@ class SignalProcessor:
             Filtered signal array
         """
         nyquist = sampling_rate / 2
-        normalized_cutoff = cutoff_freq / nyquist
+        normalized_cutoff: Union[float, NDArray[np.float64]]
+        if isinstance(cutoff_freq, tuple):
+            normalized_cutoff = np.array(cutoff_freq) / nyquist
+        else:
+            normalized_cutoff = cutoff_freq / nyquist
 
+        b: NDArray[np.float64]
+        a: NDArray[np.float64]
         if filter_type == "lowpass":
             b, a = signal.butter(order, normalized_cutoff, btype="low")
         elif filter_type == "highpass":
             b, a = signal.butter(order, normalized_cutoff, btype="high")
         elif filter_type == "bandpass":
-            if not isinstance(normalized_cutoff, tuple):
+            if not isinstance(normalized_cutoff, np.ndarray):
                 raise ValueError("Bandpass filter requires tuple of frequencies")
             b, a = signal.butter(order, normalized_cutoff, btype="band")
         else:
             raise ValueError(f"Unknown filter type: {filter_type}")
 
-        return signal.filtfilt(b, a, data)
+        return cast(NDArray[np.float64], signal.filtfilt(b, a, data))
 
     def calculate_derivatives(
         self,
@@ -284,10 +301,11 @@ class SignalProcessor:
         Returns:
             Dictionary with first and second derivatives
         """
+        data_to_diff = heat_flow
         if smooth:
-            heat_flow = self.smooth_signal(heat_flow)
+            data_to_diff = self.smooth_signal(data_to_diff)
 
-        d1 = np.gradient(heat_flow, temperature)
+        d1 = np.gradient(data_to_diff, temperature)
         d2 = np.gradient(d1, temperature)
 
         if smooth:
@@ -309,29 +327,37 @@ class SignalProcessor:
         Returns:
             Estimated noise level
         """
-        window = window or self.default_window
+        win = window or self.default_window
 
         # Calculate local standard deviations
         local_std = []
-        for i in range(0, len(data) - window, window):
-            local_std.append(np.std(data[i : i + window]))
+        if len(data) > win:
+            for i in range(0, len(data) - win, win):
+                local_std.append(np.std(data[i : i + win]))
+
+        if not local_std:
+            return np.std(data)  # esta línea
 
         # Use median of local standard deviations as noise estimate
         return float(np.median(local_std))
+
+
+T = Union[float, NDArray[np.float64]]
+ConversionFunc = Callable[[T], T]
 
 
 class UnitConverter:
     """Class for DSC unit conversions."""
 
     # Conversion factors
-    _TEMPERATURE_FACTORS = {
+    _TEMPERATURE_FACTORS: Dict[Tuple[DSCUnits, DSCUnits], ConversionFunc] = {
         (DSCUnits.CELSIUS, DSCUnits.KELVIN): lambda x: x + 273.15,
         (DSCUnits.KELVIN, DSCUnits.CELSIUS): lambda x: x - 273.15,
         (DSCUnits.FAHRENHEIT, DSCUnits.CELSIUS): lambda x: (x - 32) * 5 / 9,
         (DSCUnits.CELSIUS, DSCUnits.FAHRENHEIT): lambda x: x * 9 / 5 + 32,
     }
 
-    _HEAT_FLOW_FACTORS = {
+    _HEAT_FLOW_FACTORS: Dict[Tuple[DSCUnits, DSCUnits], ConversionFunc] = {
         (DSCUnits.MILLIWATTS, DSCUnits.WATTS): lambda x: x / 1000,
         (DSCUnits.WATTS, DSCUnits.MILLIWATTS): lambda x: x * 1000,
         (DSCUnits.MICROWATTS, DSCUnits.MILLIWATTS): lambda x: x / 1000,
@@ -341,10 +367,10 @@ class UnitConverter:
     @classmethod
     def convert_temperature(
         cls,
-        value: Union[float, NDArray[np.float64]],
+        value: T,
         from_unit: DSCUnits,
         to_unit: DSCUnits,
-    ) -> Union[float, NDArray[np.float64]]:
+    ) -> T:
         """
         Convert temperature between units.
 
@@ -360,25 +386,25 @@ class UnitConverter:
             return value
 
         conversion = cls._TEMPERATURE_FACTORS.get((from_unit, to_unit))
-        if conversion is None:
-            # Try to find multi-step conversion
-            intermediate = DSCUnits.CELSIUS
-            try:
-                step1 = cls._TEMPERATURE_FACTORS[(from_unit, intermediate)]
-                step2 = cls._TEMPERATURE_FACTORS[(intermediate, to_unit)]
-                return step2(step1(value))
-            except KeyError:
-                raise ValueError(f"No conversion path from {from_unit} to {to_unit}")
+        if conversion:
+            return conversion(value)
 
-        return conversion(value)
+        # Try to find multi-step conversion
+        intermediate = DSCUnits.CELSIUS
+        try:
+            step1 = cls._TEMPERATURE_FACTORS[(from_unit, intermediate)]
+            step2 = cls._TEMPERATURE_FACTORS[(intermediate, to_unit)]
+            return step2(step1(value))
+        except KeyError:
+            raise ValueError(f"No conversion path from {from_unit} to {to_unit}")
 
     @classmethod
     def convert_heat_flow(
         cls,
-        value: Union[float, NDArray[np.float64]],
+        value: T,
         from_unit: DSCUnits,
         to_unit: DSCUnits,
-    ) -> Union[float, NDArray[np.float64]]:
+    ) -> T:
         """
         Convert heat flow between units.
 
@@ -394,17 +420,17 @@ class UnitConverter:
             return value
 
         conversion = cls._HEAT_FLOW_FACTORS.get((from_unit, to_unit))
-        if conversion is None:
-            # Try to find multi-step conversion
-            intermediate = DSCUnits.MILLIWATTS
-            try:
-                step1 = cls._HEAT_FLOW_FACTORS[(from_unit, intermediate)]
-                step2 = cls._HEAT_FLOW_FACTORS[(intermediate, to_unit)]
-                return step2(step1(value))
-            except KeyError:
-                raise ValueError(f"No conversion path from {from_unit} to {to_unit}")
+        if conversion:
+            return conversion(value)
 
-        return conversion(value)
+        # Try to find multi-step conversion
+        intermediate = DSCUnits.MILLIWATTS
+        try:
+            step1 = cls._HEAT_FLOW_FACTORS[(from_unit, intermediate)]
+            step2 = cls._HEAT_FLOW_FACTORS[(intermediate, to_unit)]
+            return step2(step1(value))
+        except KeyError:
+            raise ValueError(f"No conversion path from {from_unit} to {to_unit}")
 
     @staticmethod
     def convert_heating_rate(
@@ -422,18 +448,18 @@ class UnitConverter:
             Converted heating rate value
         """
         # Define conversion factors relative to K/min
-        factors = {
+        factors: Dict[DSCUnits, float] = {
             DSCUnits.KELVIN_PER_MINUTE: 1.0,
             DSCUnits.CELSIUS_PER_MINUTE: 1.0,  # Same numerical value
             DSCUnits.KELVIN_PER_SECOND: 60.0,
         }
 
-        try:
-            return value * factors[from_unit] / factors[to_unit]
-        except KeyError:
+        if from_unit not in factors or to_unit not in factors:
             raise ValueError(
                 f"Unsupported heating rate unit conversion: {from_unit} to {to_unit}"
             )
+
+        return value * factors[from_unit] / factors[to_unit]
 
 
 class DataValidator:
@@ -485,7 +511,9 @@ class DataValidator:
         else:
             # Check for reasonable temperature changes (no sudden jumps)
             temp_diff = np.abs(np.diff(temperature))
-            if np.any(temp_diff > 50):  # 50K maximum step between points
+            if len(temp_diff) > 0 and np.any(
+                temp_diff > 50
+            ):  # 50K maximum step between points
                 raise ValueError("Detected unrealistic temperature jumps in data")
 
         return True
@@ -527,7 +555,7 @@ class DataValidator:
     def detect_temperature_program(
         temperature: NDArray[np.float64],
         time: NDArray[np.float64],
-    ) -> Dict[str, Union[str, float]]:
+    ) -> Dict[str, Any]:
         """
         Detect temperature program type and parameters.
 
@@ -542,7 +570,7 @@ class DataValidator:
         temp_rate = np.gradient(temperature, time)
 
         # Detect segments
-        segments = []
+        segments: List[Dict[str, Any]] = []
         current_type = "isothermal"
         current_rate = 0.0
 
@@ -577,10 +605,13 @@ class DataValidator:
         )
 
         # Analyze program type
+        heating_rates = [s["rate"] for s in segments if s["type"] == "heating"]
+        cooling_rates = [s["rate"] for s in segments if s["type"] == "cooling"]
         n_isothermal = sum(1 for s in segments if s["type"] == "isothermal")
-        n_heating = sum(1 for s in segments if s["type"] == "heating")
-        n_cooling = sum(1 for s in segments if s["type"] == "cooling")
+        n_heating = len(heating_rates)
+        n_cooling = len(cooling_rates)
 
+        program_type: str
         if n_isothermal > n_heating + n_cooling:
             program_type = "stepped"
         elif n_cooling > 0:
@@ -591,12 +622,8 @@ class DataValidator:
         return {
             "type": program_type,
             "segments": segments,
-            "avg_heating_rate": float(
-                np.mean([s["rate"] for s in segments if s["type"] == "heating"])
-            ),
-            "avg_cooling_rate": float(
-                np.mean([s["rate"] for s in segments if s["type"] == "cooling"])
-            ),
+            "avg_heating_rate": float(np.mean(heating_rates) if heating_rates else 0.0),
+            "avg_cooling_rate": float(np.mean(cooling_rates) if cooling_rates else 0.0),
             "n_isothermal": n_isothermal,
             "n_heating": n_heating,
             "n_cooling": n_cooling,
@@ -620,7 +647,12 @@ class DataValidator:
             Average sampling rate if uniform, raises ValueError otherwise
         """
         dt = np.diff(time)
+        if len(dt) == 0:
+            return 0.0
+
         mean_dt = np.mean(dt)
+        if mean_dt == 0:
+            return 0.0  # Avoid division by zero if time is constant
 
         if np.any(np.abs(dt - mean_dt) / mean_dt > tolerance):
             raise ValueError("Non-uniform time sampling detected")
