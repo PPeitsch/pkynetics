@@ -18,7 +18,7 @@ class PeakAnalyzer:
         self,
         smoothing_window: int = 21,
         smoothing_order: int = 3,
-        peak_prominence: float = 0.1,
+        peak_prominence: float = 0.25,
         height_threshold: float = 0.05,
     ):
         """
