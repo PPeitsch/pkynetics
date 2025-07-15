@@ -8,9 +8,9 @@ from numpy.typing import NDArray
 from scipy import stats
 
 try:
-    import pywt
+    import pywt  # type: ignore[import-not-found]
 except ImportError:
-    pywt = None  # type: ignore
+    pywt = None
 
 
 class StabilityMethod(Enum):
@@ -77,7 +77,7 @@ class SignalStabilityDetector:
         if self.method not in detection_methods:
             raise ValueError(f"Unknown stability detection method: {self.method}")
 
-        return detection_methods[self.method](signal, x_values, **params)
+        return detection_methods[self.method](signal, x_values=x_values, **params)
 
     def _statistical_method(
         self,
@@ -108,6 +108,8 @@ class SignalStabilityDetector:
 
         # Calculate absolute threshold based on signal range
         signal_range = np.ptp(signal)
+        if signal_range == 0:
+            return [(0, len(signal))]
         abs_threshold = signal_range * std_threshold
 
         # Calculate window step size
@@ -116,7 +118,7 @@ class SignalStabilityDetector:
             step = 1
 
         # Initialize variables
-        stable_regions = []
+        stable_regions: List[Tuple[int, int]] = []
         n_windows = (len(signal) - window_size) // step + 1
         window_stats = np.zeros(n_windows)
 
@@ -151,7 +153,7 @@ class SignalStabilityDetector:
                             ]
                         )
                         # Find the most stable section within the region
-                        best_idx = np.argmin(local_stds)
+                        best_idx = int(np.argmin(local_stds))
                         refined_start = current_start + best_idx * step
                         refined_end = min(refined_start + window_size, len(signal))
                         stable_regions.append((refined_start, refined_end))
@@ -196,7 +198,7 @@ class SignalStabilityDetector:
             step = 1
 
         # Initialize variables
-        stable_regions = []
+        stable_regions: List[Tuple[int, int]] = []
         n_windows = (len(signal) - window_size) // step + 1
         window_stats = np.zeros((n_windows, 3))  # [R², slope, intercept]
 
@@ -218,7 +220,11 @@ class SignalStabilityDetector:
         slope_diffs = np.abs(np.diff(window_stats[:, 1]))
         mean_slope = np.mean(np.abs(window_stats[:, 1]))
         slope_mask = np.concatenate(
-            ([True], slope_diffs <= slope_tolerance * mean_slope)
+            (
+                [True],
+                slope_diffs
+                <= slope_tolerance * (mean_slope if mean_slope > 0 else 1.0),
+            )
         )
 
         # Combine criteria
@@ -248,7 +254,7 @@ class SignalStabilityDetector:
 
                         if r2_values:
                             # Find the most linear section
-                            best_idx = np.argmax(r2_values)
+                            best_idx = int(np.argmax(r2_values))
                             refined_start = current_start + best_idx * step
                             refined_end = min(refined_start + window_size, len(signal))
                             stable_regions.append((refined_start, refined_end))
@@ -304,7 +310,7 @@ class SignalStabilityDetector:
 
             # Normalized error
             error = np.sqrt(np.mean((y - y_fit) ** 2)) / signal_range
-            return error
+            return float(error)
 
         def find_split_point(start: int, end: int) -> int:
             """Find optimal point to split segment."""
@@ -336,9 +342,8 @@ class SignalStabilityDetector:
 
             # Split segment
             split = find_split_point(start, end)
-            if split - start >= min_segment_size:
+            if split > start and end > split:
                 recursive_segment(start, split, depth + 1)
-            if end - split >= min_segment_size:
                 recursive_segment(split, end, depth + 1)
 
         # Start recursive segmentation
@@ -568,7 +573,7 @@ class SignalStabilityDetector:
         range_val = float(np.ptp(segment))
 
         # Trend analysis
-        linearity = self._calculate_linearity(segment, x_segment)  # esta línea
+        linearity = self._calculate_linearity(segment, x_segment)
 
         # Derivative-based metrics
         d1 = np.gradient(segment, x_segment)
@@ -615,7 +620,7 @@ class SignalStabilityDetector:
     def _calculate_linearity(
         self,
         signal: NDArray[np.float64],
-        x_values: Optional[NDArray[np.float64]] = None,
+        x_values: NDArray[np.number[Any]],
     ) -> float:
         """
         Calculate comprehensive linearity metric.
@@ -625,14 +630,12 @@ class SignalStabilityDetector:
         if len(signal) < 2:
             return 1.0
 
-        x_data = x_values if x_values is not None else np.arange(len(signal))
-
         # Linear regression
-        slope, intercept, r_value, _, _ = stats.linregress(x_data, signal)
+        slope, intercept, r_value, _, _ = stats.linregress(x_values, signal)
         r2 = float(r_value**2)
 
         # Residual analysis
-        y_pred = slope * x_data + intercept
+        y_pred = slope * x_values + intercept
         residuals = signal - y_pred
         residual_std = np.std(residuals)
         signal_std = np.std(signal)
