@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [v0.4.1] - 2025-07-15
+
+### Fixed
+
+-   Resolved intermittent failures in `test_find_peaks_with_noise` by enhancing the robustness of the `PeakAnalyzer`. The peak detection algorithm now uses adaptive thresholds for prominence and height, calculated based on the signal's noise level, which prevents false positives from random fluctuations.
+
+
 ## [v0.4.0] 2025-07-15
 
 ### Added
@@ -47,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced error handling for insufficient data points
 - Improved temperature range validation to accommodate both heating and cooling segments
 
+
 ## [v0.3.5] - 2025-03-11
 
 ### Added
@@ -55,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed division by zero error in nth_order reaction model when n=1
 - Fixed NaN values in pre-exponential factor calculation in Coats-Redfern method
+
 
 ## [v0.3.4] - 2025-03-10
 
@@ -65,7 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Fixed missing imports in examples/horowitz_metzger_method_example.py
 - Fixed references in documentation to non-existent functions
-- 
+
+
 ## [v0.3.3] - 2024-12-27
 
 ### Added
@@ -82,6 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Better handling of file import variations
 - Improved error handling for different file configurations
 
+
 ## [v0.3.2] - 2024-12-27
 
 ### Changed
@@ -92,6 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Restructured issue template to reduce friction in reporting process
 - Maintained all existing guideline compliance checks
+
 
 ## [v0.3.1] - 2024-12-26
 
@@ -118,6 +130,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced documentation structure and clarity
 - Updated type annotations and docstrings across modules
 
+
 ## [v0.2.3] - 2024-11-09
 
 ### Added
@@ -139,6 +152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved accuracy in transformation point detection
 - Enhanced robustness of linear segment fitting
 
+
 ## [v0.2.2] - 2024-10-22
 
 ### Added
@@ -156,6 +170,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved error handling in the Kissinger method to ensure positive peak temperatures and heating rates
 - Minor formatting improvements in test files for better readability
 
+
 ## [v0.2.1] - 2024-09-18
 
 ### Changed
@@ -163,6 +178,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced clarity and structure of method descriptions
 - Added more detailed usage examples and notes for each method
 - Improved cross-referencing between related methods and visualization functions
+
 
 ## [v0.2.0] - 2024-09-17
 
@@ -181,6 +197,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Enhanced accuracy of kinetic analysis methods through improved data handling
+
 
 ## [v0.1.0] - 2024-09-03
 
