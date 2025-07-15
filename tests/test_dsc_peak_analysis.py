@@ -75,6 +75,7 @@ def noisy_peak_data():
     """Generate peak data with noise."""
     temperature = np.linspace(300, 500, 1000)
     heat_flow = generate_gaussian_peak(temperature, 400, 1.0, 20.0)
+    np.random.seed(42)  # Set seed for reproducibility
     noise = np.random.normal(0, 0.05, size=len(temperature))
     noisy_heat_flow = heat_flow + noise
     return {
