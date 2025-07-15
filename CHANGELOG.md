@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [v0.4.0] 2025-07-15
+
+### Added
+
+-   **Comprehensive DSC Analysis Module (`technique_analysis.dsc`)**:
+    -   `DSCAnalyzer`: A core class to orchestrate the complete analysis workflow for DSC data.
+    -   `BaselineCorrector`: Implemented multiple baseline correction methods, including linear, polynomial, spline, asymmetric least squares, and rubberband, along with an automatic optimization feature.
+    -   `PeakAnalyzer`: Developed for robust peak detection, characterization (onset, endset, height, width), and deconvolution of overlapping peaks.
+    -   `ThermalEventDetector`: Added functionality to identify and characterize key thermal events such as glass transitions (Tg), crystallization, and melting, with refined logic to differentiate between event types in complex signals.
+    -   `CpCalculator`: Implemented a full-featured calculator for specific heat capacity (Cp) with support for three-step, single-step, and modulated methods, including uncertainty propagation and reference material calibration.
+    -   `SignalStabilityDetector`: Created a tool to identify stable signal regions using various methods (derivative, statistical, linear fit, etc.), essential for stepped Cp calculations.
+    -   A full suite of data types (`types.py`) and utility functions (`utilities.py`) to support the DSC analysis workflow.
+-   **New Example Script**: Added `dsc_example.py` to demonstrate a complete analysis workflow using the new module.
+-   **Comprehensive Test Suite**: Added extensive tests for all new DSC analysis components, ensuring robustness, accuracy, and correct error handling.
+
+### Fixed
+
+-   Resolved numerous `mypy` static type checking errors across the new DSC module, improving code quality and maintainability.
+-   Fixed performance issues and infinite loops in `SignalStabilityDetector` and `BaselineCorrector` that caused tests to hang.
+-   Refined peak and event detection algorithms to prevent false positives on noisy data and correctly handle complex, overlapping thermal events.
+
+
 ## [v0.3.6] - 2025-03-29
 
 ### Added
