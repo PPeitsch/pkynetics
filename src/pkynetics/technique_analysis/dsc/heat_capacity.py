@@ -183,19 +183,28 @@ class CpCalculator:
             ref_data["cp"],
         )
 
+        # Interpolate reference uncertainty to measurement temperatures
+        ref_uncertainty_raw = ref_data.get("uncertainty", 0.0)
+        if isinstance(ref_uncertainty_raw, (int, float)):
+            ref_uncertainty_raw = np.full_like(
+                ref_data["temperature"], ref_uncertainty_raw
+            )
+
+        ref_uncertainty_interp = np.interp(
+            measured_result.temperature,
+            ref_data["temperature"],
+            ref_uncertainty_raw,
+        )
+
         # Calculate calibration factors
         factors = ref_cp_interp / measured_result.specific_heat
-
-        ref_uncertainty = ref_data.get("uncertainty", np.zeros_like(ref_data["cp"]))
-        if isinstance(ref_uncertainty, (int, float)):
-            ref_uncertainty = np.full_like(ref_data["cp"], ref_uncertainty)
 
         # Calculate uncertainty
         uncertainty = self._calculate_calibration_uncertainty(
             measured_result.specific_heat,
             ref_cp_interp,
             measured_result.uncertainty,
-            ref_uncertainty,
+            ref_uncertainty_interp,
         )
 
         # Create and store calibration data
