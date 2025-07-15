@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -46,7 +46,7 @@ class DSCPeak:
     peak_width: float  # K
     peak_area: float  # mJ/mg
     baseline_type: str
-    baseline_params: Dict
+    baseline_params: Dict[str, Any]
     peak_indices: Tuple[int, int]
     type: Optional[str] = None  # 'melting', 'crystallization', 'transition'
     quality_metrics: Dict[str, float] = field(default_factory=dict)
@@ -64,11 +64,12 @@ class DSCExperiment:
     reference_mass: Optional[float] = None  # mg
     reference_material: Optional[str] = None
     sample_name: str = "sample"
-    metadata: Dict = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate data and calculate heating rate."""
+        # This check is primarily for cases where list-like data is passed.
         if not isinstance(self.temperature, np.ndarray):
             self.temperature = np.array(self.temperature, dtype=np.float64)
         if not isinstance(self.heat_flow, np.ndarray):
@@ -76,23 +77,32 @@ class DSCExperiment:
         if not isinstance(self.time, np.ndarray):
             self.time = np.array(self.time, dtype=np.float64)
 
-        # Calculate heating rate if not provided
+        # Calculate heating rate if not provided and data is sufficient
         if self.heating_rate is None:
-            self.heating_rate = float(
-                np.mean(np.gradient(self.temperature, self.time)) * 60  # K/min
-            )
+            if self.time.size > 1:
+                # np.gradient returns a list of arrays for higher dimensions, so we index
+                gradient = np.gradient(self.temperature, self.time)
+                self.heating_rate = float(np.mean(gradient) * 60)  # K/min
+            else:
+                self.heating_rate = 0.0
 
         # Validate data
-        if len(self.temperature) != len(self.heat_flow) or len(self.temperature) != len(
-            self.time
-        ):
+        if not (len(self.temperature) == len(self.heat_flow) == len(self.time)):
             raise ValueError(
                 "Temperature, heat flow, and time arrays must have the same length"
             )
-        if self.mass < 0:
+        if self.mass <= 0:
             raise ValueError("Sample mass must be positive")
-        if self.heating_rate == 0:
-            raise ValueError("Heating rate cannot be zero")
+        if (
+            self.heating_rate is not None
+            and self.heating_rate == 0
+            and len(self.time) > 1
+        ):
+            # Only raise if heating rate is zero for non-isothermal segments
+            if np.ptp(self.temperature) > 0.1:
+                raise ValueError(
+                    "Heating rate cannot be zero for a non-isothermal experiment"
+                )
 
 
 @dataclass
@@ -102,7 +112,7 @@ class BaselineResult:
     baseline: NDArray[np.float64]  # mW
     corrected_data: NDArray[np.float64]  # mW
     method: str
-    parameters: Dict
+    parameters: Dict[str, Any]
     quality_metrics: Dict[str, float]
     regions: Optional[List[Tuple[float, float]]] = None  # K
 
@@ -177,17 +187,28 @@ class CpResult:
     stable_regions: Optional[List[Tuple[int, int]]] = None
     timestamp: datetime = field(default_factory=datetime.now)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate arrays and calculations."""
-        arrays = [self.temperature, self.specific_heat, self.uncertainty]
-        if not all(isinstance(arr, np.ndarray) for arr in arrays):
-            raise TypeError(
-                "temperature, specific_heat, and uncertainty must be numpy arrays"
-            )
-        if not all(len(arr) == len(self.temperature) for arr in arrays):
+        # Mypy struggles with `all` on a list of mixed types.
+        # We can check each one explicitly to satisfy the type checker.
+        if not isinstance(self.temperature, np.ndarray):
+            raise TypeError("temperature must be a numpy array")
+        if not isinstance(self.specific_heat, np.ndarray):
+            raise TypeError("specific_heat must be a numpy array")
+        if not isinstance(self.uncertainty, np.ndarray):
+            raise TypeError("uncertainty must be a numpy array")
+
+        if not (
+            len(self.temperature) == len(self.specific_heat) == len(self.uncertainty)
+        ):
             raise ValueError("All arrays must have the same length")
-        if not all(np.all(np.isfinite(arr)) for arr in arrays):
-            raise ValueError("Arrays contain invalid values (inf or nan)")
+
+        if not np.all(np.isfinite(self.temperature)):
+            raise ValueError("Temperature array contains invalid values (inf or nan)")
+        if not np.all(np.isfinite(self.specific_heat)):
+            raise ValueError("Specific heat array contains invalid values (inf or nan)")
+        if not np.all(np.isfinite(self.uncertainty)):
+            raise ValueError("Uncertainty array contains invalid values (inf or nan)")
 
 
 @dataclass
@@ -201,21 +222,34 @@ class CalibrationData:
     calibration_factors: NDArray[np.float64]
     uncertainty: NDArray[np.float64]  # J/(g·K)
     valid_range: Tuple[float, float]  # K
-    metadata: Dict = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate calibration data."""
-        arrays = [
-            self.temperature,
-            self.measured_cp,
-            self.reference_cp,
-            self.calibration_factors,
-            self.uncertainty,
-        ]
-        if not all(isinstance(arr, np.ndarray) for arr in arrays):
-            raise TypeError("All data arrays must be numpy arrays")
-        if not all(len(arr) == len(self.temperature) for arr in arrays):
+        # Explicit checks to help mypy understand the types
+        if not isinstance(self.temperature, np.ndarray):
+            raise TypeError("temperature must be a numpy array")
+        if not isinstance(self.measured_cp, np.ndarray):
+            raise TypeError("measured_cp must be a numpy array")
+        if not isinstance(self.reference_cp, np.ndarray):
+            raise TypeError("reference_cp must be a numpy array")
+        if not isinstance(self.calibration_factors, np.ndarray):
+            raise TypeError("calibration_factors must be a numpy array")
+        if not isinstance(self.uncertainty, np.ndarray):
+            raise TypeError("uncertainty must be a numpy array")
+
+        array_len = len(self.temperature)
+        if not all(
+            len(arr) == array_len
+            for arr in [
+                self.measured_cp,
+                self.reference_cp,
+                self.calibration_factors,
+                self.uncertainty,
+            ]
+        ):
             raise ValueError("All arrays must have the same length")
+
         if not self.valid_range[0] < self.valid_range[1]:
             raise ValueError("Invalid temperature range")
