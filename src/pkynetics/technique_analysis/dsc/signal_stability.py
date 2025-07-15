@@ -1,11 +1,16 @@
 """Signal stability detection module."""
 
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy import stats
+
+try:
+    import pywt
+except ImportError:
+    pywt = None  # type: ignore
 
 
 class StabilityMethod(Enum):
@@ -25,7 +30,7 @@ class SignalStabilityDetector:
         self,
         method: Union[StabilityMethod, str] = StabilityMethod.STATISTICAL,
         min_points: int = 100,
-        **kwargs,
+        **kwargs: Any,
     ):
         """
         Initialize stability detector.
@@ -46,7 +51,7 @@ class SignalStabilityDetector:
         self,
         signal: NDArray[np.float64],
         x_values: Optional[NDArray[np.float64]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> List[Tuple[int, int]]:
         """
         Find stable regions in signal.
@@ -78,10 +83,7 @@ class SignalStabilityDetector:
         self,
         signal: NDArray[np.float64],
         x_values: Optional[NDArray[np.float64]] = None,
-        window_size: int = 50,
-        std_threshold: float = 0.1,
-        overlap: float = 0.5,
-        **kwargs,
+        **kwargs: Any,
     ) -> List[Tuple[int, int]]:
         """
         Detect stable regions using statistical measures.
@@ -97,6 +99,10 @@ class SignalStabilityDetector:
         Returns:
             List of (start_idx, end_idx) tuples for stable regions
         """
+        window_size = kwargs.get("window_size", 50)
+        std_threshold = kwargs.get("std_threshold", 0.1)
+        overlap = kwargs.get("overlap", 0.5)
+
         if len(signal) < window_size:
             return []
 
@@ -124,29 +130,32 @@ class SignalStabilityDetector:
         stable_mask = window_stats < abs_threshold
 
         # Find continuous stable regions
-        start_idx = None
+        current_start: Optional[int] = None
         for i in range(len(stable_mask)):
-            if stable_mask[i] and start_idx is None:
-                start_idx = i * step
+            if stable_mask[i] and current_start is None:
+                current_start = i * step
             elif (
                 not stable_mask[i] or i == len(stable_mask) - 1
-            ) and start_idx is not None:
+            ) and current_start is not None:
                 end_idx = i * step + window_size
-                if end_idx - start_idx >= self.min_points:
+                if end_idx - current_start >= self.min_points:
                     # Refine region boundaries
-                    region_signal = signal[start_idx:end_idx]
-                    local_stds = np.array(
-                        [
-                            np.std(region_signal[j : j + window_size])
-                            for j in range(0, len(region_signal) - window_size, step)
-                        ]
-                    )
-                    # Find the most stable section within the region
-                    best_idx = np.argmin(local_stds)
-                    refined_start = start_idx + best_idx * step
-                    refined_end = min(refined_start + window_size, len(signal))
-                    stable_regions.append((refined_start, refined_end))
-                start_idx = None
+                    region_signal = signal[current_start:end_idx]
+                    if len(region_signal) > window_size:
+                        local_stds = np.array(
+                            [
+                                np.std(region_signal[j : j + window_size])
+                                for j in range(
+                                    0, len(region_signal) - window_size, step
+                                )
+                            ]
+                        )
+                        # Find the most stable section within the region
+                        best_idx = np.argmin(local_stds)
+                        refined_start = current_start + best_idx * step
+                        refined_end = min(refined_start + window_size, len(signal))
+                        stable_regions.append((refined_start, refined_end))
+                current_start = None
 
         return stable_regions
 
@@ -154,11 +163,7 @@ class SignalStabilityDetector:
         self,
         signal: NDArray[np.float64],
         x_values: Optional[NDArray[np.float64]] = None,
-        window_size: int = 100,
-        r2_threshold: float = 0.95,
-        slope_tolerance: float = 0.1,
-        overlap: float = 0.5,
-        **kwargs,
+        **kwargs: Any,
     ) -> List[Tuple[int, int]]:
         """
         Detect stable regions using linear regression.
@@ -175,11 +180,15 @@ class SignalStabilityDetector:
         Returns:
             List of (start_idx, end_idx) tuples for stable regions
         """
+        window_size = kwargs.get("window_size", 100)
+        r2_threshold = kwargs.get("r2_threshold", 0.95)
+        slope_tolerance = kwargs.get("slope_tolerance", 0.1)
+        overlap = kwargs.get("overlap", 0.5)
+
         if len(signal) < window_size:
             return []
 
-        if x_values is None:
-            x_values = np.arange(len(signal))
+        x_data = x_values if x_values is not None else np.arange(len(signal))
 
         # Calculate window step size
         step = int(window_size * (1 - overlap))
@@ -195,7 +204,7 @@ class SignalStabilityDetector:
         for i in range(n_windows):
             start_idx = i * step
             end_idx = start_idx + window_size
-            window_x = x_values[start_idx:end_idx]
+            window_x = x_data[start_idx:end_idx]
             window_y = signal[start_idx:end_idx]
 
             # Perform linear regression
@@ -216,34 +225,34 @@ class SignalStabilityDetector:
         stable_mask = r2_mask & slope_mask
 
         # Find continuous stable regions
-        start_idx = None
+        current_start: Optional[int] = None
         for i in range(len(stable_mask)):
-            if stable_mask[i] and start_idx is None:
-                start_idx = i * step
+            if stable_mask[i] and current_start is None:
+                current_start = i * step
             elif (
                 not stable_mask[i] or i == len(stable_mask) - 1
-            ) and start_idx is not None:
+            ) and current_start is not None:
                 end_idx = i * step + window_size
-                if end_idx - start_idx >= self.min_points:
+                if end_idx - current_start >= self.min_points:
                     # Refine region boundaries
-                    region_signal = signal[start_idx:end_idx]
-                    region_x = x_values[start_idx:end_idx]
+                    region_signal = signal[current_start:end_idx]
+                    region_x = x_data[current_start:end_idx]
 
-                    # Calculate R² for sub-windows to find most linear section
-                    r2_values = []
-                    for j in range(0, len(region_signal) - window_size, step):
-                        sub_x = region_x[j : j + window_size]
-                        sub_y = region_signal[j : j + window_size]
-                        _, _, r_value, _, _ = stats.linregress(sub_x, sub_y)
-                        r2_values.append(r_value**2)
+                    if len(region_signal) > window_size:
+                        r2_values = []
+                        for j in range(0, len(region_signal) - window_size, step):
+                            sub_x = region_x[j : j + window_size]
+                            sub_y = region_signal[j : j + window_size]
+                            _, _, r_value, _, _ = stats.linregress(sub_x, sub_y)
+                            r2_values.append(r_value**2)
 
-                    if r2_values:
-                        # Find the most linear section
-                        best_idx = np.argmax(r2_values)
-                        refined_start = start_idx + best_idx * step
-                        refined_end = min(refined_start + window_size, len(signal))
-                        stable_regions.append((refined_start, refined_end))
-                start_idx = None
+                        if r2_values:
+                            # Find the most linear section
+                            best_idx = np.argmax(r2_values)
+                            refined_start = current_start + best_idx * step
+                            refined_end = min(refined_start + window_size, len(signal))
+                            stable_regions.append((refined_start, refined_end))
+                current_start = None
 
         return stable_regions
 
@@ -251,10 +260,7 @@ class SignalStabilityDetector:
         self,
         signal: NDArray[np.float64],
         x_values: Optional[NDArray[np.float64]] = None,
-        min_segment_size: int = 50,
-        error_threshold: float = 0.1,
-        max_depth: int = 10,
-        **kwargs,
+        **kwargs: Any,
     ) -> List[Tuple[int, int]]:
         """
         Detect stable regions using adaptive segmentation.
@@ -273,25 +279,31 @@ class SignalStabilityDetector:
         Returns:
             List of (start_idx, end_idx) tuples for stable regions
         """
-        if x_values is None:
-            x_values = np.arange(len(signal))
+        min_segment_size = kwargs.get("min_segment_size", 50)
+        error_threshold = kwargs.get("error_threshold", 0.1)
+        max_depth = kwargs.get("max_depth", 10)
 
-        stable_regions = []
+        x_data = x_values if x_values is not None else np.arange(len(signal))
+
+        stable_regions: List[Tuple[int, int]] = []
 
         def segment_error(start: int, end: int) -> float:
             """Calculate error between signal and linear fit."""
             if end - start < 2:
                 return np.inf
 
-            x = x_values[start:end]
+            x = x_data[start:end]
             y = signal[start:end]
+            signal_range = np.ptp(y)
+            if signal_range == 0:
+                return 0.0
 
             # Linear fit
             slope, intercept, _, _, _ = stats.linregress(x, y)
             y_fit = slope * x + intercept
 
             # Normalized error
-            error = np.sqrt(np.mean((y - y_fit) ** 2)) / np.ptp(y)
+            error = np.sqrt(np.mean((y - y_fit) ** 2)) / signal_range
             return error
 
         def find_split_point(start: int, end: int) -> int:
@@ -299,7 +311,7 @@ class SignalStabilityDetector:
             if end - start < 3:
                 return start + (end - start) // 2
 
-            x = x_values[start:end]
+            x = x_data[start:end]
             y = signal[start:end]
 
             # Linear fit
@@ -308,7 +320,7 @@ class SignalStabilityDetector:
 
             # Find point of maximum deviation
             errors = np.abs(y - y_fit)
-            return start + np.argmax(errors)
+            return start + int(np.argmax(errors))
 
         def recursive_segment(start: int, end: int, depth: int = 0) -> None:
             """Recursively segment signal."""
@@ -340,10 +352,7 @@ class SignalStabilityDetector:
         self,
         signal: NDArray[np.float64],
         x_values: Optional[NDArray[np.float64]] = None,
-        wavelet: str = "db4",
-        level: int = 3,
-        threshold: float = 0.1,
-        **kwargs,
+        **kwargs: Any,
     ) -> List[Tuple[int, int]]:
         """
         Detect stable regions using wavelet transform.
@@ -362,12 +371,14 @@ class SignalStabilityDetector:
         Returns:
             List of (start_idx, end_idx) tuples for stable regions
         """
-        try:
-            import pywt
-        except ImportError:
+        if pywt is None:
             raise ImportError(
                 "pywt is required for wavelet method. Install with: pip install PyWavelets"
             )
+
+        wavelet = kwargs.get("wavelet", "db4")
+        level = kwargs.get("level", 3)
+        threshold = kwargs.get("threshold", 0.1)
 
         if len(signal) < self.min_points:
             return []
@@ -389,27 +400,30 @@ class SignalStabilityDetector:
         stability_mask = np.ones(len(signal), dtype=bool)
 
         # Analyze each level
-        for detail, thresh in zip(detail_coeffs, thresholds):
+        for i, (detail, thresh) in enumerate(zip(detail_coeffs, thresholds)):
             # Upsample detail coefficients to match signal length
-            detail_upsampled = np.repeat(detail, 2 ** (level))[: len(signal)]
+            upsample_factor = 2 ** (i + 1)
+            detail_upsampled = np.repeat(detail, upsample_factor)
+            # Ensure length matches signal
+            detail_upsampled = detail_upsampled[: len(signal)]
 
             # Update stability mask
             stability_mask &= np.abs(detail_upsampled) < thresh
 
         # Find continuous stable regions
-        stable_regions = []
-        start_idx = None
+        stable_regions: List[Tuple[int, int]] = []
+        current_start: Optional[int] = None
 
         for i in range(len(stability_mask)):
-            if stability_mask[i] and start_idx is None:
-                start_idx = i
+            if stability_mask[i] and current_start is None:
+                current_start = i
             elif (
                 not stability_mask[i] or i == len(stability_mask) - 1
-            ) and start_idx is not None:
+            ) and current_start is not None:
                 end_idx = i
-                if end_idx - start_idx >= self.min_points:
-                    stable_regions.append((start_idx, end_idx))
-                start_idx = None
+                if end_idx - current_start >= self.min_points:
+                    stable_regions.append((current_start, end_idx))
+                current_start = None
 
         return stable_regions
 
@@ -417,11 +431,7 @@ class SignalStabilityDetector:
         self,
         signal: NDArray[np.float64],
         x_values: Optional[NDArray[np.float64]] = None,
-        window_size: int = 20,
-        derivative_threshold: float = 0.1,
-        second_derivative_threshold: float = 0.05,
-        smooth_window: int = 7,
-        **kwargs,
+        **kwargs: Any,
     ) -> List[Tuple[int, int]]:
         """
         Detect stable regions using first and second derivatives.
@@ -438,21 +448,26 @@ class SignalStabilityDetector:
         Returns:
             List of (start_idx, end_idx) tuples for stable regions
         """
+        from .utilities import safe_savgol_filter
+
+        window_size = kwargs.get("window_size", 20)
+        derivative_threshold = kwargs.get("derivative_threshold", 0.1)
+        second_derivative_threshold = kwargs.get("second_derivative_threshold", 0.05)
+        smooth_window = kwargs.get("smooth_window", 7)
+
         if len(signal) < 2 * window_size:
             return []
 
-        if x_values is None:
-            x_values = np.arange(len(signal))
+        x_data = x_values if x_values is not None else np.arange(len(signal))
 
         # Smooth signal before derivative calculation
         smoothed_signal = signal
         if smooth_window > 1:
-            smoothed_signal = signal.savgol_filter(signal, smooth_window, 3)
+            smoothed_signal = safe_savgol_filter(signal, smooth_window, 3)
 
         # Calculate derivatives
-        dx = np.gradient(x_values)
-        first_derivative = np.gradient(smoothed_signal, x_values)
-        second_derivative = np.gradient(first_derivative, x_values)
+        first_derivative = np.gradient(smoothed_signal, x_data)
+        second_derivative = np.gradient(first_derivative, x_data)
 
         # Normalize thresholds by signal range
         signal_range = np.ptp(signal)
@@ -465,29 +480,19 @@ class SignalStabilityDetector:
         )
 
         # Find continuous regions
-        stable_regions = []
-        start_idx = None
+        stable_regions: List[Tuple[int, int]] = []
+        current_start: Optional[int] = None
 
         for i in range(len(stable_mask)):
-            if stable_mask[i] and start_idx is None:
-                start_idx = i
+            if stable_mask[i] and current_start is None:
+                current_start = i
             elif (
                 not stable_mask[i] or i == len(stable_mask) - 1
-            ) and start_idx is not None:
+            ) and current_start is not None:
                 end_idx = i
-                if end_idx - start_idx >= self.min_points:
-                    # Refine region using local derivatives
-                    refined_start, refined_end = self._refine_derivative_region(
-                        signal,
-                        x_values,
-                        start_idx,
-                        end_idx,
-                        norm_first_threshold,
-                        norm_second_threshold,
-                    )
-                    if refined_end - refined_start >= self.min_points:
-                        stable_regions.append((refined_start, refined_end))
-                start_idx = None
+                if end_idx - current_start >= self.min_points:
+                    stable_regions.append((current_start, end_idx))
+                current_start = None
 
         return stable_regions
 
@@ -505,6 +510,9 @@ class SignalStabilityDetector:
         segment = signal[start_idx:end_idx]
         x_segment = x_values[start_idx:end_idx]
 
+        if len(segment) < 2:
+            return start_idx, end_idx
+
         d1 = np.abs(np.gradient(segment, x_segment))
         d2 = np.abs(np.gradient(d1, x_segment))
 
@@ -516,13 +524,14 @@ class SignalStabilityDetector:
         best_start, best_end = start_idx, end_idx
         min_length = self.min_points
 
-        for i in range(len(cumsum_metric) - min_length):
-            for j in range(i + min_length, len(cumsum_metric)):
-                section_metric = (cumsum_metric[j] - cumsum_metric[i]) / (j - i)
-                if section_metric < 1.0:  # normalized threshold
-                    if j - i > best_end - best_start:
-                        best_start = start_idx + i
-                        best_end = start_idx + j
+        if len(cumsum_metric) > min_length:
+            for i in range(len(cumsum_metric) - min_length):
+                for j in range(i + min_length, len(cumsum_metric)):
+                    section_metric = (cumsum_metric[j] - cumsum_metric[i]) / (j - i)
+                    if section_metric < 1.0:  # normalized threshold
+                        if j - i > best_end - best_start:
+                            best_start = start_idx + i
+                            best_end = start_idx + j
 
         return best_start, best_end
 
@@ -531,7 +540,7 @@ class SignalStabilityDetector:
         signal: NDArray[np.float64],
         region: Tuple[int, int],
         x_values: Optional[NDArray[np.float64]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Dict[str, float]:
         """
         Evaluate comprehensive stability metrics for a given region.
@@ -547,10 +556,11 @@ class SignalStabilityDetector:
         """
         start_idx, end_idx = region
         segment = signal[start_idx:end_idx]
+        if len(segment) < 2:
+            return {}
 
-        if x_values is None:
-            x_values = np.arange(len(signal))
-        x_segment = x_values[start_idx:end_idx]
+        x_data = x_values if x_values is not None else np.arange(len(signal))
+        x_segment = x_data[start_idx:end_idx]
 
         # Basic statistics
         mean_val = float(np.mean(segment))
@@ -558,7 +568,7 @@ class SignalStabilityDetector:
         range_val = float(np.ptp(segment))
 
         # Trend analysis
-        linearity = self._calculate_linearity(segment, x_segment)
+        linearity = self._calculate_linearity(segment, x_segment)  # esta línea
 
         # Derivative-based metrics
         d1 = np.gradient(segment, x_segment)
@@ -587,14 +597,18 @@ class SignalStabilityDetector:
             "noise_level": noise_level,
             "snr": snr,
             **derivative_metrics,
-            "stability_score": self._calculate_stability_score(
+        }
+
+        if range_val > 0:
+            metrics["stability_score"] = self._calculate_stability_score(
                 std_val / range_val,
                 linearity,
                 derivative_metrics["std_d1"] / range_val,
                 derivative_metrics["std_d2"] / range_val,
                 snr,
-            ),
-        }
+            )
+        else:
+            metrics["stability_score"] = 1.0
 
         return metrics
 
@@ -608,18 +622,23 @@ class SignalStabilityDetector:
 
         Uses both R² and residual analysis for a more robust measure.
         """
-        if x_values is None:
-            x_values = np.arange(len(signal))
+        if len(signal) < 2:
+            return 1.0
+
+        x_data = x_values if x_values is not None else np.arange(len(signal))
 
         # Linear regression
-        slope, intercept, r_value, _, _ = stats.linregress(x_values, signal)
+        slope, intercept, r_value, _, _ = stats.linregress(x_data, signal)
         r2 = float(r_value**2)
 
         # Residual analysis
-        y_pred = slope * x_values + intercept
+        y_pred = slope * x_data + intercept
         residuals = signal - y_pred
         residual_std = np.std(residuals)
         signal_std = np.std(signal)
+
+        if signal_std == 0:
+            return 1.0
 
         # Combine metrics
         # Weight R² more heavily but consider residual distribution
@@ -635,8 +654,14 @@ class SignalStabilityDetector:
 
         More robust than simple standard deviation.
         """
+        if len(signal) < 2:
+            return 0.0
+
         # Use differences to remove trend
         differences = np.diff(signal)
+
+        if len(differences) == 0:
+            return 0.0
 
         # Median absolute deviation (MAD) is more robust to outliers
         mad = np.median(np.abs(differences - np.median(differences)))
@@ -663,7 +688,7 @@ class SignalStabilityDetector:
         weights = {"std": 0.25, "linearity": 0.25, "d1": 0.2, "d2": 0.15, "snr": 0.15}
 
         # Transform SNR to 0-1 scale
-        snr_score = 1 - np.exp(-snr / 10)  # asymptotic approach to 1
+        snr_score = 1 - np.exp(-snr / 10) if np.isfinite(snr) else 1.0
 
         # Calculate weighted score
         score = (
