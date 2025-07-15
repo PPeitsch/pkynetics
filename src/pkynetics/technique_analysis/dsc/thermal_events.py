@@ -354,13 +354,13 @@ class ThermalEventDetector:
 
         pre_cp = np.mean((heat_flow - baseline)[pre_region])
         post_cp = np.mean((heat_flow - baseline)[post_region])
-        return post_cp - pre_cp
+        return float(post_cp - pre_cp)
 
     def _calculate_peak_enthalpy(
         self, temperature: NDArray[np.float64], heat_flow: NDArray[np.float64]
     ) -> float:
         """Calculate enthalpy from peak area."""
-        return np.trapz(heat_flow, temperature)
+        return float(np.trapz(heat_flow, temperature))
 
     def _is_glass_transition_shape(self, data: NDArray[np.float64]) -> bool:
         """Check if data has characteristic glass transition shape."""
