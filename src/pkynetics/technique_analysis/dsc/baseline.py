@@ -259,20 +259,25 @@ class BaselineCorrector:
         if len(points) < 3:
             raise ValueError("Convex Hull requires at least 3 points.")
 
-        hull = ConvexHull(points)
+        try:
+            hull = ConvexHull(points)
+        except Exception:
+            # Fallback for collinear points or other Qhull errors
+            return np.polyval(np.polyfit(temperature, heat_flow, 1), temperature), {}
 
-        # Find the indices of the start and end points of the data
-        start_vertex_index = np.where(hull.vertices == np.argmin(points[:, 0]))[0][0]
-        end_vertex_index = np.where(hull.vertices == np.argmax(points[:, 0]))[0][0]
+        # The lower hull consists of the vertices from the start point to the end point
+        # The vertices are ordered counter-clockwise.
+        vertices = hull.vertices
+        start_vertex_idx = np.where(vertices == np.argmin(points[:, 0]))[0][0]
+        end_vertex_idx = np.where(vertices == np.argmax(points[:, 0]))[0][0]
 
-        # Walk along the hull vertices to find the lower path
-        lower_hull_indices: List[int] = []
-        current_index = start_vertex_index
-        while True:
-            lower_hull_indices.append(hull.vertices[current_index])
-            if hull.vertices[current_index] == end_vertex_index:
-                break
-            current_index = (current_index + 1) % len(hull.vertices)
+        # Correctly walk the hull vertices to get the lower convex hull
+        if start_vertex_idx < end_vertex_idx:
+            lower_hull_indices = vertices[start_vertex_idx : end_vertex_idx + 1]
+        else:  # Wrap around case
+            lower_hull_indices = np.concatenate(
+                (vertices[start_vertex_idx:], vertices[: end_vertex_idx + 1])
+            )
 
         lower_hull_points = points[lower_hull_indices]
 
