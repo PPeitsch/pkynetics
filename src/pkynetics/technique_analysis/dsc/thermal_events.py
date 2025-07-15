@@ -105,54 +105,63 @@ class ThermalEventDetector:
         if temperature.size < self.smoothing_window:
             return None
 
+        # --- 1. Identify and locate sharp first-order peaks to create exclusion zones ---
+        signal_abs = np.abs(heat_flow - np.mean(heat_flow))
+        signal_prominence = np.ptp(signal_abs) * 0.1
+        sharp_peaks, _ = signal.find_peaks(signal_abs, prominence=signal_prominence)
+
+        # --- 2. Find potential glass transitions (peaks in the derivative) ---
         dHf_dt = np.gradient(heat_flow, temperature)
         dHf_smooth = signal.savgol_filter(
             dHf_dt, self.smoothing_window, self.smoothing_order
         )
 
-        prominence = np.ptp(dHf_smooth) * self.peak_prominence
-        peaks, props = signal.find_peaks(
+        # Use a combination of relative and absolute prominence to avoid noise detection
+        relative_prominence = np.ptp(dHf_smooth) * self.peak_prominence
+        absolute_prominence_threshold = (
+            1e-4  # A hard threshold for significant slope changes
+        )
+
+        prominence = max(relative_prominence, absolute_prominence_threshold)
+
+        derivative_peaks, props = signal.find_peaks(
             dHf_smooth, prominence=prominence, width=self.smoothing_window // 4
         )
 
-        if not len(peaks):
-            return None
+        # --- 3. Validate potential Tg peaks against exclusion zones ---
+        for i, peak_idx in enumerate(derivative_peaks):
+            is_near_sharp_peak = False
+            for sharp_peak_idx in sharp_peaks:
+                if abs(peak_idx - sharp_peak_idx) < self.smoothing_window * 2:
+                    is_near_sharp_peak = True
+                    break
 
-        # Check for sharp peaks in the original signal to avoid misidentifying melting/crystallization
-        sharp_peaks, _ = signal.find_peaks(
-            np.abs(heat_flow - np.mean(heat_flow)), prominence=np.ptp(heat_flow) * 0.1
-        )
+            if not is_near_sharp_peak:
+                mid_idx = peak_idx
+                width_info = signal.peak_widths(dHf_smooth, [mid_idx], rel_height=0.8)
+                start_idx = int(np.floor(width_info[2][0]))
+                end_idx = int(np.ceil(width_info[3][0]))
 
-        for i, peak_idx in enumerate(peaks):
-            # If a sharp peak is found near the derivative peak, it's not a glass transition
-            if np.any(np.abs(peak_idx - sharp_peaks) < self.smoothing_window * 2):
-                continue
+                onset_temp, end_temp = temperature[start_idx], temperature[end_idx]
+                mid_temp = temperature[mid_idx]
 
-            mid_idx = peak_idx
-            width_info = signal.peak_widths(dHf_smooth, [mid_idx], rel_height=0.8)
-            start_idx = int(np.floor(width_info[2][0]))
-            end_idx = int(np.ceil(width_info[3][0]))
+                delta_cp = np.nan
+                if baseline is not None:
+                    delta_cp = self._calculate_delta_cp(
+                        temperature, heat_flow, baseline, start_idx, end_idx
+                    )
 
-            onset_temp, end_temp = temperature[start_idx], temperature[end_idx]
-            mid_temp = temperature[mid_idx]
-
-            delta_cp = np.nan
-            if baseline is not None:
-                delta_cp = self._calculate_delta_cp(
-                    temperature, heat_flow, baseline, start_idx, end_idx
+                return GlassTransition(
+                    onset_temperature=float(onset_temp),
+                    midpoint_temperature=float(mid_temp),
+                    endpoint_temperature=float(end_temp),
+                    delta_cp=float(delta_cp),
+                    width=float(end_temp - onset_temp),
+                    quality_metrics={},
+                    baseline_subtracted=baseline is not None,
                 )
 
-            return GlassTransition(
-                onset_temperature=float(onset_temp),
-                midpoint_temperature=float(mid_temp),
-                endpoint_temperature=float(end_temp),
-                delta_cp=float(delta_cp),
-                width=float(end_temp - onset_temp),
-                quality_metrics={},
-                baseline_subtracted=baseline is not None,
-            )
-
-        return None  # No suitable glass transition found
+        return None  # No valid glass transition found
 
     def detect_crystallization(
         self,
@@ -173,7 +182,10 @@ class ThermalEventDetector:
             np.ptp(exothermic_signal) * self.peak_prominence, self.noise_threshold
         )
         peaks, props = signal.find_peaks(
-            exothermic_signal, prominence=prominence, distance=self.smoothing_window
+            exothermic_signal,
+            prominence=prominence,
+            distance=self.smoothing_window,
+            height=0,
         )
 
         events = []
@@ -187,7 +199,6 @@ class ThermalEventDetector:
                 heat_flow_corr[start_idx : end_idx + 1],
             )
 
-            # Use prominence for height as it's more robust
             peak_height = -props["prominences"][i]
 
             events.append(
@@ -220,7 +231,10 @@ class ThermalEventDetector:
 
         prominence = max(np.ptp(heat_flow) * self.peak_prominence, self.noise_threshold)
         peaks, props = signal.find_peaks(
-            heat_flow, prominence=prominence, distance=self.smoothing_window
+            heat_flow,
+            prominence=prominence,
+            distance=self.smoothing_window,
+            height=0,
         )
 
         events = []
@@ -234,7 +248,6 @@ class ThermalEventDetector:
                 heat_flow_corr[start_idx : end_idx + 1],
             )
 
-            # Use prominence for height
             peak_height = props["prominences"][i]
 
             events.append(

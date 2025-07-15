@@ -117,6 +117,17 @@ def melting_data(temperature_data):
 
 
 @pytest.fixture
+def baseline_only_data(temperature_data):
+    """Generate data with only a baseline."""
+    baseline = 0.001 * (temperature_data - temperature_data[0])
+    return {
+        "temperature": temperature_data,
+        "heat_flow": baseline,
+        "baseline": baseline,
+    }
+
+
+@pytest.fixture
 def complex_data(temperature_data):
     """Generate data with multiple thermal events."""
     gt = generate_glass_transition(temperature_data, tg=353.15)
@@ -162,10 +173,10 @@ def test_glass_transition_without_baseline(event_detector, glass_transition_data
     assert np.isnan(result.delta_cp)
 
 
-def test_no_glass_transition(event_detector, melting_data):
+def test_no_glass_transition(event_detector, baseline_only_data):
     """Test behavior when no glass transition is present."""
     result = event_detector.detect_glass_transition(
-        melting_data["temperature"], melting_data["heat_flow"]
+        baseline_only_data["temperature"], baseline_only_data["heat_flow"]
     )
     assert result is None
 
