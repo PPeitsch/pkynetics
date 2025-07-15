@@ -181,6 +181,8 @@ class ThermalEventDetector:
         prominence = max(
             np.ptp(exothermic_signal) * self.peak_prominence, self.noise_threshold
         )
+
+        # Key fix: Use height=0 on the inverted signal to ensure we only detect exothermic (originally negative) peaks
         peaks, props = signal.find_peaks(
             exothermic_signal,
             prominence=prominence,
@@ -229,16 +231,39 @@ class ThermalEventDetector:
         if temperature.size < self.smoothing_window:
             return []
 
-        prominence = max(np.ptp(heat_flow) * self.peak_prominence, self.noise_threshold)
-        peaks, props = signal.find_peaks(
-            heat_flow,
-            prominence=prominence,
-            distance=self.smoothing_window,
-            height=0,
+        # --- Calculate derivative once for all checks ---
+        dHf_dt = np.gradient(heat_flow, temperature)
+        dHf_smooth = signal.savgol_filter(
+            dHf_dt, self.smoothing_window, self.smoothing_order
         )
 
-        events = []
+        # --- Find all potential positive peaks ---
+        prominence = max(np.ptp(heat_flow) * self.peak_prominence, self.noise_threshold)
+        peaks, props = signal.find_peaks(
+            heat_flow, prominence=prominence, distance=self.smoothing_window, height=0
+        )
+
+        # --- Filter peaks based on derivative amplitude ---
+        filtered_peaks = []
+        filtered_props_indices = []
+        # A true first-order peak must have a significant derivative swing
+        min_derivative_amplitude = np.ptp(dHf_smooth) * 0.1
+
         for i, peak_idx in enumerate(peaks):
+            window_radius = self.smoothing_window
+            start_window = max(0, peak_idx - window_radius)
+            end_window = min(len(dHf_smooth), peak_idx + window_radius)
+
+            local_derivative_amplitude = np.ptp(dHf_smooth[start_window:end_window])
+
+            if local_derivative_amplitude > min_derivative_amplitude:
+                filtered_peaks.append(peak_idx)
+                filtered_props_indices.append(i)
+
+        # --- Process only the filtered, valid peaks ---
+        events = []
+        for i_filtered, peak_idx in enumerate(filtered_peaks):
+            original_prop_idx = filtered_props_indices[i_filtered]
             widths = signal.peak_widths(heat_flow, [peak_idx], rel_height=0.5)
             start_idx, end_idx = int(np.floor(widths[2][0])), int(np.ceil(widths[3][0]))
 
@@ -248,7 +273,7 @@ class ThermalEventDetector:
                 heat_flow_corr[start_idx : end_idx + 1],
             )
 
-            peak_height = props["prominences"][i]
+            peak_height = props["prominences"][original_prop_idx]
 
             events.append(
                 MeltingEvent(

@@ -254,40 +254,96 @@ def test_second_order_transition(event_detector, temperature_data):
     assert any(t.transition_type == "second_order" for t in transitions)
 
 
-# Complex Data Tests
-# Complex Data Tests
-# def test_multiple_events_detection(event_detector, complex_data):
-#     """Test detection of multiple thermal events in complex data."""
-#     gt = event_detector.detect_glass_transition(
-#         complex_data["temperature"], complex_data["heat_flow"]
-#     )
-#     cryst = event_detector.detect_crystallization(
-#         complex_data["temperature"], complex_data["heat_flow"]
-#     )
-#     melt = event_detector.detect_melting(
-#         complex_data["temperature"], complex_data["heat_flow"]
-#     )
+def test_multiple_events_detection(event_detector, complex_data):
+    """Test detection of multiple thermal events in complex data."""
+    # --- Execute detection methods ---
+    gt = event_detector.detect_glass_transition(
+        complex_data["temperature"], complex_data["heat_flow"]
+    )
+    cryst = event_detector.detect_crystallization(
+        complex_data["temperature"], complex_data["heat_flow"]
+    )
+    melt = event_detector.detect_melting(
+        complex_data["temperature"], complex_data["heat_flow"]
+    )
 
-#     assert gt is not None
-#     assert (
-#         abs(
-#             gt.midpoint_temperature
-#             - complex_data["expected_events"]["glass_transition"]
-#         )
-#         < 5.0
-#     )
-#     assert len(cryst) == 1
-#     assert (
-#         abs(
-#             cryst[0].peak_temperature
-#             - complex_data["expected_events"]["crystallization"]
-#         )
-#         < 5.0
-#     )
-#     assert len(melt) == 1
-#     assert (
-#         abs(melt[0].peak_temperature - complex_data["expected_events"]["melting"]) < 5.0
-#     )
+    # --- Comprehensive Debug Plot ---
+    import matplotlib.pyplot as plt
+    from scipy import signal
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
+
+    # Plot 1: Heat Flow and Detected Events
+    ax1.plot(
+        complex_data["temperature"],
+        complex_data["heat_flow"],
+        label="Complex Signal",
+        zorder=2,
+        color="C0",
+    )
+
+    # Visualize Potential Melting Peaks (before filtering)
+    peaks_potential_melt, _ = signal.find_peaks(complex_data["heat_flow"], height=0)
+    ax1.plot(
+        complex_data["temperature"][peaks_potential_melt],
+        complex_data["heat_flow"][peaks_potential_melt],
+        "rv",
+        markersize=6,
+        alpha=0.5,
+        label="Potential Melt Peaks",
+    )
+
+    # Visualize Confirmed Melting Peaks (after filtering)
+    if melt:
+        for i, event in enumerate(melt):
+            ax1.axvline(
+                event.peak_temperature,
+                color="red",
+                linestyle="--",
+                label=f"Confirmed Melt Peak at {event.peak_temperature:.2f}K",
+            )
+
+    # Visualize Crystallization Peaks
+    if cryst:
+        for i, event in enumerate(cryst):
+            ax1.axvline(
+                event.peak_temperature,
+                color="blue",
+                linestyle="--",
+                label=f"Confirmed Cryst. Peak at {event.peak_temperature:.2f}K",
+            )
+
+    # Visualize Glass Transition
+    if gt:
+        ax1.axvspan(
+            gt.onset_temperature,
+            gt.endpoint_temperature,
+            color="green",
+            alpha=0.2,
+            label=f"Detected Tg at {gt.midpoint_temperature:.2f}K",
+        )
+
+    # --- Assertions ---
+    assert gt is not None
+    assert (
+        abs(
+            gt.midpoint_temperature
+            - complex_data["expected_events"]["glass_transition"]
+        )
+        < 5.0
+    )
+    assert len(cryst) == 1
+    assert (
+        abs(
+            cryst[0].peak_temperature
+            - complex_data["expected_events"]["crystallization"]
+        )
+        < 5.0
+    )
+    assert len(melt) == 1
+    assert (
+        abs(melt[0].peak_temperature - complex_data["expected_events"]["melting"]) < 5.0
+    )
 
 
 # Error Handling Tests
