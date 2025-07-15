@@ -330,12 +330,14 @@ class CpCalculator:
                 ref_cp,
             )
             temp_array = temperature
-            uncertainty_array = self._calculate_three_step_uncertainty(
-                heat_flow,
-                ref_heat_flow,
-                ref_cp,
-                sample_mass,
-                ref_mass,
+            uncertainty_array = np.asarray(
+                self._calculate_three_step_uncertainty(
+                    heat_flow,
+                    ref_heat_flow,
+                    ref_cp,
+                    sample_mass,
+                    ref_mass,
+                )
             )
 
         # Ensure all output arrays are 1D
