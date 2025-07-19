@@ -9,10 +9,8 @@ Savitzky-Golay filter with varying window sizes.
 The workflow includes:
 1.  Generating a synthetic signal with a known clean shape and adding significant noise.
 2.  Applying three different levels of smoothing (low, medium, high).
-3.  Plotting the original noisy signal, the true clean signal, and the smoothed
-    results.
-4.  Plotting the first derivatives of each signal to show how smoothing is
-    critical for derivative-based analysis (like Tg detection).
+3.  Creating a multi-panel plot to clearly visualize the effect of each smoothing
+    level on both the signal and its first derivative, avoiding clutter.
 """
 
 import matplotlib.pyplot as plt
@@ -38,55 +36,110 @@ def main():
 
     processor = SignalProcessor()
 
-    # --- Apply smoothing with different window sizes ---
+    # --- Define smoothing levels ---
     smoothing_levels = {
         "Low Smoothing (window=5)": 5,
         "Medium Smoothing (window=21)": 21,
         "High Smoothing (window=51)": 51,
     }
 
-    smoothed_signals = {}
-    for name, window in smoothing_levels.items():
-        smoothed_signals[name] = processor.smooth_signal(
-            noisy_signal, window_length=window, method="savgol"
-        )
+    # --- Visualization with individual subplots for clarity ---
+    # Create a figure with a row for each smoothing level, plus one for the original
+    fig, axes = plt.subplots(
+        len(smoothing_levels) + 1, 2, figsize=(14, 16), sharex=True
+    )
+    fig.suptitle(
+        "Effect of Different Smoothing Levels on DSC Signal and its Derivative",
+        fontsize=16,
+    )
 
-    # --- Visualization ---
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+    # --- Plot 1: Original Noisy Data ---
+    ax_sig, ax_deriv = axes[0]
+    ax_sig.plot(
+        temperature, noisy_signal, label="Noisy Signal", color="gray", alpha=0.8
+    )
+    ax_sig.plot(temperature, clean_signal, "k--", label="True Clean Signal")
+    ax_sig.set_title("Original Signal")
+    ax_sig.set_ylabel("Heat Flow (a.u.)")
+    ax_sig.legend()
+    ax_sig.grid(True)
 
-    # Plot 1: Smoothed Signals
-    ax1.plot(temperature, noisy_signal, label="Noisy Signal", color="gray", alpha=0.5)
-    ax1.plot(temperature, clean_signal, "k--", label="True Clean Signal")
-    for name, signal_data in smoothed_signals.items():
-        ax1.plot(temperature, signal_data, label=name, linewidth=2)
-
-    ax1.set_title("Effect of Smoothing on Heat Flow Signal")
-    ax1.set_ylabel("Heat Flow (a.u.)")
-    ax1.legend()
-    ax1.grid(True)
-
-    # Plot 2: Derivatives of Smoothed Signals
-    ax2.plot(
+    ax_deriv.plot(
+        temperature,
+        np.gradient(noisy_signal, temperature),
+        label="Derivative of Noisy Signal",
+        color="gray",
+        alpha=0.8,
+    )
+    ax_deriv.plot(
         temperature,
         np.gradient(clean_signal, temperature),
         "k--",
         label="Derivative of True Signal",
     )
-    for name, signal_data in smoothed_signals.items():
-        ax2.plot(
-            temperature,
-            np.gradient(signal_data, temperature),
-            label=f"Derivative of {name}",
-            linewidth=2,
+    ax_deriv.set_title("Original Derivative")
+    ax_deriv.set_ylabel("d(HF)/dT")
+    ax_deriv.legend()
+    ax_deriv.grid(True)
+
+    # --- Plot each smoothing level in its own row ---
+    for i, (name, window) in enumerate(smoothing_levels.items()):
+        row_idx = i + 1
+        ax_sig, ax_deriv = axes[row_idx]
+
+        # Apply smoothing
+        smoothed_signal = processor.smooth_signal(
+            noisy_signal, window_length=window, method="savgol"
         )
 
-    ax2.set_title("Effect of Smoothing on First Derivative")
-    ax2.set_xlabel("Temperature (K)")
-    ax2.set_ylabel("d(HF)/dT (a.u.)")
-    ax2.legend()
-    ax2.grid(True)
+        # Plot smoothed signal
+        ax_sig.plot(
+            temperature, noisy_signal, color="gray", alpha=0.3, label="_nolegend_"
+        )
+        ax_sig.plot(
+            temperature,
+            smoothed_signal,
+            color=f"C{i}",
+            linewidth=2,
+            label="Smoothed Signal",
+        )
+        ax_sig.plot(temperature, clean_signal, "k--", label="True Signal")
+        ax_sig.set_title(name)
+        ax_sig.set_ylabel("Heat Flow (a.u.)")
+        ax_sig.legend()
+        ax_sig.grid(True)
 
-    plt.tight_layout()
+        # Plot derivative of smoothed signal
+        ax_deriv.plot(
+            temperature,
+            np.gradient(noisy_signal, temperature),
+            color="gray",
+            alpha=0.3,
+            label="_nolegend_",
+        )
+        ax_deriv.plot(
+            temperature,
+            np.gradient(smoothed_signal, temperature),
+            color=f"C{i}",
+            linewidth=2,
+            label="Derivative of Smoothed",
+        )
+        ax_deriv.plot(
+            temperature,
+            np.gradient(clean_signal, temperature),
+            "k--",
+            label="Derivative of True",
+        )
+        ax_deriv.set_title(f"Derivative ({name})")
+        ax_deriv.set_ylabel("d(HF)/dT")
+        ax_deriv.legend()
+        ax_deriv.grid(True)
+
+    # Set common X label
+    axes[-1, 0].set_xlabel("Temperature (K)")
+    axes[-1, 1].set_xlabel("Temperature (K)")
+
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.show()
 
 
