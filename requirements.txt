@@ -1,6 +1,6 @@
 numpy~=1.24.3
 matplotlib~=3.7.5
-setuptools~=68.2.0
+setuptools>=78.1.1
 pandas~=2.0.3
 scipy~=1.10.1
 statsmodels~=0.14.1
