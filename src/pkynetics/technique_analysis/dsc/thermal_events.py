@@ -360,7 +360,7 @@ class ThermalEventDetector:
         self, temperature: NDArray[np.float64], heat_flow: NDArray[np.float64]
     ) -> float:
         """Calculate enthalpy from peak area."""
-        return float(np.trapz(heat_flow, temperature))
+        return float(np.trapezoid(heat_flow, temperature))
 
     def _is_glass_transition_shape(self, data: NDArray[np.float64]) -> bool:
         """Check if data has characteristic glass transition shape."""
