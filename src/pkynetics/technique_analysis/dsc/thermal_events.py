@@ -8,7 +8,13 @@ from scipy import signal
 from scipy.integrate import trapezoid
 from scipy.optimize import curve_fit
 
-from .types import CrystallizationEvent, DSCPeak, GlassTransition, MeltingEvent, PhaseTransition
+from .types import (
+    CrystallizationEvent,
+    DSCPeak,
+    GlassTransition,
+    MeltingEvent,
+    PhaseTransition,
+)
 
 
 class ThermalEventDetector:
