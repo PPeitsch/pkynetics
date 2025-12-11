@@ -114,7 +114,7 @@ def import_setaram(file_path: str) -> ReturnDict:
             logger.info("Trying old Setaram format")
             df = pd.read_csv(
                 file_path,
-                delim_whitespace=True,
+                sep=r"\s+",
                 decimal=".",
                 encoding=encoding,
                 dtype=str,

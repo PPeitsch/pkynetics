@@ -297,10 +297,10 @@ class CpCalculator:
                 region_slice = slice(start_idx, end_idx)
 
                 # Calculate regional averages
-                temp = np.mean(temperature[region_slice])
-                sample_signal_avg = np.mean(heat_flow[region_slice])
-                ref_signal_avg = np.mean(ref_heat_flow[region_slice])
-                ref_cp_value = np.mean(ref_cp[region_slice])
+                temp = float(np.mean(temperature[region_slice]))
+                sample_signal_avg = float(np.mean(heat_flow[region_slice]))
+                ref_signal_avg = float(np.mean(ref_heat_flow[region_slice]))
+                ref_cp_value = float(np.mean(ref_cp[region_slice]))
 
                 # Calculate Cp
                 cp = self._calculate_regional_cp(
@@ -614,7 +614,7 @@ class CpCalculator:
 
         # Signal-to-noise ratio
         noise = np.std(np.diff(cp_vals))
-        signal_range = np.ptp(cp_vals)
+        signal_range: float = float(np.ptp(cp_vals))
         metrics["snr"] = float(signal_range / noise if noise > 0 else np.inf)
 
         # Relative uncertainty, avoid division by zero

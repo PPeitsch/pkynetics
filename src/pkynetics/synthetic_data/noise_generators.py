@@ -1,3 +1,5 @@
+from typing import cast
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -22,7 +24,10 @@ def add_gaussian_noise(
         raise ValueError("Standard deviation must be non-negative")
 
     noise = np.random.normal(0, std_dev, data.shape)
-    return np.clip(data + noise, 0, 1)
+    result: NDArray[np.float64] = np.array(
+        np.clip(data + noise, 0, 1), dtype=np.float64
+    )
+    return result
 
 
 def add_outliers(
@@ -52,4 +57,4 @@ def add_outliers(
         outlier_indices = np.random.choice(len(data), num_outliers, replace=False)
         outliers = np.random.normal(0, outlier_std_dev, num_outliers)
         data[outlier_indices] += outliers
-    return np.clip(data, 0, 1)
+    return cast(np.ndarray, np.clip(data, 0, 1))

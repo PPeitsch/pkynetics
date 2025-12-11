@@ -138,8 +138,8 @@ def find_optimal_margin(
             )
 
             # Check if enough points are selected by this margin
-            n_start = np.sum(start_mask)
-            n_end = np.sum(end_mask)
+            n_start: int = int(np.sum(start_mask))
+            n_end: int = int(np.sum(end_mask))
 
             if n_start < min_points_fit or n_end < min_points_fit:
                 # py_warnings.warn(f"Margin {margin:.1%} yields insufficient points ({n_start}, {n_end} vs min {min_points_fit}). Skipping.", UserWarning)
@@ -944,8 +944,8 @@ def fit_linear_segments(
         ValueError: If insufficient points are available in either segment.
         np.linalg.LinAlgError: If the linear fit fails mathematically.
     """
-    n_start = np.sum(start_mask)
-    n_end = np.sum(end_mask)
+    n_start: int = int(np.sum(start_mask))
+    n_end: int = int(np.sum(end_mask))
 
     if n_start < min_points_fit:
         raise ValueError(
@@ -1281,8 +1281,8 @@ def calculate_r2(
         return np.nan
 
     y_pred = np.polyval(p, x)
-    ss_res = np.sum((y - y_pred) ** 2)
-    ss_tot = np.sum((y - np.mean(y)) ** 2)
+    ss_res: float = float(np.sum((y - y_pred) ** 2))
+    ss_tot: float = float(np.sum((y - np.mean(y)) ** 2))
 
     if ss_tot < 1e-15:  # Avoid division by zero if y is effectively constant
         return 1.0 if ss_res < 1e-15 else 0.0  # Perfect fit if residuals are also zero

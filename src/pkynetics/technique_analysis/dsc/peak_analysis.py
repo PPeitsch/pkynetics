@@ -71,20 +71,25 @@ class PeakAnalyzer:
             signal_to_analyze -= baseline
 
         noise_estimation_window = min(20, len(signal_to_analyze) // 5)
+        noise_level: float
         if noise_estimation_window > 1:
-            noise_level = np.std(signal_to_analyze[:noise_estimation_window])
+            noise_level = float(np.std(signal_to_analyze[:noise_estimation_window]))
         else:
             noise_level = 0.0
 
         noise_based_prominence = 3.0 * noise_level
-        relative_prominence = np.ptp(signal_to_analyze) * self.peak_prominence
-        prominence = max(relative_prominence, noise_based_prominence)
+        relative_prominence: float = (
+            float(np.ptp(signal_to_analyze)) * self.peak_prominence
+        )
+        prominence: float = max(relative_prominence, noise_based_prominence)
 
-        relative_height = np.ptp(signal_to_analyze) * self.height_threshold
-        height = max(relative_height, noise_level)
+        relative_height: float = (
+            float(np.ptp(signal_to_analyze)) * self.height_threshold
+        )
+        height: float = max(relative_height, noise_level)
 
         if prominence <= 0:
-            prominence = np.finfo(float).eps
+            prominence = float(np.finfo(float).eps)
 
         peaks, properties = signal.find_peaks(
             signal_to_analyze,

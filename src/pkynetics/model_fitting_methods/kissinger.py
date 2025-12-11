@@ -1,7 +1,7 @@
 """Kissinger method for non-isothermal kinetics analysis."""
 
 import logging
-from typing import Tuple
+from typing import Tuple, cast
 
 import numpy as np
 import statsmodels.api as sm
@@ -45,15 +45,15 @@ def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
     t_p = np.zeros_like(beta)
     for i, b in enumerate(beta):
         try:
-            t_p[i] = fsolve(
-                kissinger_nonlinear_eq, x0=e_a / (R * 20), args=(e_a, a, b)
-            )[0]
+            t_p[i] = float(
+                fsolve(kissinger_nonlinear_eq, x0=e_a / (R * 20), args=(e_a, a, b))[0]
+            )
         except (RuntimeError, ValueError) as e:
             logger.warning(
                 f"Failed to converge for heating rate {b}: {e}. Using initial guess."
             )
             t_p[i] = e_a / (R * 20)
-    return t_p
+    return cast(np.ndarray, t_p)
 
 
 def kissinger_equation(
