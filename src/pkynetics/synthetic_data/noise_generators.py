@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.typing import NDArray
+from typing import cast
 
 
 def add_gaussian_noise(
@@ -55,4 +56,4 @@ def add_outliers(
         outlier_indices = np.random.choice(len(data), num_outliers, replace=False)
         outliers = np.random.normal(0, outlier_std_dev, num_outliers)
         data[outlier_indices] += outliers
-    return np.asarray(np.clip(data, 0, 1), dtype=np.float64)
+    return cast(np.ndarray, np.clip(data, 0, 1))

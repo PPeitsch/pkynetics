@@ -1,6 +1,6 @@
 """Model-specific plotting functions for Pkynetics."""
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -166,7 +166,7 @@ def plot_horowitz_metzger(
         fig, ax = plt.subplots(figsize=(10, 6))
     else:
         maybe_fig = ax.get_figure()
-        fig = maybe_fig if maybe_fig is not None else plt.gcf()
+        fig = cast(plt.Figure, maybe_fig if maybe_fig is not None else plt.gcf())
 
     # Plot all data points
     ax.scatter(theta, y, label="All Data", alpha=0.3, s=10, color="lightblue")
