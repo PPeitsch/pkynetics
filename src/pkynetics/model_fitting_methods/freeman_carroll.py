@@ -114,7 +114,7 @@ def freeman_carroll_method(
         raise ValueError("Insufficient valid data points for analysis")
 
     # Remove outliers using IQR method
-    percentile_result = np.percentile(y_filtered, [25, 75])
+    percentile_result = np.asarray(np.percentile(y_filtered, [25, 75]))
     q1: float = float(percentile_result[0])
     q3: float = float(percentile_result[1])
     iqr = q3 - q1
