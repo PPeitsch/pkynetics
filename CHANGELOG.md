@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [v0.4.4] - 2025-12-11
+
+### Changed
+- Updated `scipy` and `numpy` dependencies to use `>=` instead of `~=` for more flexible version compatibility.
+- Replaced deprecated `np.trapz` with `np.trapezoid` for scipy 1.14+ compatibility.
+- Replaced deprecated pandas `delim_whitespace` parameter with `sep=r"\s+"`.
+
+### Fixed
+- Resolved all mypy type checking errors for stricter numpy/matplotlib type stubs.
+- Added explicit type casts using `typing.cast()` for numpy array operations.
+- Fixed matplotlib Figure type handling in `model_specific_plots.py`.
+- Added `.gitattributes` file for consistent line endings across platforms.
+
+### Added
+- `AGENTS.md` and `WORKFLOW.md` documentation files.
+
+
 ## [v0.4.3] - 2025-07-29
 
 ### Security
