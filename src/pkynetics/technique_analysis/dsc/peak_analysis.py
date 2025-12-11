@@ -111,7 +111,9 @@ class PeakAnalyzer:
                 heat_flow_corr -= baseline
 
             peak_mask = slice(left_base_idx, right_base_idx + 1)
-            peak_area = float(trapezoid(heat_flow_corr[peak_mask], temperature[peak_mask]))
+            peak_area = float(
+                trapezoid(heat_flow_corr[peak_mask], temperature[peak_mask])
+            )
             enthalpy = abs(peak_area)
             peak_height = float(properties["prominences"][i])
 
