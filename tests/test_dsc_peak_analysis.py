@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 from numpy.typing import NDArray
-from scipy.integrate import trapz
+from scipy.integrate import trapezoid
 
 from pkynetics.technique_analysis.dsc.peak_analysis import PeakAnalyzer
 
@@ -212,7 +212,7 @@ def test_baseline_correction_impact(peak_analyzer, simple_peak_data):
     )
 
     # Areas should be different, but corrected area should be close to original area
-    original_area = trapz(
+    original_area = trapezoid(
         simple_peak_data["heat_flow"], simple_peak_data["temperature"]
     )
     np.testing.assert_allclose(

@@ -1,11 +1,7 @@
 """Model fitting methods for kinetic analysis in Pkynetics."""
 
 from .coats_redfern import coats_redfern_equation, coats_redfern_method
-from .freeman_carroll import (
-    freeman_carroll_equation,
-    freeman_carroll_method,
-    plot_diagnostic,
-)
+from .freeman_carroll import freeman_carroll_equation, freeman_carroll_method, plot_diagnostic
 from .horowitz_metzger import (
     horowitz_metzger_equation,
     horowitz_metzger_method,

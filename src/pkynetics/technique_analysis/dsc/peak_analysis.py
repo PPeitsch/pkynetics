@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple, cast
 import numpy as np
 from numpy.typing import NDArray
 from scipy import optimize, signal
-from scipy.integrate import trapz
+from scipy.integrate import trapezoid
 
 from .types import DSCPeak
 from .utilities import find_intersection_point, safe_savgol_filter, validate_window_size
@@ -111,7 +111,9 @@ class PeakAnalyzer:
                 heat_flow_corr -= baseline
 
             peak_mask = slice(left_base_idx, right_base_idx + 1)
-            peak_area = float(trapz(heat_flow_corr[peak_mask], temperature[peak_mask]))
+            peak_area = float(
+                trapezoid(heat_flow_corr[peak_mask], temperature[peak_mask])
+            )
             enthalpy = abs(peak_area)
             peak_height = float(properties["prominences"][i])
 
@@ -255,7 +257,7 @@ class PeakAnalyzer:
                     "amplitude": float(popt[i]),
                     "center": float(popt[i + 1]),
                     "width": float(popt[i + 2]),
-                    "area": float(trapz(peak_component, temperature)),
+                    "area": float(trapezoid(peak_component, temperature)),
                 }
                 peak_params.append(params)
                 fitted_curve += peak_component
