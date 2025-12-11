@@ -614,7 +614,7 @@ class CpCalculator:
 
         # Signal-to-noise ratio
         noise = np.std(np.diff(cp_vals))
-        signal_range = np.ptp(cp_vals)
+        signal_range: float = float(np.ptp(cp_vals))
         metrics["snr"] = float(signal_range / noise if noise > 0 else np.inf)
 
         # Relative uncertainty, avoid division by zero

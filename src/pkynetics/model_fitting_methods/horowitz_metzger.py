@@ -25,7 +25,7 @@ def horowitz_metzger_equation(
     Returns:
         np.ndarray: y values for the Horowitz-Metzger plot.
     """
-    return e_a * theta / (r * t_s**2)
+    return np.asarray(e_a * theta / (r * t_s**2), dtype=np.float64)
 
 
 def horowitz_metzger_method(

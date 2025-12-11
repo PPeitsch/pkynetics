@@ -94,8 +94,10 @@ def jmak_method(
 
         # Calculate R^2
         predicted = jmak_equation(time, k, n)
-        ss_res = np.sum((transformed_fraction - predicted) ** 2)
-        ss_tot = np.sum((transformed_fraction - np.mean(transformed_fraction)) ** 2)
+        ss_res: float = float(np.sum((transformed_fraction - predicted) ** 2))
+        ss_tot: float = float(
+            np.sum((transformed_fraction - np.mean(transformed_fraction)) ** 2)
+        )
         r_squared = 1 - (ss_res / ss_tot)
 
         logger.info(
@@ -185,8 +187,10 @@ def fit_modified_jmak(
     k0, n = popt
 
     predicted = objective(T, k0, n)
-    ss_res = np.sum((transformed_fraction - predicted) ** 2)
-    ss_tot = np.sum((transformed_fraction - np.mean(transformed_fraction)) ** 2)
+    ss_res: float = float(np.sum((transformed_fraction - predicted) ** 2))
+    ss_tot: float = float(
+        np.sum((transformed_fraction - np.mean(transformed_fraction)) ** 2)
+    )
     r_squared = 1 - (ss_res / ss_tot)
 
     return k0, n, r_squared

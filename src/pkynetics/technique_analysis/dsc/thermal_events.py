@@ -262,7 +262,9 @@ class ThermalEventDetector:
             start_window = max(0, peak_idx - window_radius)
             end_window = min(len(dHf_smooth), peak_idx + window_radius)
 
-            local_derivative_amplitude = np.ptp(dHf_smooth[start_window:end_window])
+            local_derivative_amplitude: float = float(
+                np.ptp(dHf_smooth[start_window:end_window])
+            )
 
             if local_derivative_amplitude > min_derivative_amplitude:
                 filtered_peaks.append(peak_idx)

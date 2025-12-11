@@ -42,7 +42,7 @@ def safe_divide(a: np.ndarray, b: np.ndarray, fill_value: float = 0.0) -> np.nda
     with np.errstate(divide="ignore", invalid="ignore"):
         result = np.divide(a, b)
         result[~np.isfinite(result)] = fill_value
-    return result
+    return np.asarray(result, dtype=np.float64)
 
 
 def freeman_carroll_method(
@@ -113,7 +113,9 @@ def freeman_carroll_method(
         raise ValueError("Insufficient valid data points for analysis")
 
     # Remove outliers using IQR method
-    q1, q3 = np.percentile(y_filtered, [25, 75])
+    percentiles = np.percentile(y_filtered, [25, 75])
+    q1: float = float(percentiles[0])
+    q3: float = float(percentiles[1])
     iqr = q3 - q1
     outlier_mask = (y_filtered >= q1 - 1.5 * iqr) & (y_filtered <= q3 + 1.5 * iqr)
     x_filtered = x_filtered[outlier_mask]

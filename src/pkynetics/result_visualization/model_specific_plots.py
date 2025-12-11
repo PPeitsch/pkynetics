@@ -164,7 +164,9 @@ def plot_horowitz_metzger(
     if ax is None:
         fig, ax = plt.subplots(figsize=(10, 6))
     else:
-        fig = ax.figure
+        fig = ax.get_figure()
+        if fig is None:
+            fig = plt.gcf()
 
     # Plot all data points
     ax.scatter(theta, y, label="All Data", alpha=0.3, s=10, color="lightblue")

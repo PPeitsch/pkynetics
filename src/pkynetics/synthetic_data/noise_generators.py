@@ -52,4 +52,4 @@ def add_outliers(
         outlier_indices = np.random.choice(len(data), num_outliers, replace=False)
         outliers = np.random.normal(0, outlier_std_dev, num_outliers)
         data[outlier_indices] += outliers
-    return np.clip(data, 0, 1)
+    return np.asarray(np.clip(data, 0, 1), dtype=np.float64)
