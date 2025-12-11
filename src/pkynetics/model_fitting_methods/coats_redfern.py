@@ -26,7 +26,8 @@ def coats_redfern_equation(
     Returns:
         np.ndarray: y values for the Coats-Redfern plot.
     """
-    return np.asarray(ln_a - e_a / (r * t), dtype=np.float64)
+    result: np.ndarray = np.array(ln_a - e_a / (r * t), dtype=np.float64)
+    return result
 
 
 def coats_redfern_method(

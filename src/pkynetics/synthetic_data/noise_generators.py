@@ -22,7 +22,10 @@ def add_gaussian_noise(
         raise ValueError("Standard deviation must be non-negative")
 
     noise = np.random.normal(0, std_dev, data.shape)
-    return np.clip(data + noise, 0, 1)
+    result: NDArray[np.float64] = np.array(
+        np.clip(data + noise, 0, 1), dtype=np.float64
+    )
+    return result
 
 
 def add_outliers(

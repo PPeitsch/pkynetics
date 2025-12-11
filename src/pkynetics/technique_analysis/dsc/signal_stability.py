@@ -8,7 +8,7 @@ from numpy.typing import NDArray
 from scipy import stats
 
 try:
-    import pywt  # type: ignore[import-untyped]
+    import pywt  # type: ignore
 except ImportError:
     pywt = None
 

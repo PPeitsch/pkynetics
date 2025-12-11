@@ -53,7 +53,7 @@ def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
                 f"Failed to converge for heating rate {b}: {e}. Using initial guess."
             )
             t_p[i] = e_a / (R * 20)
-    return t_p
+    return np.array(t_p, dtype=np.float64)
 
 
 def kissinger_equation(
