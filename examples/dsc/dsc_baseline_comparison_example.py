@@ -77,7 +77,7 @@ def plot_comparison(
             kwargs["regions"] = regions
 
         try:
-            if method == "asymmetric" and is_exothermic:
+            if method in ["asymmetric", "rubberband"] and is_exothermic:
                 inverted_hf = -heat_flow
                 result = corrector.correct(
                     temperature, inverted_hf, method=method, **kwargs
