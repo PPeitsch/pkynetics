@@ -34,7 +34,7 @@ def generate_stepped_cp_data(
     temp_isotherms: list, true_cp_func, mass: float, noise_level: float = 0.05
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generates a synthetic signal for a stepped-isothermal measurement."""
-    heating_rate_K_per_min = 20.0
+    heating_rate_K_per_min = 5.0
     isothermal_time_s = 30 * 60
 
     time_segments, temp_segments = [], []
@@ -90,7 +90,7 @@ def main():
 
     # --- Part 1: Continuous Method ---
     print("\n--- Running Continuous Three-Step Method ---")
-    temp_cont = np.linspace(300, 700, 401)
+    temp_cont = np.linspace(300, 1000, 701)
     heating_rate_cont = 10.0
     sapphire_cp_func = lambda T: 1.0289 + 2.35e-4 * T
     sample_cp_func = lambda T: 1.5 + 0.002 * (T - 300)
@@ -134,7 +134,7 @@ def main():
     # its true value at the isotherm temperatures.
     ref_cp_at_isotherms = sapphire_cp_func(isotherm_temps_K)
     ref_signal_at_isotherms = (
-        ref_cp_at_isotherms * sapphire_mass * (20.0 / 60.0)
+        ref_cp_at_isotherms * sapphire_mass * (5.0 / 60.0)
     )  # Using ramp rate
 
     # We'll use a simplified reference for the stepped method calculation
@@ -154,7 +154,7 @@ def main():
         temperature=temp_step,
         heat_flow=hf_step,
         sample_mass=sample_mass,
-        heating_rate=20.0,  # The ramp rate
+        heating_rate=5.0,  # The ramp rate
         method=CpMethod.THREE_STEP,
         operation_mode=OperationMode.STEPPED,
         reference_data=ref_data_stepped,

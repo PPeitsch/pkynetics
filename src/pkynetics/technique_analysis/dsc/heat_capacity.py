@@ -279,9 +279,18 @@ class CpCalculator:
         # Find stable regions if in stepped mode
         stable_regions: Optional[List[Tuple[int, int]]] = None
         if operation_mode == OperationMode.STEPPED:
-            stable_regions = self.stability_detector.find_stable_regions(
+            detected_regions = self.stability_detector.find_stable_regions(
                 heat_flow, x_values=temperature, method=stability_method
             )
+            # Filter out isothermal holds (must have a significant temperature change)
+            if detected_regions:
+                stable_regions = [
+                    region
+                    for region in detected_regions
+                    if np.ptp(temperature[slice(*region)]) >= 1.0
+                ]
+            else:
+                stable_regions = []
 
         cp_array: NDArray[np.float64]
         temp_array: NDArray[np.float64]
@@ -389,9 +398,18 @@ class CpCalculator:
         # Find stable regions if in stepped mode
         stable_regions = None
         if operation_mode == OperationMode.STEPPED:
-            stable_regions = self.stability_detector.find_stable_regions(
+            detected_regions = self.stability_detector.find_stable_regions(
                 heat_flow, x_values=temperature, method=stability_method
             )
+            # Filter out isothermal holds (must have a significant temperature change)
+            if detected_regions:
+                stable_regions = [
+                    region
+                    for region in detected_regions
+                    if np.ptp(temperature[slice(*region)]) >= 1.0
+                ]
+            else:
+                stable_regions = []
 
         cp_array: NDArray[np.float64]
         temp_array: NDArray[np.float64]
