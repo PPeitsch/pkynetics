@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.4.5] - 2026-02-21
+
+### Added
+- Comprehensive examples for the DSC analysis module (`stepped_isothermal_cp_example.py`, `dsc_heat_capacity_example.py`, `dsc_baseline_comparison_example.py`, `polymer_analysis_example.py`, `dsc_smoothing_effects_example.py`) demonstrating capabilities on both synthetic and real analytical data.
+
+### Fixed
+- Fixed an architectural flaw in `CpCalculator` where pure isothermal holds were incorrectly validated as "stable ramps" resulting in artificially zeroed Cp measurements for the stepped-isothermal DSC method. Ramps are proactively filtered to guarantee a minimum variance.
+- Addressed `TypeError` in Kissinger's root-finding evaluation caused by Numpy 2 dropping 1D array scalar casting support.
+- Fixed strictly-typed `mypy` assignment assertions across `signal_stability.py` and Matplotlib plotting utilities to fully comport with static CI sub-typing restrictions under rigorous Python 3.11/Numpy 2 environments.
+- Corrected `CustomImporter` instantiation parameters to properly import `utf-16le` 6-column tabular instrument data without registering `NaN`s in DSC examples.
+- Improved Stepped Cp graphing logic within examples to accurately overlap theoretical vs empirical representations regardless of dataset density differences.
+
 
 ## [v0.4.4] - 2025-12-11
 
