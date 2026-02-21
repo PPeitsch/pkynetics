@@ -142,7 +142,7 @@ def plot_lever_rule(
 
     ax.annotate(
         f"Mid point: {mid_temp:.1f}°C",
-        xy=(mid_temp, mid_strain),  # Anchor to actual strain value
+        xy=(float(mid_temp), float(mid_strain)),  # Anchor to actual strain value
         xytext=text_offset,
         textcoords="offset points",
         bbox=dict(boxstyle="round,pad=0.5", fc="white", alpha=0.7),

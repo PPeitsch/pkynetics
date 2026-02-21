@@ -402,7 +402,7 @@ class SignalStabilityDetector:
             thresholds.append(detail_range * threshold)
 
         # Initialize stability mask
-        stability_mask = np.ones(len(signal), dtype=bool)
+        stability_mask: NDArray[np.bool_] = np.ones(len(signal), dtype=bool)
 
         # Analyze each level
         for i, (detail, thresh) in enumerate(zip(detail_coeffs, thresholds)):
@@ -667,7 +667,7 @@ class SignalStabilityDetector:
             return 0.0
 
         # Median absolute deviation (MAD) is more robust to outliers
-        mad = np.median(np.abs(differences - np.median(differences)))
+        mad: float = float(np.median(np.abs(differences - np.median(differences))))
 
         # Convert MAD to standard deviation estimate
         noise_level = mad * 1.4826  # factor for normal distribution
