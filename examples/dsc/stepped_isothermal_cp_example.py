@@ -59,11 +59,11 @@ def load_real_cp_data(filename: str) -> dict:
     logger.info(f"Loading real data from: {path}")
     importer = CustomImporter(
         file_path=str(path),
-        column_names=["temperature_c", "heat_flow", "time"],
-        separator="\t",
+        column_names=["index", "time", "furnace_temp", "temperature_c", "tg", "heat_flow"],
+        separator=";",
         decimal=".",
-        skiprows=13,
-        encoding="utf-8",
+        skiprows=14,
+        encoding="utf-16le",
     )
     data = importer.import_data()
     data["temperature"] = data.pop("temperature_c") + 273.15
@@ -122,18 +122,29 @@ def run_analysis(
     plt.title(f"{title}: Final Calculated Cp")
     if true_cp_func:
         plt.plot(
-            cp_result.temperature,
-            true_cp_func(cp_result.temperature),
+            sample_data["temperature"],
+            true_cp_func(sample_data["temperature"]),
             "k--",
             label="True Cp",
         )
-    plt.plot(
-        cp_result.temperature,
-        cp_result.specific_heat,
-        "ro",
-        markersize=8,
-        label="Calculated Cp (Stepped)",
-    )
+    
+    if len(cp_result.temperature) > 100:
+        plt.plot(
+            cp_result.temperature,
+            cp_result.specific_heat,
+            "-",
+            color="red",
+            linewidth=2,
+            label="Calculated Cp",
+        )
+    else:
+        plt.plot(
+            cp_result.temperature,
+            cp_result.specific_heat,
+            "ro",
+            markersize=8,
+            label="Calculated Cp (Stepped)",
+        )
     plt.xlabel("Temperature (K)")
     plt.ylabel("Cp (J/g·K)")
     plt.legend()
