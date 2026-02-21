@@ -8,7 +8,7 @@ from numpy.typing import NDArray
 from scipy import stats
 
 try:
-    import pywt  # type: ignore[import-not-found]
+    import pywt  # type: ignore
 except ImportError:
     pywt = None
 
@@ -107,7 +107,7 @@ class SignalStabilityDetector:
             return []
 
         # Calculate absolute threshold based on signal range
-        signal_range = np.ptp(signal)
+        signal_range: float = float(np.ptp(signal))
         if signal_range == 0:
             return [(0, len(signal))]
         abs_threshold = signal_range * std_threshold
@@ -300,7 +300,7 @@ class SignalStabilityDetector:
 
             x = x_data[start:end]
             y = signal[start:end]
-            signal_range = np.ptp(y)
+            signal_range: float = float(np.ptp(y))
             if signal_range == 0:
                 return 0.0
 
@@ -398,7 +398,7 @@ class SignalStabilityDetector:
         thresholds = []
         for detail in detail_coeffs:
             # Use signal range to normalize threshold
-            detail_range = np.ptp(detail)
+            detail_range: float = float(np.ptp(detail))
             thresholds.append(detail_range * threshold)
 
         # Initialize stability mask
@@ -408,7 +408,7 @@ class SignalStabilityDetector:
         for i, (detail, thresh) in enumerate(zip(detail_coeffs, thresholds)):
             # Upsample detail coefficients to match signal length
             upsample_factor = 2 ** (i + 1)
-            detail_upsampled = np.repeat(detail, upsample_factor)
+            detail_upsampled: NDArray[np.float64] = np.repeat(detail, upsample_factor)
             # Ensure length matches signal
             detail_upsampled = detail_upsampled[: len(signal)]
 
@@ -475,7 +475,7 @@ class SignalStabilityDetector:
         second_derivative = np.gradient(first_derivative, x_data)
 
         # Normalize thresholds by signal range
-        signal_range = np.ptp(signal)
+        signal_range: float = float(np.ptp(signal))
         norm_first_threshold = signal_range * derivative_threshold
         norm_second_threshold = signal_range * second_derivative_threshold
 

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple, cast
 import numpy as np
 from numpy.typing import NDArray
 from scipy import optimize, signal
-from scipy.integrate import trapz
+from scipy.integrate import trapezoid
 
 from .types import DSCPeak
 from .utilities import find_intersection_point, safe_savgol_filter, validate_window_size
@@ -71,20 +71,25 @@ class PeakAnalyzer:
             signal_to_analyze -= baseline
 
         noise_estimation_window = min(20, len(signal_to_analyze) // 5)
+        noise_level: float
         if noise_estimation_window > 1:
-            noise_level = np.std(signal_to_analyze[:noise_estimation_window])
+            noise_level = float(np.std(signal_to_analyze[:noise_estimation_window]))
         else:
             noise_level = 0.0
 
         noise_based_prominence = 3.0 * noise_level
-        relative_prominence = np.ptp(signal_to_analyze) * self.peak_prominence
-        prominence = max(relative_prominence, noise_based_prominence)
+        relative_prominence: float = (
+            float(np.ptp(signal_to_analyze)) * self.peak_prominence
+        )
+        prominence: float = max(relative_prominence, noise_based_prominence)
 
-        relative_height = np.ptp(signal_to_analyze) * self.height_threshold
-        height = max(relative_height, noise_level)
+        relative_height: float = (
+            float(np.ptp(signal_to_analyze)) * self.height_threshold
+        )
+        height: float = max(relative_height, noise_level)
 
         if prominence <= 0:
-            prominence = np.finfo(float).eps
+            prominence = float(np.finfo(float).eps)
 
         peaks, properties = signal.find_peaks(
             signal_to_analyze,
@@ -111,7 +116,9 @@ class PeakAnalyzer:
                 heat_flow_corr -= baseline
 
             peak_mask = slice(left_base_idx, right_base_idx + 1)
-            peak_area = float(trapz(heat_flow_corr[peak_mask], temperature[peak_mask]))
+            peak_area = float(
+                trapezoid(heat_flow_corr[peak_mask], temperature[peak_mask])
+            )
             enthalpy = abs(peak_area)
             peak_height = float(properties["prominences"][i])
 
@@ -255,7 +262,7 @@ class PeakAnalyzer:
                     "amplitude": float(popt[i]),
                     "center": float(popt[i + 1]),
                     "width": float(popt[i + 2]),
-                    "area": float(trapz(peak_component, temperature)),
+                    "area": float(trapezoid(peak_component, temperature)),
                 }
                 peak_params.append(params)
                 fitted_curve += peak_component

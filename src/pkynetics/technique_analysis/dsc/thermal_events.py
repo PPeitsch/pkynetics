@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from numpy.typing import NDArray
 from scipy import signal
+from scipy.integrate import trapezoid
 from scipy.optimize import curve_fit
 
 from .types import (
@@ -261,7 +262,9 @@ class ThermalEventDetector:
             start_window = max(0, peak_idx - window_radius)
             end_window = min(len(dHf_smooth), peak_idx + window_radius)
 
-            local_derivative_amplitude = np.ptp(dHf_smooth[start_window:end_window])
+            local_derivative_amplitude: float = float(
+                np.ptp(dHf_smooth[start_window:end_window])
+            )
 
             if local_derivative_amplitude > min_derivative_amplitude:
                 filtered_peaks.append(peak_idx)
@@ -360,7 +363,7 @@ class ThermalEventDetector:
         self, temperature: NDArray[np.float64], heat_flow: NDArray[np.float64]
     ) -> float:
         """Calculate enthalpy from peak area."""
-        return float(np.trapz(heat_flow, temperature))
+        return float(trapezoid(heat_flow, temperature))
 
     def _is_glass_transition_shape(self, data: NDArray[np.float64]) -> bool:
         """Check if data has characteristic glass transition shape."""
