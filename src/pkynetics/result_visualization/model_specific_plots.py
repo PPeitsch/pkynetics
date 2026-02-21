@@ -166,6 +166,7 @@ def plot_horowitz_metzger(
         fig, ax = plt.subplots(figsize=(10, 6))
     else:
         maybe_fig = ax.get_figure()
+        assert isinstance(maybe_fig, plt.Figure) or maybe_fig is None
         fig = maybe_fig if maybe_fig is not None else plt.gcf()
 
     # Plot all data points

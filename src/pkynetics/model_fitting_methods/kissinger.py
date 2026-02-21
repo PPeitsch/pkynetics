@@ -27,7 +27,7 @@ def kissinger_nonlinear_eq(t: float, e_a: float, a: float, b: float) -> float:
         float: Value of the Kissinger equation at the given temperature.
     """
     result = (e_a * b) / (R * t**2) - a * np.exp(-e_a / (R * t))
-    return float(result)
+    return float(np.ravel(result)[0])
 
 
 def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
@@ -42,7 +42,7 @@ def calculate_t_p(e_a: float, a: float, beta: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: Calculated peak temperatures in K.
     """
-    t_p = np.zeros_like(beta)
+    t_p: np.ndarray = np.zeros_like(beta, dtype=np.float64)
     for i, b in enumerate(beta):
         try:
             t_p[i] = float(
