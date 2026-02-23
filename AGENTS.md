@@ -97,15 +97,15 @@ The GitHub Actions workflow (`.github/workflows/test-and-publish.yaml`) runs:
 
 ## Commit Message Format
 
-Follow the established format:
+Follow the Conventional Commits format:
 ```
-[TYPE] Description
+type: description
 
 - Detail 1
 - Detail 2
 ```
 
-Types: `[ADD]`, `[FIX]`, `[CHANGE]`, `[REMOVE]`, `[DOCS]`, `[TEST]`, `[RELEASE]`
+Types: `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `test:`, `release:`
 
 ## Version Management
 
@@ -123,7 +123,7 @@ Types: `[ADD]`, `[FIX]`, `[CHANGE]`, `[REMOVE]`, `[DOCS]`, `[TEST]`, `[RELEASE]`
 1. Ensure all tests pass locally
 2. Update version in `__about__.py` and `docs/conf.py`
 3. Update `CHANGELOG.md` with release date
-4. Commit: `[RELEASE] Version X.Y.Z`
+4. Commit: `release: version X.Y.Z`
 5. Create and push tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
 6. CI will automatically publish to PyPI
 
@@ -184,3 +184,18 @@ pkynetics/
 4. **Update CHANGELOG.md** for any user-facing changes
 5. **Follow NumPy docstring format** for documentation
 6. **Respect the 88-character line limit** (black default)
+
+## Available AI Agent Skills
+
+This repository has specific skills designed to help AI agents navigate project context. Before working on new features or checking for issues, agents should use the following skills located in `.agents/skills/`:
+
+- **read_github_issues**: Read open/closed issues using `python .agents/skills/read_github_issues/scripts/read_issues.py --limit <N>`.
+- **read_github_prs**: Read open/closed pull requests using `python .agents/skills/read_github_prs/scripts/read_prs.py --limit <N>`.
+- **create_github_issue**: Create a new issue using `python .agents/skills/create_github_issue/scripts/create_issue.py`
+- **create_github_pr**: Open a new Pull Request using `python .agents/skills/create_github_pr/scripts/create_pr.py`
+- **update_github_issue**: Modify an existing issue using `python .agents/skills/update_github_issue/scripts/update_issue.py`
+- **update_github_pr**: Modify an existing Pull Request using `python .agents/skills/update_github_pr/scripts/update_pr.py`
+- **update_changelog**: Safely prepend a new version release using `python .agents/skills/update_changelog/scripts/update_changelog.py`
+- **release_tag_push**: Wait for `main` CI to pass before pushing a tag using `python .agents/skills/release_tag_push/scripts/push_tag.py`
+
+Agents are encouraged to run these scripts to verify current bugs and project status before directly modifying files, or to check out PRs before pushing similar code. If more details are needed, use `gh issue view` or `gh pr view`.

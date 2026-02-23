@@ -96,7 +96,7 @@ pytest tests/ -v
 ### Commit Message Format
 
 ```
-[TYPE] Brief description
+type: brief description
 
 - Detailed change 1
 - Detailed change 2
@@ -106,20 +106,20 @@ pytest tests/ -v
 
 | Type | Use For |
 |------|---------|
-| `[ADD]` | New features, files, or functionality |
-| `[FIX]` | Bug fixes |
-| `[CHANGE]` | Modifications to existing functionality |
-| `[REMOVE]` | Removing code or features |
-| `[DOCS]` | Documentation only changes |
-| `[TEST]` | Test additions or modifications |
-| `[RELEASE]` | Version releases |
+| `feat:` | New features, files, or functionality |
+| `fix:` | Bug fixes |
+| `refactor:` | Modifications to existing functionality |
+| `chore:` | Removing code, maintenance |
+| `docs:` | Documentation only changes |
+| `test:` | Test additions or modifications |
+| `release:` | Version releases |
 
 ### Examples
 
 ```bash
-git commit -m "[ADD] Implement Kissinger method for activation energy calculation"
-git commit -m "[FIX] Correct temperature unit conversion in DSC importer"
-git commit -m "[DOCS] Update README with installation instructions"
+git commit -m "feat: implement Kissinger method for activation energy calculation"
+git commit -m "fix: correct temperature unit conversion in DSC importer"
+git commit -m "docs: update README with installation instructions"
 ```
 
 ---
@@ -189,7 +189,7 @@ Use the PR template provided. Ensure:
 ```bash
 # Commit version changes
 git add -A
-git commit -m "[RELEASE] Version X.Y.Z"
+git commit -m "release: version X.Y.Z"
 
 # Push to main
 git push origin main
