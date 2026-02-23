@@ -195,5 +195,7 @@ This repository has specific skills designed to help AI agents navigate project 
 - **create_github_pr**: Open a new Pull Request using `python .agents/skills/create_github_pr/scripts/create_pr.py`
 - **update_github_issue**: Modify an existing issue using `python .agents/skills/update_github_issue/scripts/update_issue.py`
 - **update_github_pr**: Modify an existing Pull Request using `python .agents/skills/update_github_pr/scripts/update_pr.py`
+- **update_changelog**: Safely prepend a new version release using `python .agents/skills/update_changelog/scripts/update_changelog.py`
+- **release_tag_push**: Wait for `main` CI to pass before pushing a tag using `python .agents/skills/release_tag_push/scripts/push_tag.py`
 
 Agents are encouraged to run these scripts to verify current bugs and project status before directly modifying files, or to check out PRs before pushing similar code. If more details are needed, use `gh issue view` or `gh pr view`.
