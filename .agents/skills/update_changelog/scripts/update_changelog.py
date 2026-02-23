@@ -4,7 +4,7 @@ import re
 import sys
 
 def main():
-    parser = argparse.ArgumentParser(description="Update CHANGELOG.md with a new release entry.")
+    parser = argparse.ArgumentParser(description="Update CHANGELOG.md with a new release entry securely.")
     parser.add_argument("--version", required=True, help="Release version (e.g. v1.0.0)")
     parser.add_argument("--date", default=datetime.datetime.now().strftime("%Y-%m-%d"), help="Release date (YYYY-MM-DD)")
     parser.add_argument("--added", help="Content for 'Added' section")
@@ -21,16 +21,26 @@ def main():
         print(f"Error reading CHANGELOG.md: {e}")
         sys.exit(1)
 
+    # Basic version format validation
+    if not re.match(r'^v\d+\.\d+\.\d+$', args.version):
+        print("Error: Version must follow the 'vX.Y.Z' format (e.g. v1.0.0)")
+        sys.exit(1)
+
+    # Replace literal \n with actual newlines from shell args to prevent mangling strings
+    def format_section(title, text):
+        if not text:
+            return ""
+        # decode escaped newlines that might come through bash
+        text = text.replace('\\n', '\n')
+        # ensure it ends with single newline
+        text = text.strip() + '\n'
+        return f"### {title}\n{text}\n"
+
     entry = f"## [{args.version}] - {args.date}\n\n"
-    
-    if args.added:
-        entry += f"### Added\n{args.added.strip()}\n\n"
-    if args.changed:
-        entry += f"### Changed\n{args.changed.strip()}\n\n"
-    if args.fixed:
-        entry += f"### Fixed\n{args.fixed.strip()}\n\n"
-    if args.security:
-        entry += f"### Security\n{args.security.strip()}\n\n"
+    entry += format_section("Added", args.added)
+    entry += format_section("Changed", args.changed)
+    entry += format_section("Fixed", args.fixed)
+    entry += format_section("Security", args.security)
 
     if entry.strip() == f"## [{args.version}] - {args.date}":
         print("Error: No changes provided. Please provide at least one section: --added, --changed, --fixed, or --security.")

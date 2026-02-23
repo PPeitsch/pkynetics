@@ -13,11 +13,18 @@ This skill allows the agent to safely parse and prepend a new version release in
 
 ## Scripts
 
-- **Script Path**: `.agents/skills/update_changelog/scripts/update_changelog.py`
+- **Script Path 1**: `.agents/skills/update_changelog/scripts/update_changelog.py`
+- **Script Path 2**: `.agents/skills/update_changelog/scripts/bump_versions.py`
 
 ## Usage
 
-### Add a new release
+### 1. Update Configuration Files
+Before updating the changelog, you should automatically bump the `__about__.py` and `docs/conf.py` versions:
+```bash
+python .agents/skills/update_changelog/scripts/bump_versions.py 0.4.6
+```
+
+### 2. Add a new release to Changelog
 Use this script specifying the version and whichever sections you have changes for (`--added`, `--changed`, `--fixed`, `--security`). Be sure to use markdown bullet points for the content strings `"- Item 1\n- Item 2"`.
 
 ```bash
