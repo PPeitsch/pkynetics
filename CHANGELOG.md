@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [v0.4.6] - 2026-02-23
+
+### Added
+- New skills for automated AI interaction with GitHub CLI (Issue and PR parsing, creation and updating).
+- New skills for automated and safe releases (safe tag push and changelog dynamic building).
+- Redefined project contribution conventions, replacing bracket type formatting (`[ADD]`) with the Conventional Commits standard (`feat:`).
+
+
 ## [v0.4.5] - 2026-02-21
 
 ### Added
