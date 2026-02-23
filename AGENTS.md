@@ -184,3 +184,12 @@ pkynetics/
 4. **Update CHANGELOG.md** for any user-facing changes
 5. **Follow NumPy docstring format** for documentation
 6. **Respect the 88-character line limit** (black default)
+
+## Available AI Agent Skills
+
+This repository has specific skills designed to help AI agents navigate project context. Before working on new features or checking for issues, agents should use the following skills located in `.agents/skills/`:
+
+- **read_github_issues**: Read open/closed issues using `python .agents/skills/read_github_issues/scripts/read_issues.py --limit <N>`.
+- **read_github_prs**: Read open/closed pull requests using `python .agents/skills/read_github_prs/scripts/read_prs.py --limit <N>`.
+
+Agents are encouraged to run these scripts to verify current bugs and project status before directly modifying files, or to check out PRs before pushing similar code. If more details are needed, use `gh issue view` or `gh pr view`.
