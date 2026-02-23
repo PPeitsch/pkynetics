@@ -191,5 +191,7 @@ This repository has specific skills designed to help AI agents navigate project 
 
 - **read_github_issues**: Read open/closed issues using `python .agents/skills/read_github_issues/scripts/read_issues.py --limit <N>`.
 - **read_github_prs**: Read open/closed pull requests using `python .agents/skills/read_github_prs/scripts/read_prs.py --limit <N>`.
+- **create_github_issue**: Create a new issue using `python .agents/skills/create_github_issue/scripts/create_issue.py`
+- **create_github_pr**: Open a new Pull Request using `python .agents/skills/create_github_pr/scripts/create_pr.py`
 
 Agents are encouraged to run these scripts to verify current bugs and project status before directly modifying files, or to check out PRs before pushing similar code. If more details are needed, use `gh issue view` or `gh pr view`.
