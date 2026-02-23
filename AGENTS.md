@@ -97,15 +97,15 @@ The GitHub Actions workflow (`.github/workflows/test-and-publish.yaml`) runs:
 
 ## Commit Message Format
 
-Follow the established format:
+Follow the Conventional Commits format:
 ```
-[TYPE] Description
+type: description
 
 - Detail 1
 - Detail 2
 ```
 
-Types: `[ADD]`, `[FIX]`, `[CHANGE]`, `[REMOVE]`, `[DOCS]`, `[TEST]`, `[RELEASE]`
+Types: `feat:`, `fix:`, `refactor:`, `chore:`, `docs:`, `test:`, `release:`
 
 ## Version Management
 
@@ -123,7 +123,7 @@ Types: `[ADD]`, `[FIX]`, `[CHANGE]`, `[REMOVE]`, `[DOCS]`, `[TEST]`, `[RELEASE]`
 1. Ensure all tests pass locally
 2. Update version in `__about__.py` and `docs/conf.py`
 3. Update `CHANGELOG.md` with release date
-4. Commit: `[RELEASE] Version X.Y.Z`
+4. Commit: `release: version X.Y.Z`
 5. Create and push tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
 6. CI will automatically publish to PyPI
 
