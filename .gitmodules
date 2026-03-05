@@ -1,0 +1,3 @@
+[submodule "skills"]
+	path = skills
+	url = git@github.com:PPeitsch/skills.git

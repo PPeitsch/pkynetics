@@ -1,5 +1,9 @@
 # Pkynetics Development Protocol for AI Agents
 
+> **CRITICAL RULE FOR AI AGENTS**: 
+> You MUST NEVER run `git commit` or `git push` without first successfully running the full quality check pipeline (`black`, `isort`, `mypy`, `pytest`). See the **Key Guidelines for AI Agents** section.
+
+
 ## OS Context
 
 This project is developed primarily on **Linux (Ubuntu)** but may also be used on **Windows**. Detect the host OS and adapt commands accordingly:
@@ -187,15 +191,19 @@ pkynetics/
 
 ## Available AI Agent Skills
 
-This repository has specific skills designed to help AI agents navigate project context. Before working on new features or checking for issues, agents should use the following skills located in `.agents/skills/`:
+This repository integrates an external skills submodule to give AI agents (like yourself) the ability to execute reliable workflows. The submodule is located at `skills/`.
 
-- **read_github_issues**: Read open/closed issues using `python .agents/skills/read_github_issues/scripts/read_issues.py --limit <N>`.
-- **read_github_prs**: Read open/closed pull requests using `python .agents/skills/read_github_prs/scripts/read_prs.py --limit <N>`.
-- **create_github_issue**: Create a new issue using `python .agents/skills/create_github_issue/scripts/create_issue.py`
-- **create_github_pr**: Open a new Pull Request using `python .agents/skills/create_github_pr/scripts/create_pr.py`
-- **update_github_issue**: Modify an existing issue using `python .agents/skills/update_github_issue/scripts/update_issue.py`
-- **update_github_pr**: Modify an existing Pull Request using `python .agents/skills/update_github_pr/scripts/update_pr.py`
-- **update_changelog**: Safely prepend a new version release using `python .agents/skills/update_changelog/scripts/update_changelog.py`
-- **release_tag_push**: Wait for `main` CI to pass before pushing a tag using `python .agents/skills/release_tag_push/scripts/push_tag.py`
+**Always use the `run_skill.py` wrapper to execute skills**, rather than calling individual scripts directly:
 
-Agents are encouraged to run these scripts to verify current bugs and project status before directly modifying files, or to check out PRs before pushing similar code. If more details are needed, use `gh issue view` or `gh pr view`.
+- **read_github_issues**: `python skills/run_skill.py read_github_issues --limit <N>`
+- **read_github_prs**: `python skills/run_skill.py read_github_prs --limit <N>`
+- **create_github_issue**: `python skills/run_skill.py create_github_issue --title "..." --body "..."`
+- **create_github_pr**: `python skills/run_skill.py create_github_pr --title "..." --body "..."`
+- **update_github_issue**: `python skills/run_skill.py update_github_issue <issue_number> ...`
+- **update_github_pr**: `python skills/run_skill.py update_github_pr <pr_number> ...`
+- **update_changelog**: `python skills/run_skill.py update_changelog ...`
+- **release_tag_push**: `python skills/run_skill.py release_tag_push ...`
+
+For a full list of available skills, explore the `skills/tools/` directory.
+
+Agents are strictly required to use these skills instead of raw shell commands when applicable (especially for GitHub interactions and structural workflows). If you need to detect the environment context, you can optionally run `python skills/run_skill.py detect_os_and_terminal`.
