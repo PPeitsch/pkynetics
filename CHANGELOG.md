@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [v0.4.8] - 2026-03-05
+
+### Changed
+- Replaced local .agents/skills/ directory with the remote PPeitsch/skills Git submodule.
+- Renamed AGENTS.md to AGENT.md to align with AI editor conventions.
+- Enforced strict code quality pipeline checks prior to commits in AGENT.md.
+
+
 ## [v0.4.7] - 2026-02-23
 
 ### Added
