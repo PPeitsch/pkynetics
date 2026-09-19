@@ -8,6 +8,7 @@ import pandas as pd
 from pandas.core.arrays import ExtensionArray
 
 from ._encoding import detect_encoding
+from ._manufacturer import detect_manufacturer
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ def tga_importer(file_path: str, manufacturer: str = "auto") -> ReturnDict:
 
     try:
         if manufacturer == "auto":
-            manufacturer = _detect_manufacturer(file_path)
+            manufacturer = detect_manufacturer(file_path)
             logger.info(f"Detected manufacturer: {manufacturer}")
             if manufacturer == "TA":
                 data = _import_ta_instruments(file_path)
@@ -143,51 +144,6 @@ def import_setaram(file_path: str) -> ReturnDict:
     except Exception as e:
         logger.error(f"Error reading Setaram file: {str(e)}")
         raise ValueError(f"Unable to read Setaram file. Error: {str(e)}")
-
-
-def _detect_manufacturer(file_path: str) -> str:
-    """
-    Detect the instrument manufacturer based on file content.
-
-    Args:
-        file_path (str): Path to the data file.
-
-    Returns:
-        str: Detected manufacturer name.
-
-    Raises:
-        ValueError: If unable to detect the manufacturer automatically.
-        FileNotFoundError: If the specified file does not exist.
-    """
-    try:
-        # Detect file encoding
-        encoding = detect_encoding(file_path)
-
-        logger.info(f"Detected file encoding: {encoding}")
-
-        with open(file_path, "r", encoding=encoding) as f:
-            header = f.read(1000)  # Read first 1000 characters
-
-        if "TA Instruments" in header:
-            return "TA"
-        elif "METTLER TOLEDO" in header:
-            return "Mettler"
-        elif "NETZSCH" in header:
-            return "Netzsch"
-        elif "Setaram" in header or (
-            "Time (s)" in header and "Furnace Temperature (°C)" in header
-        ):
-            return "Setaram"
-        else:
-            raise ValueError(
-                "Unable to detect manufacturer automatically. Please specify manually."
-            )
-    except FileNotFoundError:
-        logger.error(f"File not found: {file_path}")
-        raise
-    except Exception as e:
-        logger.error(f"Error detecting manufacturer: {str(e)}")
-        raise ValueError(f"Unable to detect manufacturer. Error: {str(e)}")
 
 
 def _import_ta_instruments(file_path: str) -> ReturnDict:
