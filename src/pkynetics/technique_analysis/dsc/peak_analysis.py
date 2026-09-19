@@ -325,7 +325,8 @@ class PeakAnalyzer:
         def gaussian(
             x: NDArray[np.float64], amp: float, cen: float, wid: float
         ) -> NDArray[np.float64]:
-            return amp * np.exp(-(((x - cen) / wid) ** 2))
+            result: NDArray[np.float64] = amp * np.exp(-(((x - cen) / wid) ** 2))
+            return result
 
         def lorentzian(
             x: NDArray[np.float64], amp: float, cen: float, wid: float

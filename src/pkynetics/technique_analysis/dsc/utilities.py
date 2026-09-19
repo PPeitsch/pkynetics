@@ -1,7 +1,7 @@
 """Utility functions for DSC data analysis."""
 
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -53,9 +53,8 @@ def safe_savgol_filter(
     """
     valid_window = validate_window_size(len(data), window_length)
     valid_polyorder = min(valid_window - 1, polyorder)
-    # Cast to assure mypy of the return type
-    return cast(
-        NDArray[np.float64], signal.savgol_filter(data, valid_window, valid_polyorder)
+    return np.asarray(
+        signal.savgol_filter(data, valid_window, valid_polyorder), dtype=np.float64
     )
 
 
@@ -79,13 +78,11 @@ def find_intersection_point(
     Returns:
         Tuple of (intersection x value, index)
     """
-    search_range: range
     if direction == "forward":
         search_range = range(start_idx, len(x) - 1)
     else:
         search_range = range(start_idx, 0, -1)
 
-    i = start_idx
     for i in search_range:
         if direction == "forward":
             if (y1[i] <= y2[i] and y1[i + 1] >= y2[i + 1]) or (
@@ -98,11 +95,9 @@ def find_intersection_point(
             ):
                 break
     else:
-        return float(x[start_idx]), start_idx
+        return x[start_idx], start_idx
 
     # Linear interpolation to find precise intersection
-    idx1: int
-    idx2: int
     if direction == "forward":
         idx1, idx2 = i, i + 1
     else:
@@ -118,7 +113,7 @@ def find_intersection_point(
     dy2 = y2_2 - y2_1
 
     if abs(dy1 - dy2) < 1e-10:  # Parallel lines
-        return float(x[i]), i
+        return x[i], i
 
     x_int = x1 + (y2_1 - y1_1) * dx / (dy1 - dy2)
     return float(x_int), i
@@ -190,15 +185,17 @@ class SignalProcessor:
             window += 1  # Ensure odd window length
 
         if method == "savgol":
-            return safe_savgol_filter(data, window, polyorder)
+            return np.asarray(
+                signal.savgol_filter(data, window, polyorder), dtype=np.float64
+            )
         elif method == "moving_average":
             kernel = np.ones(window) / window
-            return cast(NDArray[np.float64], np.convolve(data, kernel, mode="same"))
+            return np.convolve(data, kernel, mode="same")
         elif method == "lowess":
             x = np.arange(len(data))
             frac = min(1.0, max(0.01, window / len(data)))
             lowess = sm.nonparametric.lowess(data, x, frac=frac, return_sorted=False)
-            return cast(NDArray[np.float64], lowess)
+            return np.asarray(lowess, dtype=np.float64)
         else:
             raise ValueError(f"Unknown smoothing method: {method}")
 
@@ -219,13 +216,13 @@ class SignalProcessor:
         Returns:
             Signal array with outliers removed
         """
-        win = window or self.default_window
+        window = window or self.default_window
         cleaned_data = data.copy()
 
         # Use rolling window to detect local outliers
         for i in range(len(data)):
-            start = max(0, i - win // 2)
-            end = min(len(data), i + win // 2 + 1)
+            start = max(0, i - window // 2)
+            end = min(len(data), i + window // 2 + 1)
             local_data = data[start:end]
 
             local_std = np.std(local_data)
@@ -269,14 +266,12 @@ class SignalProcessor:
                 raise ValueError("Bandpass filter requires tuple of frequencies")
             low, high = cutoff_freq
             b, a = signal.butter(order, (low / nyquist, high / nyquist), btype="band")
-            return signal.filtfilt(b, a, data)
+            return np.asarray(signal.filtfilt(b, a, data), dtype=np.float64)
 
         if isinstance(cutoff_freq, tuple):
             raise ValueError("Tuple of frequencies is only valid for bandpass")
         normalized_cutoff = cutoff_freq / nyquist
 
-        b: NDArray[np.float64]
-        a: NDArray[np.float64]
         if filter_type == "lowpass":
             b, a = signal.butter(order, normalized_cutoff, btype="low")
         elif filter_type == "highpass":
@@ -284,7 +279,7 @@ class SignalProcessor:
         else:
             raise ValueError(f"Unknown filter type: {filter_type}")
 
-        return cast(NDArray[np.float64], signal.filtfilt(b, a, data))
+        return np.asarray(signal.filtfilt(b, a, data), dtype=np.float64)
 
     def calculate_derivatives(
         self,
@@ -303,11 +298,10 @@ class SignalProcessor:
         Returns:
             Dictionary with first and second derivatives
         """
-        data_to_diff = heat_flow
         if smooth:
-            data_to_diff = self.smooth_signal(data_to_diff)
+            heat_flow = self.smooth_signal(heat_flow)
 
-        d1 = np.gradient(data_to_diff, temperature)
+        d1 = np.gradient(heat_flow, temperature)
         d2 = np.gradient(d1, temperature)
 
         if smooth:
@@ -329,37 +323,29 @@ class SignalProcessor:
         Returns:
             Estimated noise level
         """
-        win = window or self.default_window
+        window = window or self.default_window
 
         # Calculate local standard deviations
         local_std = []
-        if len(data) > win:
-            for i in range(0, len(data) - win, win):
-                local_std.append(np.std(data[i : i + win]))
-
-        if not local_std:
-            return float(np.std(data))
+        for i in range(0, len(data) - window, window):
+            local_std.append(np.std(data[i : i + window]))
 
         # Use median of local standard deviations as noise estimate
         return float(np.median(local_std))
-
-
-T = Union[float, NDArray[np.float64]]
-ConversionFunc = Callable[[T], T]
 
 
 class UnitConverter:
     """Class for DSC unit conversions."""
 
     # Conversion factors
-    _TEMPERATURE_FACTORS: Dict[Tuple[DSCUnits, DSCUnits], ConversionFunc] = {
+    _TEMPERATURE_FACTORS = {
         (DSCUnits.CELSIUS, DSCUnits.KELVIN): lambda x: x + 273.15,
         (DSCUnits.KELVIN, DSCUnits.CELSIUS): lambda x: x - 273.15,
         (DSCUnits.FAHRENHEIT, DSCUnits.CELSIUS): lambda x: (x - 32) * 5 / 9,
         (DSCUnits.CELSIUS, DSCUnits.FAHRENHEIT): lambda x: x * 9 / 5 + 32,
     }
 
-    _HEAT_FLOW_FACTORS: Dict[Tuple[DSCUnits, DSCUnits], ConversionFunc] = {
+    _HEAT_FLOW_FACTORS = {
         (DSCUnits.MILLIWATTS, DSCUnits.WATTS): lambda x: x / 1000,
         (DSCUnits.WATTS, DSCUnits.MILLIWATTS): lambda x: x * 1000,
         (DSCUnits.MICROWATTS, DSCUnits.MILLIWATTS): lambda x: x / 1000,
@@ -369,10 +355,10 @@ class UnitConverter:
     @classmethod
     def convert_temperature(
         cls,
-        value: T,
+        value: Union[float, NDArray[np.float64]],
         from_unit: DSCUnits,
         to_unit: DSCUnits,
-    ) -> T:
+    ) -> Union[float, NDArray[np.float64]]:
         """
         Convert temperature between units.
 
@@ -388,25 +374,27 @@ class UnitConverter:
             return value
 
         conversion = cls._TEMPERATURE_FACTORS.get((from_unit, to_unit))
-        if conversion:
-            return conversion(value)
+        if conversion is None:
+            # Try to find multi-step conversion
+            intermediate = DSCUnits.CELSIUS
+            try:
+                step1 = cls._TEMPERATURE_FACTORS[(from_unit, intermediate)]
+                step2 = cls._TEMPERATURE_FACTORS[(intermediate, to_unit)]
+                converted: Union[float, NDArray[np.float64]] = step2(step1(value))
+                return converted
+            except KeyError:
+                raise ValueError(f"No conversion path from {from_unit} to {to_unit}")
 
-        # Try to find multi-step conversion
-        intermediate = DSCUnits.CELSIUS
-        try:
-            step1 = cls._TEMPERATURE_FACTORS[(from_unit, intermediate)]
-            step2 = cls._TEMPERATURE_FACTORS[(intermediate, to_unit)]
-            return step2(step1(value))
-        except KeyError:
-            raise ValueError(f"No conversion path from {from_unit} to {to_unit}")
+        result: Union[float, NDArray[np.float64]] = conversion(value)
+        return result
 
     @classmethod
     def convert_heat_flow(
         cls,
-        value: T,
+        value: Union[float, NDArray[np.float64]],
         from_unit: DSCUnits,
         to_unit: DSCUnits,
-    ) -> T:
+    ) -> Union[float, NDArray[np.float64]]:
         """
         Convert heat flow between units.
 
@@ -422,17 +410,19 @@ class UnitConverter:
             return value
 
         conversion = cls._HEAT_FLOW_FACTORS.get((from_unit, to_unit))
-        if conversion:
-            return conversion(value)
+        if conversion is None:
+            # Try to find multi-step conversion
+            intermediate = DSCUnits.MILLIWATTS
+            try:
+                step1 = cls._HEAT_FLOW_FACTORS[(from_unit, intermediate)]
+                step2 = cls._HEAT_FLOW_FACTORS[(intermediate, to_unit)]
+                converted: Union[float, NDArray[np.float64]] = step2(step1(value))
+                return converted
+            except KeyError:
+                raise ValueError(f"No conversion path from {from_unit} to {to_unit}")
 
-        # Try to find multi-step conversion
-        intermediate = DSCUnits.MILLIWATTS
-        try:
-            step1 = cls._HEAT_FLOW_FACTORS[(from_unit, intermediate)]
-            step2 = cls._HEAT_FLOW_FACTORS[(intermediate, to_unit)]
-            return step2(step1(value))
-        except KeyError:
-            raise ValueError(f"No conversion path from {from_unit} to {to_unit}")
+        result: Union[float, NDArray[np.float64]] = conversion(value)
+        return result
 
     @staticmethod
     def convert_heating_rate(
@@ -450,18 +440,18 @@ class UnitConverter:
             Converted heating rate value
         """
         # Define conversion factors relative to K/min
-        factors: Dict[DSCUnits, float] = {
+        factors = {
             DSCUnits.KELVIN_PER_MINUTE: 1.0,
             DSCUnits.CELSIUS_PER_MINUTE: 1.0,  # Same numerical value
             DSCUnits.KELVIN_PER_SECOND: 60.0,
         }
 
-        if from_unit not in factors or to_unit not in factors:
+        try:
+            return value * factors[from_unit] / factors[to_unit]
+        except KeyError:
             raise ValueError(
                 f"Unsupported heating rate unit conversion: {from_unit} to {to_unit}"
             )
-
-        return value * factors[from_unit] / factors[to_unit]
 
 
 class DataValidator:
@@ -513,9 +503,7 @@ class DataValidator:
         else:
             # Check for reasonable temperature changes (no sudden jumps)
             temp_diff = np.abs(np.diff(temperature))
-            if len(temp_diff) > 0 and np.any(
-                temp_diff > 50
-            ):  # 50K maximum step between points
+            if np.any(temp_diff > 50):  # 50K maximum step between points
                 raise ValueError("Detected unrealistic temperature jumps in data")
 
         return True

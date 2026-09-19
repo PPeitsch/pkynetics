@@ -1,6 +1,6 @@
 """Baseline correction methods for DSC data."""
 
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -42,7 +42,7 @@ class BaselineCorrector:
         heat_flow: NDArray[np.float64],
         method: str = "auto",
         regions: Optional[List[Tuple[float, float]]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> BaselineResult:
         """
         Apply baseline correction with specified method.
@@ -117,8 +117,11 @@ class BaselineCorrector:
         # Find quiet regions in the data
         regions = self._find_quiet_regions(temperature, heat_flow, n_regions)
 
+        if not regions:
+            raise ValueError("No quiet regions found for baseline optimization")
+
         # Try different region combinations
-        best_result = None
+        best_result: Optional[BaselineResult] = None
         best_score = float("inf")
 
         for i in range(min(10, len(regions))):  # Limit number of combinations
@@ -130,6 +133,7 @@ class BaselineCorrector:
                 best_score = score
                 best_result = result
 
+        assert best_result is not None
         return best_result
 
     def _fit_linear_baseline(
@@ -137,7 +141,7 @@ class BaselineCorrector:
         temperature: NDArray[np.float64],
         heat_flow: NDArray[np.float64],
         regions: Optional[List[Tuple[float, float]]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Tuple[NDArray[np.float64], Dict]:
         """
         Fit linear baseline through specified regions.
@@ -172,7 +176,7 @@ class BaselineCorrector:
         heat_flow: NDArray[np.float64],
         regions: Optional[List[Tuple[float, float]]] = None,
         degree: int = 3,
-        **kwargs,
+        **kwargs: Any,
     ) -> Tuple[NDArray[np.float64], Dict]:
         """
         Fit polynomial baseline of specified degree.
@@ -210,7 +214,7 @@ class BaselineCorrector:
         heat_flow: NDArray[np.float64],
         regions: Optional[List[Tuple[float, float]]] = None,
         smoothing: float = 1.0,
-        **kwargs,
+        **kwargs: Any,
     ) -> Tuple[NDArray[np.float64], Dict]:
         """Fit spline baseline with automatic knot selection."""
         if regions is None:
@@ -233,7 +237,7 @@ class BaselineCorrector:
         temperature: NDArray[np.float64],
         heat_flow: NDArray[np.float64],
         regions: Optional[List[Tuple[float, float]]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Tuple[NDArray[np.float64], Dict]:
         """
         Fit asymmetric least squares baseline.
@@ -280,7 +284,7 @@ class BaselineCorrector:
         temperature: NDArray[np.float64],
         heat_flow: NDArray[np.float64],
         regions: Optional[List[Tuple[float, float]]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Tuple[NDArray[np.float64], Dict]:
         """
         Select the baseline model by BIC on event-free regions.
@@ -309,7 +313,7 @@ class BaselineCorrector:
             coeffs = np.polyfit(temp_points, heat_points, degree)
             rss = float(np.sum((heat_points - np.polyval(coeffs, temp_points)) ** 2))
             # Floor avoids log(0) on noise-free data
-            rss = max(rss, n * np.finfo(float).eps)
+            rss = max(rss, n * float(np.finfo(float).eps))
             bic = n * np.log(rss / n) + n_params * np.log(n)
             if bic < best_bic:
                 best_bic = bic
@@ -338,7 +342,7 @@ class BaselineCorrector:
         temperature: NDArray[np.float64],
         heat_flow: NDArray[np.float64],
         regions: Optional[List[Tuple[float, float]]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Tuple[NDArray[np.float64], Dict]:
         """Fit rubberband baseline using the lower convex hull.
 
@@ -425,10 +429,11 @@ class BaselineCorrector:
             if len(selected) == n_regions:
                 break
 
-        return [
-            tuple(sorted((float(temperature[i]), float(temperature[i + window - 1]))))
-            for i in sorted(selected)
-        ]
+        regions: List[Tuple[float, float]] = []
+        for i in sorted(selected):
+            first, last = float(temperature[i]), float(temperature[i + window - 1])
+            regions.append((min(first, last), max(first, last)))
+        return regions
 
     def _calculate_quality_metrics(
         self,
@@ -442,7 +447,7 @@ class BaselineCorrector:
 
         # Calculate residuals in baseline regions
         if regions:
-            residuals = []
+            residuals: List[float] = []
             for start_temp, end_temp in regions:
                 low, high = sorted((float(start_temp), float(end_temp)))
                 mask = (temperature >= low) & (temperature <= high)
