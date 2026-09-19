@@ -51,11 +51,13 @@ def test_analyze(experiment):
     assert results["baseline"]["type"] == "linear"
     np.testing.assert_allclose(analyzer.baseline[:50], experiment.heat_flow[:50])
 
-    # Upward peaks of the corrected signal: the melting peak
-    assert len(results["peaks"]) == 1
-    peak = results["peaks"][0]
-    assert abs(peak.peak_temperature - 500) < 0.5
-    np.testing.assert_allclose(peak.enthalpy, enthalpy(1.5, 6), rtol=0.02)
+    # Peaks in both directions, by temperature
+    assert [p.type for p in results["peaks"]] == ["exothermic", "endothermic"]
+    exo, endo = results["peaks"]
+    assert abs(exo.peak_temperature - 400) < 0.5
+    assert abs(endo.peak_temperature - 500) < 0.5
+    np.testing.assert_allclose(exo.enthalpy, enthalpy(0.8, 8), rtol=0.02)
+    np.testing.assert_allclose(endo.enthalpy, enthalpy(1.5, 6), rtol=0.02)
 
     events = results["events"]
     assert len(events["melting"]) == 1
@@ -88,6 +90,11 @@ def test_analyze_exo_up(experiment):
 
     assert [round(e.peak_temperature) for e in events["melting"]] == [500]
     assert [round(e.peak_temperature) for e in events["crystallization"]] == [400]
+    peaks = analyzer.peaks
+    assert [(p.type, round(p.peak_temperature)) for p in peaks] == [
+        ("exothermic", 400),
+        ("endothermic", 500),
+    ]
 
 
 def test_cooling_enthalpy_positive(experiment):
@@ -100,8 +107,9 @@ def test_cooling_enthalpy_positive(experiment):
     )
     assert cooling.heating_rate < 0
     peaks = DSCAnalyzer(cooling).analyze(baseline_method="linear")["peaks"]
-    assert len(peaks) == 1
-    np.testing.assert_allclose(peaks[0].enthalpy, enthalpy(1.5, 6), rtol=0.02)
+    melting = [p for p in peaks if p.type == "endothermic"]
+    assert len(melting) == 1
+    np.testing.assert_allclose(melting[0].enthalpy, enthalpy(1.5, 6), rtol=0.02)
 
 
 def test_experiment_validation():

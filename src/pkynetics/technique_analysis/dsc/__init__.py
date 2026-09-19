@@ -34,6 +34,12 @@ from .utilities import (
     safe_savgol_filter,
     validate_window_size,
 )
+from .visualization import (
+    plot_cp,
+    plot_dsc_analysis,
+    plot_dsc_curve,
+    plot_thermal_events,
+)
 
 __all__ = [
     # Core components
@@ -52,6 +58,11 @@ __all__ = [
     "validate_window_size",
     "safe_savgol_filter",
     "find_intersection_point",
+    # Visualization
+    "plot_dsc_curve",
+    "plot_thermal_events",
+    "plot_cp",
+    "plot_dsc_analysis",
     # Types and Enums
     "CpMethod",
     "OperationMode",

@@ -52,10 +52,20 @@ class DSCAnalyzer:
             **baseline_kwargs: Additional baseline parameters, e.g. regions
 
         Returns:
-            Dictionary with 'peaks' (upward peaks of the corrected signal),
-            'events' (thermal events by type) and 'baseline' (method,
-            parameters and quality metrics). Enthalpies are in J/g, using
-            the experiment's heating rate and mass.
+            Dictionary with 'peaks' (endothermic and exothermic peaks of the
+            corrected signal, by temperature, with type 'endothermic' or
+            'exothermic' and enthalpy magnitudes), 'events' (thermal events
+            by type) and 'baseline' (method, parameters and quality
+            metrics). Enthalpies are in J/g, using the experiment's heating
+            rate and mass. The sign convention is the event detector's
+            (exo_up).
+
+        Note:
+            The baseline is fitted to the whole curve. A glass transition
+            (a step in the heat flow) lies on the baseline itself: a single
+            linear or polynomial fit across it distorts the step. Restrict
+            the data or pass baseline regions on one side of it, or use
+            ThermalEventDetector on the raw curve, to characterize a Tg.
         """
         exp = self.experiment
         heating_rate = abs(exp.heating_rate) if exp.heating_rate else None
@@ -66,12 +76,23 @@ class DSCAnalyzer:
         self.baseline = self.baseline_result.baseline
         self.corrected_heat_flow = exp.heat_flow - self.baseline
 
-        self.peaks = self.peak_analyzer.find_peaks(
-            exp.temperature,
-            self.corrected_heat_flow,
-            heating_rate=heating_rate,
-            sample_mass=exp.mass,
+        # Peaks point up in find_peaks: search both orientations
+        endo_up = (
+            -self.corrected_heat_flow
+            if self.event_detector.exo_up
+            else self.corrected_heat_flow
         )
+        self.peaks = []
+        for kind, oriented in (("endothermic", endo_up), ("exothermic", -endo_up)):
+            for peak in self.peak_analyzer.find_peaks(
+                exp.temperature,
+                oriented,
+                heating_rate=heating_rate,
+                sample_mass=exp.mass,
+            ):
+                peak.type = kind
+                self.peaks.append(peak)
+        self.peaks.sort(key=lambda peak: peak.peak_temperature)
 
         self.events = self.event_detector.detect_events(
             exp.temperature,
