@@ -3,48 +3,19 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pkynetics.model_free_methods.ofw_method import ofw_method
-
-
-def generate_sample_data(e_a, a, heating_rates, t_range):
-    """
-    Generate sample data for kinetic analysis.
-
-    Args:
-        e_a (float): Activation energy in J/mol.
-        a (float): Pre-exponential factor in 1/s.
-        heating_rates (List[float]): List of heating rates in K/min.
-        t_range (Tuple[float, float]): Temperature range (start, end) in K.
-
-    Returns:
-        Tuple[List[np.ndarray], List[np.ndarray]]: Temperature and conversion data for each heating rate.
-    """
-    r = 8.314  # Gas constant in J/(mol·K)
-
-    temperature_data = []
-    conversion_data = []
-
-    for beta in heating_rates:
-        t = np.linspace(*t_range, 1000)
-        time = (t - t[0]) / beta
-        k = a * np.exp(-e_a / (r * t))
-        alpha = 1 - np.exp(-k * time)
-
-        temperature_data.append(t)
-        conversion_data.append(alpha)
-
-    return temperature_data, conversion_data
-
+from pkynetics.model_free_methods import ofw_method
+from pkynetics.synthetic_data import generate_basic_kinetic_data
 
 # Set parameters
 e_a_true = 150000  # J/mol
-a_true = 1e15  # 1/s
+a_true = 1e12  # 1/s
 heating_rates = [5, 10, 20, 40]  # K/min
-t_range = (400, 800)  # K
+t_range = (350, 700)  # K
 
 # Generate data
-temperature_data, conversion_data = generate_sample_data(
-    e_a_true, a_true, heating_rates, t_range
+# First-order reaction, integrated over temperature at each heating rate
+temperature_data, conversion_data = generate_basic_kinetic_data(
+    e_a_true, a_true, np.array(heating_rates, dtype=float), t_range, num_points=2000
 )
 
 # Add some noise
@@ -90,5 +61,7 @@ plt.show()
 print(f"True E_a: {e_a_true / 1000:.2f} kJ/mol")
 print(f"Mean estimated E_a: {np.nanmean(activation_energy) / 1000:.2f} kJ/mol")
 print(f"True ln(A): {np.log(a_true):.2f}")
-print(f"Mean estimated ln(A): {np.nanmean(np.log(pre_exp_factor)):.2f}")
+# pre_exp_factor is A/g(alpha) in 1/min: recover A in 1/s assuming first order
+a_estimated = pre_exp_factor * -np.log(1 - conv_levels) / 60
+print(f"Mean estimated ln(A): {np.nanmean(np.log(a_estimated)):.2f}")
 print(f"Mean R-squared: {np.nanmean(r_squared):.4f}")

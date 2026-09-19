@@ -9,39 +9,42 @@ from pkynetics.model_fitting_methods.kissinger import (
 from pkynetics.synthetic_data import generate_basic_kinetic_data
 
 # Set true values for synthetic data generation
-true_e_a = 40000  # J/mol
-true_a = 3.9e6  # s^-1
-heating_rates = np.array([20, 40, 60, 80])  # °C/min
-t_range = (200, 600)  # °C
-R = 8.314  # Gas constant in J/(mol·K)
+true_e_a = 150000  # J/mol
+true_a = 1e12  # s^-1
+heating_rates = np.array([5, 10, 20, 40])  # K/min
+t_range = (350, 700)  # K
 
-# Generate synthetic data
+# Generate synthetic data (first order, integrated over temperature)
 temp_data, conv_data = generate_basic_kinetic_data(
     e_a=true_e_a,
     a=true_a,
     heating_rates=heating_rates,
     t_range=t_range,
     reaction_model="first_order",
-    noise_level=0.01,
+    num_points=5000,
 )
 
 # Plot conversion curves for each heating rate
 plt.figure(figsize=(10, 6))
 for i, beta in enumerate(heating_rates):
-    plt.plot(temp_data[i], conv_data[i], label=f"{beta} °C/min")
+    plt.plot(temp_data[i], conv_data[i], label=f"{beta} K/min")
 
-plt.xlabel("Temperature (°C)")
+plt.xlabel("Temperature (K)")
 plt.ylabel("Conversion")
 plt.title("Synthetic Conversion Curves for Different Heating Rates")
 plt.legend()
 plt.grid(True)
 plt.show()
 
-# Calculate peak temperatures using the calculate_t_p function
-t_p = calculate_t_p(true_e_a, true_a, heating_rates)
+# Peak temperatures (K): maximum of the conversion rate d(alpha)/dT
+t_p = np.array(
+    [t[np.argmax(np.gradient(conv, t))] for t, conv in zip(temp_data, conv_data)]
+)
 
-# Perform Kissinger analysis
-e_a, a, se_e_a, se_ln_a, r_squared = kissinger_method(t_p, heating_rates)
+# Perform Kissinger analysis. A comes in the time unit of the heating rate
+# (1/min): keep it for calculate_t_p and convert to 1/s for reporting
+e_a, a_per_min, se_e_a, se_ln_a, r_squared = kissinger_method(t_p, heating_rates)
+a = a_per_min / 60
 
 print(f"True values: E_a = {true_e_a/1000:.2f} kJ/mol, A = {true_a:.2e} s^-1")
 print(
@@ -63,8 +66,8 @@ y_exp = kissinger_equation(t_p=t_p, beta=heating_rates)
 heating_rates_theory = np.logspace(
     np.log10(min(heating_rates)), np.log10(max(heating_rates)), 100
 )
-t_p_true = calculate_t_p(true_e_a, true_a, heating_rates_theory)
-t_p_fit = calculate_t_p(e_a, a, heating_rates_theory)
+t_p_true = calculate_t_p(true_e_a, true_a * 60, heating_rates_theory)
+t_p_fit = calculate_t_p(e_a, a_per_min, heating_rates_theory)
 
 x_theory_true = 1000 / t_p_true
 y_theory_true = np.log(heating_rates_theory / t_p_true**2)

@@ -20,6 +20,7 @@ t_range = (400, 800)  # K
 n_true = 1  # Reaction order
 
 # Generate synthetic data
+np.random.seed(0)
 temperature, alpha = generate_coats_redfern_data(
     e_a_true, a_true, heating_rate, t_range, n=n_true, noise_level=0.001
 )
@@ -38,9 +39,12 @@ e_a, a, r_squared, x, y, x_fit, y_fit = coats_redfern_method(
 # Plot Coats-Redfern results
 plot_coats_redfern(x, y, x_fit, y_fit, e_a, a, r_squared)
 
+# A comes in the time unit of the heating rate (1/min): convert to 1/s
+a = a / 60
+
 # Print results
-print(f"True values: E_a = {e_a_true/1000:.2f} kJ/mol, A = {a_true:.2e} min^-1")
-print(f"Fitted values: E_a = {e_a/1000:.2f} kJ/mol, A = {a:.2e} min^-1")
+print(f"True values: E_a = {e_a_true/1000:.2f} kJ/mol, A = {a_true:.2e} s^-1")
+print(f"Fitted values: E_a = {e_a/1000:.2f} kJ/mol, A = {a:.2e} s^-1")
 print(f"R^2 = {r_squared:.4f}")
 
 # Calculate relative error
