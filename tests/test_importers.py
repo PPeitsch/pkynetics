@@ -140,3 +140,56 @@ class TestImporters(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+DATA_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "src", "pkynetics", "data", "dsc"
+)
+
+
+class TestEncodingDetection(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.text = "Time (s);Temperature (°C)\n0;25,0\n1;25,5\n" * 20
+
+    def tearDown(self):
+        for name in os.listdir(self.temp_dir):
+            os.remove(os.path.join(self.temp_dir, name))
+        os.rmdir(self.temp_dir)
+
+    def _write(self, data: bytes) -> str:
+        path = os.path.join(self.temp_dir, "file.txt")
+        with open(path, "wb") as f:
+            f.write(data)
+        return path
+
+    def test_encodings(self):
+        from pkynetics.data_import._encoding import detect_encoding
+
+        cases = {
+            "utf-16": self.text.encode("utf-16"),  # with BOM
+            "utf-16-le": self.text.encode("utf-16-le"),  # without BOM
+            "utf-16-be": self.text.encode("utf-16-be"),
+            "utf-8-sig": self.text.encode("utf-8-sig"),
+            "utf-8": self.text.encode("utf-8"),
+            "latin-1": self.text.encode("latin-1"),
+        }
+        for expected, data in cases.items():
+            encoding = detect_encoding(self._write(data))
+            self.assertEqual(encoding, expected)
+            with open(os.path.join(self.temp_dir, "file.txt"), encoding=encoding) as f:
+                self.assertEqual(f.read(), self.text)
+
+
+class TestTAUniversalAnalysis(unittest.TestCase):
+    def test_bundled_eicosane_file(self):
+        path = os.path.join(DATA_DIR, "sample_dsc_tainstruments.txt")
+        data = dsc_importer(path)  # manufacturer detected from the header
+
+        self.assertEqual(len(data["time"]), 19000)
+        # Marker rows with negative time are dropped
+        self.assertTrue(np.all(data["time"] >= 0))
+        self.assertAlmostEqual(data["time"][0], 187.996)  # min
+        self.assertAlmostEqual(data["temperature"][0], -21.18184)  # degC
+        self.assertAlmostEqual(data["heat_flow"][0], -10.46185)  # mW
+        self.assertIsNone(data["heat_capacity"])

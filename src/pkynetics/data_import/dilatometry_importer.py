@@ -1,18 +1,13 @@
 import logging
-from typing import Dict, Optional, TypedDict
+from typing import Dict
 
-import chardet
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
+from ._encoding import detect_encoding
+
 logger = logging.getLogger(__name__)
-
-
-class DetectionResult(TypedDict):
-    encoding: str
-    confidence: float
-    language: Optional[str]
 
 
 def dilatometry_importer(file_path: str) -> Dict[str, NDArray[np.float64]]:
@@ -33,11 +28,7 @@ def dilatometry_importer(file_path: str) -> Dict[str, NDArray[np.float64]]:
     logger.info(f"Importing dilatometry data from {file_path}")
 
     try:
-        # Detect file encoding
-        with open(file_path, "rb") as file:
-            raw_data = file.read()
-            detection_result = chardet.detect(raw_data)  # Use chardet's type
-            encoding = detection_result["encoding"]
+        encoding = detect_encoding(file_path)
 
         logger.info(f"Detected file encoding: {encoding}")
 
