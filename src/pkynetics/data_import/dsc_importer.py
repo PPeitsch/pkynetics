@@ -85,6 +85,7 @@ def import_setaram(file_path: str) -> ReturnDict:
 
     try:
         encoding = detect_encoding(file_path)
+        header_row = _find_setaram_header_row(file_path, encoding)
 
         # Try to read file in new format first
         try:
@@ -94,7 +95,7 @@ def import_setaram(file_path: str) -> ReturnDict:
                 decimal=",",
                 encoding=encoding,
                 dtype=str,
-                skiprows=13 if file_path.lower().endswith(".txt") else 0,
+                skiprows=header_row,
             )
             # Verify if it's really the new format by checking column names
             if "Time (s)" in df.columns:
@@ -118,7 +119,7 @@ def import_setaram(file_path: str) -> ReturnDict:
                 decimal=".",
                 encoding=encoding,
                 dtype=str,
-                skiprows=12,
+                skiprows=header_row,
             )
             column_mapping = {
                 "Index": "index",
@@ -162,6 +163,25 @@ def import_setaram(file_path: str) -> ReturnDict:
     except Exception as e:
         logger.error(f"Error reading Setaram file: {str(e)}")
         raise ValueError(f"Unable to read Setaram file. Error: {str(e)}")
+
+
+def _find_setaram_header_row(file_path: str, encoding: str) -> int:
+    """
+    Index of the column header line of a Setaram export.
+
+    The number of header lines before it varies (sample description, TG and
+    heat flow blocks), so it is located by content: the first line starting
+    with "Index" or containing "Time (s)". Returns 0 if not found (plain
+    CSV with the column names in the first line).
+    """
+    with open(file_path, "r", encoding=encoding) as f:
+        for i, line in enumerate(f):
+            stripped = line.strip()
+            if stripped.startswith("Index") or "Time (s)" in stripped:
+                return i
+            if i > 100:
+                break
+    return 0
 
 
 def _detect_manufacturer(file_path: str) -> str:

@@ -193,3 +193,39 @@ class TestTAUniversalAnalysis(unittest.TestCase):
         self.assertAlmostEqual(data["temperature"][0], -21.18184)  # degC
         self.assertAlmostEqual(data["heat_flow"][0], -10.46185)  # mW
         self.assertIsNone(data["heat_capacity"])
+
+
+class TestSetaramHeader(unittest.TestCase):
+    def test_header_found_by_content(self):
+        """Setaram exports: variable number of header lines."""
+        temp_dir = tempfile.mkdtemp()
+        path = os.path.join(temp_dir, "run.txt")
+        header = [
+            "Sample - Al 5 steps 58.30mg",
+            "Creation Date : 08/01/2025 06:19:50 p.m.",
+            "User : admin",
+            "",
+            "HeatFlow :",
+            "  Initial Mass : 58.3 mg",
+            "",
+        ]
+        columns = (
+            "Index;Time (s);Furnace Temperature (°C);Sample Temperature (°C);"
+            "TG (mg);HeatFlow (mW)"
+        )
+        rows = [
+            f"{i + 1};{i};{98.5 + i};{82.0 + i};240.9;{-17.2 - i}" for i in range(5)
+        ]
+        with open(path, "w", encoding="utf-16") as f:
+            f.write("\n".join(header + [columns] + rows) + "\n")
+        try:
+            data = dsc_importer(path, manufacturer="Setaram")
+        finally:
+            os.remove(path)
+            os.rmdir(temp_dir)
+
+        np.testing.assert_allclose(data["time"], [0, 1, 2, 3, 4])
+        np.testing.assert_allclose(data["sample_temperature"], [82, 83, 84, 85, 86])
+        np.testing.assert_allclose(
+            data["heat_flow"], [-17.2, -18.2, -19.2, -20.2, -21.2]
+        )
