@@ -187,11 +187,19 @@ def test_validate_temperature_data():
     with pytest.raises(ValueError):
         DataValidator.validate_temperature_data(temp.tolist())
 
-    # Non-monotonic data
+    # Non-monotonic data is accepted by default (real DSC data has noise,
+    # isotherms and cooling segments) but rejected in strict mode
+    non_monotonic = temp.copy()
+    non_monotonic[500] = non_monotonic[498]
+    assert DataValidator.validate_temperature_data(non_monotonic)
     with pytest.raises(ValueError):
-        DataValidator.validate_temperature_data(
-            np.random.rand(100), strict_monotonic=True
-        )
+        DataValidator.validate_temperature_data(non_monotonic, strict_monotonic=True)
+
+    # Unrealistic jumps between consecutive points
+    jumpy = temp.copy()
+    jumpy[500:] += 100
+    with pytest.raises(ValueError):
+        DataValidator.validate_temperature_data(jumpy)
 
     # Out of range data
     with pytest.raises(ValueError):
@@ -221,15 +229,16 @@ def test_validate_heat_flow_data():
 
 
 def test_check_sampling_rate():
-    """Test check for uniform sampling rate."""
-    time_uniform = np.linspace(0, 10, 101)
-    temp_uniform = np.linspace(25, 125, 101)
-    assert DataValidator.check_sampling_rate(temp_uniform, time_uniform) > 0
+    """Test sampling rate checking."""
+    # Uniform sampling
+    time = np.linspace(0, 999, 1000)
+    interval = DataValidator.check_sampling_rate(time)
+    assert isinstance(interval, float)
+    assert np.isclose(interval, 1.0)
 
     time_non_uniform = np.array([0, 1, 2, 4, 5])
-    temp_non_uniform = np.linspace(25, 75, 5)
     with pytest.raises(ValueError, match="Non-uniform time sampling detected"):
-        DataValidator.check_sampling_rate(temp_non_uniform, time_non_uniform)
+        DataValidator.check_sampling_rate(time_non_uniform)
 
 
 # Integration Tests
@@ -284,3 +293,87 @@ def test_error_handling():
         DataValidator.validate_temperature_data(
             np.array([]),  # Empty array
         )
+
+
+def test_remove_outliers_flat_signal(signal_processor):
+    """Flat regions (zero local variance) must not produce NaNs."""
+    data = np.concatenate([np.zeros(50), np.random.default_rng(0).normal(0, 1, 50)])
+    cleaned = signal_processor.remove_outliers(data)
+    assert np.all(np.isfinite(cleaned))
+    np.testing.assert_array_equal(cleaned[:40], 0.0)
+
+
+def test_bandpass_filter(signal_processor):
+    """Bandpass keeps the in-band component and removes the others."""
+    fs = 100.0
+    t = np.arange(0, 20, 1 / fs)
+    in_band = np.sin(2 * np.pi * 5 * t)
+    data = in_band + np.sin(2 * np.pi * 0.2 * t) + np.sin(2 * np.pi * 30 * t)
+
+    filtered = signal_processor.filter_signal(data, fs, (2.0, 10.0), "bandpass")
+
+    core = slice(200, -200)  # Ignore filter edge effects
+    assert np.max(np.abs(filtered[core] - in_band[core])) < 0.1
+
+    with pytest.raises(ValueError):
+        signal_processor.filter_signal(data, fs, 5.0, "bandpass")
+
+
+def test_detect_temperature_program():
+    """Program detection with rates in K/min and time in seconds."""
+    t = np.arange(0, 1800, 1.0)
+
+    # 10 K/min continuous heating
+    result = DataValidator.detect_temperature_program(300 + 10 / 60 * t, t)
+    assert result["type"] == "continuous"
+    assert result["n_heating"] == 1
+    assert np.isclose(result["avg_heating_rate"], 10.0)
+    assert np.isnan(result["avg_cooling_rate"])
+
+    # Equilibration hold, then heating: still continuous
+    temp = np.where(t < 300, 300.0, 300 + 10 / 60 * (t - 300))
+    result = DataValidator.detect_temperature_program(temp, t)
+    assert result["type"] == "continuous"
+    assert result["segments"][0]["type"] == "isothermal"
+    assert result["segments"][-1]["start_idx"] > 0
+    assert result["segments"][-1]["end_idx"] == len(t)
+
+    # Heat - hold - heat: stepped
+    temp = np.piecewise(
+        t,
+        [t < 600, (t >= 600) & (t < 1200), t >= 1200],
+        [
+            lambda x: 300 + 10 / 60 * x,
+            400.0,
+            lambda x: 400 + 10 / 60 * (x - 1200),
+        ],
+    )
+    result = DataValidator.detect_temperature_program(temp, t)
+    assert result["type"] == "stepped"
+    assert result["n_heating"] == 2
+
+    # Heat then cool: cyclic
+    temp = np.where(t < 900, 300 + 10 / 60 * t, 450 - 10 / 60 * (t - 900))
+    result = DataValidator.detect_temperature_program(temp, t)
+    assert result["type"] == "cyclic"
+    assert np.isclose(result["avg_cooling_rate"], -10.0, atol=0.1)
+
+
+def test_detect_temperature_program_noisy():
+    """Sensor noise and a brief temperature stall must not split a ramp."""
+    rng = np.random.default_rng(1)
+    t = np.arange(0, 3600, 0.5)
+    temp = 300 + 1 / 60 * t  # 1 K/min
+    stall = (t >= 1800) & (t < 1830)  # 30 s stall, e.g. during melting
+    temp[stall] = temp[np.argmax(stall)]
+    temp[t >= 1830] -= 0.5
+    temp += rng.normal(0, 0.005, len(t))
+
+    result = DataValidator.detect_temperature_program(temp, t)
+    assert result["type"] == "continuous"
+    assert len(result["segments"]) == 1
+    assert np.isclose(result["avg_heating_rate"], 1.0, atol=0.05)
+
+    # Filtering can be disabled
+    raw = DataValidator.detect_temperature_program(temp, t, min_segment_duration=0)
+    assert len(raw["segments"]) > 1

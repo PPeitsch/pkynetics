@@ -3,10 +3,11 @@
 import logging
 from typing import Dict, Optional, Union
 
-import chardet
 import numpy as np
 import pandas as pd
 from pandas.core.arrays import ExtensionArray
+
+from ._encoding import detect_encoding
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,9 @@ def dsc_importer(file_path: str, manufacturer: str = "auto") -> ReturnDict:
 
     Returns:
         Dict[str, Optional[np.ndarray]]: Dictionary containing temperature, time, heat_flow, and heat_capacity data.
+        Values are returned in the units of the instrument export: temperature in
+        °C; time in s (Setaram) or min (TA, Mettler, Netzsch); heat flow in mW
+        (mW/mg for Netzsch).
 
     Raises:
         ValueError: If the file format is not recognized or supported.
@@ -80,11 +84,8 @@ def import_setaram(file_path: str) -> ReturnDict:
     logger.info(f"Importing Setaram data from {file_path}")
 
     try:
-        # Detect file encoding
-        with open(file_path, "rb") as file:
-            raw_data = file.read()
-            detection_result = chardet.detect(raw_data)
-            encoding = detection_result["encoding"]
+        encoding = detect_encoding(file_path)
+        header_row = _find_setaram_header_row(file_path, encoding)
 
         # Try to read file in new format first
         try:
@@ -94,7 +95,7 @@ def import_setaram(file_path: str) -> ReturnDict:
                 decimal=",",
                 encoding=encoding,
                 dtype=str,
-                skiprows=13 if file_path.lower().endswith(".txt") else 0,
+                skiprows=header_row,
             )
             # Verify if it's really the new format by checking column names
             if "Time (s)" in df.columns:
@@ -118,7 +119,7 @@ def import_setaram(file_path: str) -> ReturnDict:
                 decimal=".",
                 encoding=encoding,
                 dtype=str,
-                skiprows=12,
+                skiprows=header_row,
             )
             column_mapping = {
                 "Index": "index",
@@ -164,6 +165,25 @@ def import_setaram(file_path: str) -> ReturnDict:
         raise ValueError(f"Unable to read Setaram file. Error: {str(e)}")
 
 
+def _find_setaram_header_row(file_path: str, encoding: str) -> int:
+    """
+    Index of the column header line of a Setaram export.
+
+    The number of header lines before it varies (sample description, TG and
+    heat flow blocks), so it is located by content: the first line starting
+    with "Index" or containing "Time (s)". Returns 0 if not found (plain
+    CSV with the column names in the first line).
+    """
+    with open(file_path, "r", encoding=encoding) as f:
+        for i, line in enumerate(f):
+            stripped = line.strip()
+            if stripped.startswith("Index") or "Time (s)" in stripped:
+                return i
+            if i > 100:
+                break
+    return 0
+
+
 def _detect_manufacturer(file_path: str) -> str:
     """
     Detect the instrument manufacturer based on file content.
@@ -180,17 +200,13 @@ def _detect_manufacturer(file_path: str) -> str:
     """
     try:
         # Detect file encoding
-        with open(file_path, "rb") as file:
-            raw_data = file.read()
-            result = chardet.detect(raw_data)
-            encoding = result["encoding"]
-
+        encoding = detect_encoding(file_path)
         logger.info(f"Detected file encoding: {encoding}")
 
         with open(file_path, "r", encoding=encoding) as f:
-            header = f.read(1000)  # Read first 1000 characters
+            header = f.read(4000)  # TA Universal Analysis headers are long
 
-        if "TA Instruments" in header:
+        if "TA Instruments" in header or "StartOfData" in header:
             return "TA"
         elif "METTLER TOLEDO" in header:
             return "Mettler"
@@ -227,6 +243,11 @@ def _import_ta_instruments(file_path: str) -> ReturnDict:
         FileNotFoundError: If the specified file does not exist.
     """
     try:
+        encoding = detect_encoding(file_path)
+        with open(file_path, "r", encoding=encoding) as f:
+            if "StartOfData" in f.read(4000):
+                return _import_ta_universal_analysis(file_path, encoding)
+
         df = pd.read_csv(file_path, skiprows=1, encoding="iso-8859-1")
         data: ReturnDict = {
             "time": df["Time (min)"].values,
@@ -245,6 +266,71 @@ def _import_ta_instruments(file_path: str) -> ReturnDict:
     except Exception as e:
         logger.error(f"Error reading TA Instruments file: {str(e)}")
         raise ValueError(f"Unable to read TA Instruments file. Error: {str(e)}")
+
+
+def _import_ta_universal_analysis(file_path: str, encoding: str) -> ReturnDict:
+    """
+    Import a TA Instruments Universal Analysis text export.
+
+    The header lists the signals ("Sig1<TAB>Time (min)", ...) and the data
+    follow the "StartOfData" line, whitespace separated. Rows with negative
+    time (marker rows before the run) are dropped.
+
+    Args:
+        file_path: Path to the exported file
+        encoding: Text encoding of the file
+
+    Returns:
+        Dictionary with time (min), temperature (°C), heat_flow (mW) and,
+        if exported, heat_capacity; missing signals are None
+
+    Raises:
+        ValueError: If the file has no StartOfData section or no time column
+    """
+    with open(file_path, "r", encoding=encoding) as f:
+        lines = f.read().splitlines()
+
+    try:
+        start = next(i for i, line in enumerate(lines) if line.strip() == "StartOfData")
+    except StopIteration:
+        raise ValueError("No StartOfData section in TA Universal Analysis file")
+
+    signals = []
+    for line in lines[:start]:
+        key, _, value = line.partition("\t")
+        if key.startswith("Sig") and key[3:].isdigit():
+            signals.append(value.strip())
+
+    rows = [line.split() for line in lines[start + 1 :] if line.strip()]
+    values = np.array([row[: len(signals)] for row in rows], dtype=np.float64)
+
+    prefixes = {
+        "Time": "time",
+        "Temperature": "temperature",
+        "Heat Flow": "heat_flow",
+        "Heat Capacity": "heat_capacity",
+    }
+    data: ReturnDict = {
+        "time": None,
+        "temperature": None,
+        "heat_flow": None,
+        "heat_capacity": None,
+        "sample_temperature": None,
+        "weight": None,
+    }
+    for column, name in enumerate(signals):
+        for prefix, key in prefixes.items():
+            if name.startswith(prefix) and data[key] is None:
+                data[key] = values[:, column]
+
+    time = data["time"]
+    if time is None:
+        raise ValueError("No time signal in TA Universal Analysis file")
+    keep = np.asarray(time) >= 0
+    for key, array in data.items():
+        if array is not None:
+            data[key] = np.asarray(array)[keep]
+    return data
 
 
 def _import_mettler_toledo(file_path: str) -> ReturnDict:

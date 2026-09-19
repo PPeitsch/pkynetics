@@ -1,21 +1,15 @@
 """Baseline correction methods for DSC data."""
 
-from typing import Any, Callable, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy import linalg, optimize, signal
+from scipy import signal, sparse
 from scipy.interpolate import UnivariateSpline
-from scipy.spatial import ConvexHull
+from scipy.sparse.linalg import spsolve
 
 from .types import BaselineResult
 from .utilities import safe_savgol_filter
-
-# Type alias for baseline fitting functions
-BaselineFitFunc = Callable[
-    [NDArray[np.float64], NDArray[np.float64], Optional[List[Tuple[float, float]]]],
-    Tuple[NDArray[np.float64], Dict[str, Any]],
-]
 
 
 class BaselineCorrector:
@@ -32,12 +26,14 @@ class BaselineCorrector:
         self.smoothing_window = smoothing_window
         self.smoothing_order = smoothing_order
 
-        self.methods: Dict[str, Callable[..., Any]] = {
+        # Register available correction methods
+        self.methods = {
             "linear": self._fit_linear_baseline,
             "polynomial": self._fit_polynomial_baseline,
             "spline": self._fit_spline_baseline,
             "asymmetric": self._fit_asymmetric_baseline,
             "rubberband": self._fit_rubberband_baseline,
+            "auto": self._auto_baseline,
         }
 
     def correct(
@@ -50,26 +46,42 @@ class BaselineCorrector:
     ) -> BaselineResult:
         """
         Apply baseline correction with specified method.
+
+        Args:
+            temperature: Temperature array
+            heat_flow: Heat flow array
+            method: Correction method to use
+            regions: Optional list of (start_temp, end_temp) for baseline regions
+            **kwargs: Additional parameters for specific correction methods
+
+        Returns:
+            BaselineResult object containing correction results
         """
-        self._validate_data(temperature, heat_flow)
-
-        if method == "auto":
-            return self._auto_baseline(temperature, heat_flow, regions, **kwargs)
-
         if method not in self.methods:
             raise ValueError(f"Unknown baseline method: {method}")
 
-        heat_flow_smooth = safe_savgol_filter(
+        # Validate input data
+        self._validate_data(temperature, heat_flow)
+
+        # Smooth data if needed
+        heat_flow_smooth = signal.savgol_filter(
             heat_flow, self.smoothing_window, self.smoothing_order
         )
 
+        # Apply selected correction method
         correction_func = self.methods[method]
         baseline, params = correction_func(
-            temperature, heat_flow_smooth, regions=regions, **kwargs
+            temperature, heat_flow_smooth, regions, **kwargs
         )
 
+        # Report the method actually used when selected automatically
+        if method == "auto":
+            method = params.pop("method")
+
+        # Calculate corrected data
         corrected_data = heat_flow - baseline
 
+        # Calculate quality metrics
         quality_metrics = self._calculate_quality_metrics(
             temperature, heat_flow, baseline, regions
         )
@@ -92,47 +104,36 @@ class BaselineCorrector:
     ) -> BaselineResult:
         """
         Find optimal baseline regions automatically.
+
+        Args:
+            temperature: Temperature array
+            heat_flow: Heat flow array
+            method: Baseline method to use
+            n_regions: Number of baseline regions to identify
+
+        Returns:
+            Optimized BaselineResult
         """
-        regions = self._find_quiet_regions(temperature, heat_flow, n_regions=n_regions)
+        # Find quiet regions in the data
+        regions = self._find_quiet_regions(temperature, heat_flow, n_regions)
 
-        # In auto mode, find the best method for the identified optimal regions
-        if method == "auto":
-            return self._auto_baseline(temperature, heat_flow, regions)
+        if not regions:
+            raise ValueError("No quiet regions found for baseline optimization")
 
-        # If a specific method is given, use it with the optimal regions
-        return self.correct(temperature, heat_flow, method, regions)
-
-    def _auto_baseline(
-        self,
-        temperature: NDArray[np.float64],
-        heat_flow: NDArray[np.float64],
-        regions: Optional[List[Tuple[float, float]]] = None,
-        **kwargs: Any,
-    ) -> BaselineResult:
-        """Automatically select best baseline method and return its result."""
-        best_score = float("inf")
+        # Try different region combinations
         best_result: Optional[BaselineResult] = None
+        best_score = float("inf")
 
-        # Exclude 'rubberband' from auto-selection to match test expectations
-        auto_methods = {k: v for k, v in self.methods.items() if k != "rubberband"}
+        for i in range(min(10, len(regions))):  # Limit number of combinations
+            test_regions = regions[i : i + n_regions]
+            result = self.correct(temperature, heat_flow, method, test_regions)
+            score = self._evaluate_baseline_quality(result)
 
-        for method_name in auto_methods:
-            try:
-                # Use original heat_flow for auto-correction evaluation
-                result = self.correct(
-                    temperature, heat_flow, method_name, regions, **kwargs
-                )
-                score = self._evaluate_baseline_quality(result)
+            if score < best_score:
+                best_score = score
+                best_result = result
 
-                if score < best_score:
-                    best_score = score
-                    best_result = result
-            except (ValueError, np.linalg.LinAlgError, TypeError):
-                continue
-
-        if best_result is None:
-            raise ValueError("Could not determine a valid automatic baseline.")
-
+        assert best_result is not None
         return best_result
 
     def _fit_linear_baseline(
@@ -141,28 +142,32 @@ class BaselineCorrector:
         heat_flow: NDArray[np.float64],
         regions: Optional[List[Tuple[float, float]]] = None,
         **kwargs: Any,
-    ) -> Tuple[NDArray[np.float64], Dict[str, Any]]:
-        """Fit linear baseline through specified regions."""
-        if regions is None:
-            n_points = max(2, len(temperature) // 10)
-            regions = [
-                (float(temperature[0]), float(temperature[n_points - 1])),
-                (float(temperature[-n_points]), float(temperature[-1])),
-            ]
+    ) -> Tuple[NDArray[np.float64], Dict]:
+        """
+        Fit linear baseline through specified regions.
 
-        temp_points, heat_points = self._get_points_in_regions(
+        Args:
+            temperature: Temperature array
+            heat_flow: Heat flow array
+            regions: List of (start_temp, end_temp) tuples for baseline regions
+            **kwargs: Additional parameters
+
+        Returns:
+            Tuple[NDArray[np.float64], Dict]: Baseline array and parameters
+        """
+        if regions is None:
+            regions = self._default_regions(temperature)
+
+        temp_points, heat_points = self._collect_region_points(
             temperature, heat_flow, regions
         )
-
         if len(temp_points) < 2:
-            raise ValueError("Not enough points in specified regions for linear fit.")
+            raise ValueError("Not enough points in baseline regions for linear fit")
 
         coeffs = np.polyfit(temp_points, heat_points, 1)
-        baseline = np.polyval(coeffs, temperature)
-        params: Dict[str, Any] = {
-            "slope": float(coeffs[0]),
-            "intercept": float(coeffs[1]),
-        }
+        baseline = np.asarray(np.polyval(coeffs, temperature), dtype=np.float64)
+
+        params = {"slope": float(coeffs[0]), "intercept": float(coeffs[1])}
         return baseline, params
 
     def _fit_polynomial_baseline(
@@ -170,29 +175,37 @@ class BaselineCorrector:
         temperature: NDArray[np.float64],
         heat_flow: NDArray[np.float64],
         regions: Optional[List[Tuple[float, float]]] = None,
+        degree: int = 3,
         **kwargs: Any,
-    ) -> Tuple[NDArray[np.float64], Dict[str, Any]]:
-        """Fit polynomial baseline of specified degree."""
-        degree = kwargs.get("degree", 3)
-        if regions is None:
-            n_points = max(degree + 1, len(temperature) // 10)
-            regions = [
-                (float(temperature[0]), float(temperature[n_points - 1])),
-                (float(temperature[-n_points]), float(temperature[-1])),
-            ]
+    ) -> Tuple[NDArray[np.float64], Dict]:
+        """
+        Fit polynomial baseline of specified degree.
 
-        temp_points, heat_points = self._get_points_in_regions(
+        Args:
+            temperature: Temperature array
+            heat_flow: Heat flow array
+            regions: List of (start_temp, end_temp) tuples for baseline regions
+            degree: Polynomial degree
+            **kwargs: Additional parameters
+
+        Returns:
+            Tuple[NDArray[np.float64], Dict]: Baseline array and parameters
+        """
+        if regions is None:
+            regions = self._default_regions(temperature)
+
+        temp_points, heat_points = self._collect_region_points(
             temperature, heat_flow, regions
         )
 
+        # Fit polynomial
         if len(temp_points) <= degree:
-            raise ValueError(
-                f"Not enough points in regions ({len(temp_points)}) for polynomial degree {degree}"
-            )
+            raise ValueError(f"Not enough points for polynomial degree {degree}")
 
         coeffs = np.polyfit(temp_points, heat_points, degree)
-        baseline = np.polyval(coeffs, temperature)
-        params: Dict[str, Any] = {"coefficients": coeffs.tolist(), "degree": degree}
+        baseline = np.asarray(np.polyval(coeffs, temperature), dtype=np.float64)
+
+        params = {"coefficients": coeffs.tolist(), "degree": degree}
         return baseline, params
 
     def _fit_spline_baseline(
@@ -200,26 +213,23 @@ class BaselineCorrector:
         temperature: NDArray[np.float64],
         heat_flow: NDArray[np.float64],
         regions: Optional[List[Tuple[float, float]]] = None,
+        smoothing: float = 1.0,
         **kwargs: Any,
-    ) -> Tuple[NDArray[np.float64], Dict[str, Any]]:
+    ) -> Tuple[NDArray[np.float64], Dict]:
         """Fit spline baseline with automatic knot selection."""
-        smoothing = kwargs.get("smoothing", 1.0)
         if regions is None:
             regions = self._find_quiet_regions(temperature, heat_flow)
 
-        temp_points, heat_points = self._get_points_in_regions(
+        temp_points, heat_points = self._collect_region_points(
             temperature, heat_flow, regions
         )
 
-        if len(temp_points) < 4:
-            raise ValueError("Not enough points for spline fit.")
-
-        spline = UnivariateSpline(temp_points, heat_points, s=smoothing, k=3)
+        # Fit univariate spline
+        spline = UnivariateSpline(temp_points, heat_points, s=smoothing)
         baseline = spline(temperature)
-        params: Dict[str, Any] = {
-            "smoothing": smoothing,
-            "n_knots": len(spline.get_knots()),
-        }
+
+        params = {"smoothing": smoothing, "n_knots": len(spline.get_knots())}
+
         return baseline, params
 
     def _fit_asymmetric_baseline(
@@ -228,23 +238,104 @@ class BaselineCorrector:
         heat_flow: NDArray[np.float64],
         regions: Optional[List[Tuple[float, float]]] = None,
         **kwargs: Any,
-    ) -> Tuple[NDArray[np.float64], Dict[str, Any]]:
-        """Fit asymmetric least squares baseline."""
-        lam = kwargs.get("lam", 1e5)
+    ) -> Tuple[NDArray[np.float64], Dict]:
+        """
+        Fit asymmetric least squares baseline.
+
+        Args:
+            temperature: Temperature array
+            heat_flow: Heat flow array
+            regions: Optional baseline regions
+            **kwargs: lam (smoothness, for 1000 points; default 1e7) and
+                p (asymmetry; default 0.001, for upward peaks)
+
+        Returns:
+            Tuple[NDArray[np.float64], Dict]: Baseline and parameters
+        """
+
+        def als_baseline(
+            y: NDArray[np.float64], lam: float, p: float, niter: int = 10
+        ) -> NDArray[np.float64]:
+            # Eilers & Boelens (2005), with sparse matrices: O(n) memory
+            L = len(y)
+            D = sparse.diags([1.0, -2.0, 1.0], [0, -1, -2], shape=(L, L - 2))
+            penalty = lam * D.dot(D.T)
+            w = np.ones(L)
+            z = y
+            for _ in range(niter):
+                W = sparse.spdiags(w, 0, L, L)
+                z = spsolve(sparse.csc_matrix(W + penalty), w * y)
+                w = p * (y > z) + (1 - p) * (y < z)
+            return np.asarray(z, dtype=np.float64)
+
+        lam = kwargs.get("lam", 1e7)
         p = kwargs.get("p", 0.001)
-        niter = kwargs.get("niter", 10)
 
-        L = len(heat_flow)
-        D = np.diff(np.eye(L), 2, axis=0)
-        w = np.ones(L)
+        # The penalty acts on index differences; scaling by (N/1000)^4 keeps
+        # the stiffness independent of the number of points
+        lam_scaled = lam * (len(heat_flow) / 1000) ** 4
+        baseline = als_baseline(heat_flow, lam_scaled, p)
+        params = {"lambda": lam, "p": p}
 
-        for _ in range(niter):
-            W = np.diag(w)
-            Z = W + lam * D.T @ D
-            z = linalg.solve(Z, w * heat_flow, assume_a="sym")
-            w = p * (heat_flow > z) + (1 - p) * (heat_flow < z)
+        return baseline, params
 
-        return z, {"lambda": lam, "p": p}
+    def _auto_baseline(
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        regions: Optional[List[Tuple[float, float]]] = None,
+        **kwargs: Any,
+    ) -> Tuple[NDArray[np.float64], Dict]:
+        """
+        Select the baseline model by BIC on event-free regions.
+
+        Linear and polynomial (degree 2 and 3) baselines are fitted to the
+        baseline regions (detected quiet regions if none are given) and the
+        model with the lowest Bayesian information criterion is kept, so a
+        higher degree is only chosen when it clearly improves the fit. Spline
+        and asymmetric baselines are not candidates: they are not constrained
+        to event-free regions and can absorb broad peaks.
+        """
+        if regions is None:
+            regions = self._find_quiet_regions(temperature, heat_flow)
+
+        temp_points, heat_points = self._collect_region_points(
+            temperature, heat_flow, regions
+        )
+        n = len(temp_points)
+
+        best_bic = float("inf")
+        best: Optional[Tuple[NDArray[np.float64], Dict]] = None
+        for degree in (1, 2, 3):
+            n_params = degree + 1
+            if n <= n_params + 1:
+                break
+            coeffs = np.polyfit(temp_points, heat_points, degree)
+            rss = float(np.sum((heat_points - np.polyval(coeffs, temp_points)) ** 2))
+            # Floor avoids log(0) on noise-free data
+            rss = max(rss, n * float(np.finfo(float).eps))
+            bic = n * np.log(rss / n) + n_params * np.log(n)
+            if bic < best_bic:
+                best_bic = bic
+                baseline = np.asarray(np.polyval(coeffs, temperature), dtype=np.float64)
+                if degree == 1:
+                    params: Dict = {
+                        "method": "linear",
+                        "slope": float(coeffs[0]),
+                        "intercept": float(coeffs[1]),
+                    }
+                else:
+                    params = {
+                        "method": "polynomial",
+                        "coefficients": coeffs.tolist(),
+                        "degree": degree,
+                    }
+                best = (baseline, params)
+
+        if best is None:
+            raise ValueError("Not enough points in baseline regions")
+
+        return best
 
     def _fit_rubberband_baseline(
         self,
@@ -252,56 +343,53 @@ class BaselineCorrector:
         heat_flow: NDArray[np.float64],
         regions: Optional[List[Tuple[float, float]]] = None,
         **kwargs: Any,
-    ) -> Tuple[NDArray[np.float64], Dict[str, Any]]:
-        """Fit rubberband baseline using convex hull."""
+    ) -> Tuple[NDArray[np.float64], Dict]:
+        """Fit rubberband baseline using the lower convex hull.
+
+        Assumes events point upwards (positive peaks); invert the heat flow
+        to use it for downward peaks.
+        """
+        from scipy.spatial import ConvexHull
+
         points = np.column_stack((temperature, heat_flow))
+        hull = ConvexHull(points)
 
-        if len(points) < 3:
-            raise ValueError("Convex Hull requires at least 3 points.")
-
-        try:
-            hull = ConvexHull(points)
-        except Exception:
-            # Fallback for collinear points or other Qhull errors
-            return np.polyval(np.polyfit(temperature, heat_flow, 1), temperature), {}
-
-        # The lower hull consists of the vertices from the start point to the end point
-        # The vertices are ordered counter-clockwise.
+        # 2D hull vertices are counterclockwise: walking from the leftmost
+        # to the rightmost vertex traverses the lower hull
         vertices = hull.vertices
-        start_vertex_idx = np.where(vertices == np.argmin(points[:, 0]))[0][0]
-        end_vertex_idx = np.where(vertices == np.argmax(points[:, 0]))[0][0]
+        start = int(np.argmin(points[vertices, 0]))
+        vertices = np.roll(vertices, -start)
+        end = int(np.argmax(points[vertices, 0]))
+        lower_points = points[vertices[: end + 1]]
 
-        # Correctly walk the hull vertices to get the lower convex hull
-        if start_vertex_idx < end_vertex_idx:
-            lower_hull_indices = vertices[start_vertex_idx : end_vertex_idx + 1]
-        else:  # Wrap around case
-            lower_hull_indices = np.concatenate(
-                (vertices[start_vertex_idx:], vertices[: end_vertex_idx + 1])
-            )
+        # Interpolate baseline
+        baseline = np.interp(temperature, lower_points[:, 0], lower_points[:, 1])
 
-        lower_hull_points = points[lower_hull_indices]
-
-        # Sort points for interpolation
-        sorted_lower_hull = lower_hull_points[np.argsort(lower_hull_points[:, 0])]
-
-        baseline = np.interp(
-            temperature, sorted_lower_hull[:, 0], sorted_lower_hull[:, 1]
-        )
-
-        return baseline, {"n_hull_points": len(lower_hull_points)}
+        return baseline, {"n_hull_points": len(lower_points)}
 
     @staticmethod
-    def _get_points_in_regions(
+    def _default_regions(
+        temperature: NDArray[np.float64], fraction: float = 0.1
+    ) -> List[Tuple[float, float]]:
+        """Baseline regions at both ends of the data (first/last fraction)."""
+        n_points = max(2, int(len(temperature) * fraction))
+        first, last = temperature[:n_points], temperature[-n_points:]
+        return [
+            (float(np.min(first)), float(np.max(first))),
+            (float(np.min(last)), float(np.max(last))),
+        ]
+
+    @staticmethod
+    def _collect_region_points(
         temperature: NDArray[np.float64],
         heat_flow: NDArray[np.float64],
         regions: List[Tuple[float, float]],
     ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """Collects all data points within the specified list of regions."""
-        mask = np.zeros_like(temperature, dtype=bool)
+        """Select the data points falling inside any of the regions."""
+        mask = np.zeros(len(temperature), dtype=bool)
         for start_temp, end_temp in regions:
-            mask |= (temperature >= float(start_temp)) & (
-                temperature <= float(end_temp)
-            )
+            low, high = sorted((float(start_temp), float(end_temp)))
+            mask |= (temperature >= low) & (temperature <= high)
         return temperature[mask], heat_flow[mask]
 
     def _find_quiet_regions(
@@ -311,35 +399,41 @@ class BaselineCorrector:
         n_regions: int = 4,
         window: int = 20,
     ) -> List[Tuple[float, float]]:
-        """Find quiet (low variance) regions in the data."""
-        valid_window = min(window, len(heat_flow) - 1)
-        if valid_window < 2:
-            return [(float(temperature[0]), float(temperature[-1]))]
+        """
+        Find event-free regions: low slope and low curvature.
 
-        rolling_var = np.lib.stride_tricks.sliding_window_view(
-            heat_flow, valid_window
-        ).var(axis=1)
+        Low variance alone is not enough, since peak apexes are locally flat.
+        Each point is scored by its first and second derivative, each
+        normalized by its median magnitude, and the lowest-scoring windows
+        are selected at least len/(2*n_regions) points apart.
+        """
+        window = min(window, len(heat_flow))
+        smooth = safe_savgol_filter(
+            heat_flow, self.smoothing_window, self.smoothing_order
+        )
+        d1 = np.gradient(smooth, temperature)
+        d2 = np.gradient(d1, temperature)
 
-        # Pad to align with original array
-        pad_width = (valid_window - 1) // 2
-        rolling_var = np.pad(rolling_var, (pad_width, pad_width), "edge")
+        def _normalized(x: NDArray[np.float64]) -> NDArray[np.float64]:
+            scale = float(np.median(np.abs(x)))
+            return np.abs(x) / scale if scale > 0 else np.abs(x)
 
-        var_minima_indices = signal.argrelmin(rolling_var, order=valid_window)[0]
-        if len(var_minima_indices) == 0:
-            return [(float(temperature[0]), float(temperature[-1]))]
+        activity = _normalized(d1) + _normalized(d2)
+        score = np.convolve(activity, np.ones(window) / window, mode="valid")
 
-        sorted_minima = var_minima_indices[np.argsort(rolling_var[var_minima_indices])]
-        selected_points = sorted_minima[:n_regions]
+        min_separation = max(window, len(heat_flow) // (2 * n_regions))
+        selected: List[int] = []
+        for idx in np.argsort(score):
+            if all(abs(int(idx) - j) >= min_separation for j in selected):
+                selected.append(int(idx))
+            if len(selected) == n_regions:
+                break
 
         regions: List[Tuple[float, float]] = []
-        for point in sorted(selected_points):
-            start_idx = max(0, point - valid_window // 2)
-            end_idx = min(len(temperature) - 1, point + valid_window // 2)
-            if start_idx < end_idx:
-                regions.append(
-                    (float(temperature[start_idx]), float(temperature[end_idx]))
-                )
-        return regions if regions else [(float(temperature[0]), float(temperature[-1]))]
+        for i in sorted(selected):
+            first, last = float(temperature[i]), float(temperature[i + window - 1])
+            regions.append((min(first, last), max(first, last)))
+        return regions
 
     def _calculate_quality_metrics(
         self,
@@ -347,32 +441,36 @@ class BaselineCorrector:
         heat_flow: NDArray[np.float64],
         baseline: NDArray[np.float64],
         regions: Optional[List[Tuple[float, float]]] = None,
-    ) -> Dict[str, float]:
+    ) -> Dict:
         """Calculate quality metrics for baseline fit."""
-        metrics: Dict[str, float] = {}
-        if regions:
-            temp_in_regions, heat_points_in_regions = self._get_points_in_regions(
-                temperature, heat_flow, regions
-            )
-            _, baseline_points_in_regions = self._get_points_in_regions(
-                temperature, baseline, regions
-            )
-            if len(heat_points_in_regions) > 0:
-                residuals = heat_points_in_regions - baseline_points_in_regions
-                metrics["baseline_rmse"] = float(np.sqrt(np.mean(residuals**2)))
-                metrics["baseline_max_deviation"] = float(np.max(np.abs(residuals)))
+        metrics = {}
 
+        # Calculate residuals in baseline regions
+        if regions:
+            residuals: List[float] = []
+            for start_temp, end_temp in regions:
+                low, high = sorted((float(start_temp), float(end_temp)))
+                mask = (temperature >= low) & (temperature <= high)
+                residuals.extend(heat_flow[mask] - baseline[mask])
+
+            metrics["baseline_rmse"] = float(np.sqrt(np.mean(np.array(residuals) ** 2)))
+            metrics["baseline_max_deviation"] = float(np.max(np.abs(residuals)))
+
+        # Calculate overall metrics
         metrics["total_correction"] = float(np.sum(np.abs(heat_flow - baseline)))
-        if len(baseline) > 2:
-            metrics["smoothness"] = float(np.mean(np.abs(np.diff(baseline, 2))))
-        else:
-            metrics["smoothness"] = 0.0
+        metrics["smoothness"] = float(np.mean(np.abs(np.diff(baseline, 2))))
+
         return metrics
 
     def _evaluate_baseline_quality(self, result: BaselineResult) -> float:
         """Evaluate overall quality of baseline correction."""
         metrics = result.quality_metrics
-        score = metrics.get("baseline_rmse", 1e6) + 0.1 * metrics.get("smoothness", 1e6)
+
+        # Fit in baseline regions plus a smoothness penalty (lower is better).
+        # total_correction is deliberately excluded: it rewards baselines that
+        # follow the data through the peaks.
+        score = metrics.get("baseline_rmse", 0) + 0.1 * metrics.get("smoothness", 0)
+
         return float(score)
 
     def _validate_data(
@@ -380,9 +478,9 @@ class BaselineCorrector:
     ) -> None:
         """Validate input data arrays."""
         if len(temperature) != len(heat_flow):
-            raise ValueError("Temperature and heat flow arrays must have same length.")
-        # Adjust error message to match test expectation
+            raise ValueError("Temperature and heat flow arrays must have same length")
+
         if len(temperature) < self.smoothing_window:
             raise ValueError(
-                f"Data length must be at least {self.smoothing_window} for smoothing."
+                f"Data length must be at least {self.smoothing_window} points"
             )

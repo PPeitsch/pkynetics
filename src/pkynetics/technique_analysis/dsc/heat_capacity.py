@@ -1,14 +1,101 @@
-"""Heat capacity calculation and analysis module."""
+"""Heat capacity calculation and analysis module.
 
-from typing import Any, Dict, List, Optional, Tuple, Union, cast
+Units: temperature in K, time in s, heat flow in mW, mass in mg, heating
+rate in K/min; specific heat capacity in J/(g*K). Since mW/mg = W/g,
+Cp = q / m / (beta / 60).
+
+Sign convention: by default endothermic heat flow is positive
+(``exo_up=False``). Heat flows are corrected with the blank (empty pan)
+run when one is given; otherwise they are assumed to be blank-corrected.
+
+Methods:
+- SINGLE_STEP: Cp from the sample run alone (optionally blank-corrected);
+  accurate only with a heat flow calibration (see :meth:`CpCalculator.calibrate`).
+- THREE_STEP: ratio method of ASTM E1269 with blank, reference (sapphire)
+  and sample runs; instrument sensitivity cancels out.
+- MODULATED: reversing Cp from the first-harmonic amplitudes of heat flow
+  and heating rate in temperature-modulated DSC.
+
+Operation modes:
+- CONTINUOUS: Cp at every point of a linear ramp.
+- STEPPED: heating steps between isotherms (e.g. ISO 11357-4 step method);
+  the heat absorbed in each step, relative to the isothermal levels, gives
+  the mean Cp over the step. Requires the time array.
+"""
+
+import logging
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy import stats
+from scipy.integrate import trapezoid
 
-from .signal_stability import SignalStabilityDetector
-from .types import CalibrationData, CpMethod, CpResult, OperationMode, StabilityMethod
-from .utilities import DataValidator, SignalProcessor
+from .types import CalibrationData, CpMethod, CpResult, OperationMode
+from .utilities import DataValidator
+
+logger = logging.getLogger(__name__)
+
+FloatArray = NDArray[np.float64]
+
+# Shomate equation coefficients (A, B, C, D, E; Cp in J/(mol*K), t = T/1000),
+# NIST-JANAF Thermochemical Tables (Chase, 1998), via the NIST Chemistry
+# WebBook. Relative uncertainties are indicative.
+REFERENCE_MATERIALS: Dict[str, Dict[str, Any]] = {
+    "sapphire": {
+        "shomate": (102.4290, 38.74980, -15.91090, 2.628181, -3.007551),
+        "molar_mass": 101.9613,  # g/mol, alpha-Al2O3
+        "valid_range": (298.0, 2327.0),
+        "relative_uncertainty": 0.005,
+        "source": "NIST-JANAF (Chase 1998), alpha-Al2O3",
+    },
+    "zinc": {
+        "shomate": (25.60123, -4.405292, 20.42206, -7.399697, -0.045801),
+        "molar_mass": 65.38,
+        "valid_range": (298.0, 692.73),  # solid, up to the melting point
+        "relative_uncertainty": 0.01,
+        "source": "NIST-JANAF (Chase 1998), Zn solid",
+    },
+}
+
+# Indicative relative standard uncertainties of the inputs
+U_HEAT_FLOW = 0.01
+U_MASS = 0.001
+U_HEATING_RATE = 0.01
+
+
+def reference_cp(material: str, temperature: Union[float, FloatArray]) -> FloatArray:
+    """
+    Specific heat capacity of a reference material in J/(g*K).
+
+    Args:
+        material: Reference material name ('sapphire' or 'zinc')
+        temperature: Temperature(s) in K
+
+    Returns:
+        Specific heat capacity at the given temperature(s)
+
+    Raises:
+        ValueError: If the material is unknown or the temperature is out of
+            the valid range of the reference data
+    """
+    data = REFERENCE_MATERIALS.get(material.lower())
+    if data is None:
+        raise ValueError(f"Unknown reference material: {material}")
+
+    temperature = np.asarray(temperature, dtype=np.float64)
+    low, high = data["valid_range"]
+    if np.any(temperature < low) or np.any(temperature > high):
+        raise ValueError(
+            f"Temperature outside the valid range of {material} data "
+            f"({low}-{high} K)"
+        )
+
+    a, b, c, d, e = data["shomate"]
+    t = temperature / 1000
+    cp_molar = a + b * t + c * t**2 + d * t**3 + e / t**2
+    result: FloatArray = cp_molar / data["molar_mass"]
+    return result
 
 
 class CpCalculator:
@@ -16,44 +103,58 @@ class CpCalculator:
 
     def __init__(
         self,
-        signal_processor: Optional[SignalProcessor] = None,
-        stability_detector: Optional[SignalStabilityDetector] = None,
         data_validator: Optional[DataValidator] = None,
+        exo_up: bool = False,
     ):
-        """Initialize calculator with optional components."""
-        self.signal_processor = signal_processor or SignalProcessor()
-        self.stability_detector = stability_detector or SignalStabilityDetector()
+        """
+        Initialize calculator.
+
+        Args:
+            data_validator: Optional data validator
+            exo_up: True if exothermic heat flow is positive in the data
+        """
         self.data_validator = data_validator or DataValidator()
+        self.exo_up = exo_up
         self.calibration_data: Optional[CalibrationData] = None
-        self._reference_data: Dict[str, Any] = self._load_reference_data()
 
     def calculate_cp(
         self,
-        temperature: NDArray[np.float64],
-        heat_flow: NDArray[np.float64],
+        temperature: FloatArray,
+        heat_flow: FloatArray,
         sample_mass: float,
         heating_rate: float,
         method: Union[CpMethod, str] = CpMethod.THREE_STEP,
         operation_mode: Union[OperationMode, str] = OperationMode.CONTINUOUS,
-        stability_method: Union[StabilityMethod, str] = StabilityMethod.STATISTICAL,
         reference_data: Optional[Dict[str, Any]] = None,
         use_calibration: bool = True,
+        time: Optional[FloatArray] = None,
+        blank_heat_flow: Optional[FloatArray] = None,
         **kwargs: Any,
     ) -> CpResult:
         """
         Calculate specific heat capacity.
 
         Args:
-            temperature: Temperature array (K)
-            heat_flow: Heat flow array (mW)
+            temperature: Sample temperature array (K)
+            heat_flow: Sample heat flow array (mW)
             sample_mass: Sample mass (mg)
-            heating_rate: Heating rate (K/min)
+            heating_rate: Nominal heating rate (K/min); in stepped mode the
+                actual steps are measured from the data
             method: Calculation method
-            operation_mode: Measurement mode
-            stability_method: Method for detecting stable regions
-            reference_data: Optional reference measurement data
-            use_calibration: Whether to apply calibration
-            **kwargs: Additional method-specific parameters
+            operation_mode: Continuous ramp or stepped program
+            reference_data: For THREE_STEP: dict with 'heat_flow' (mW) and
+                'mass' (mg) of the reference run, recorded with the same
+                temperature program and sampling as the sample run, and
+                either 'material' (default 'sapphire') or 'cp' (array in
+                J/(g*K) at the sample temperatures). Optional 'temperature'
+                (the reference run's temperatures, used for its Cp in
+                stepped mode).
+            use_calibration: Whether to apply a stored calibration
+            time: Time array (s); required for STEPPED and MODULATED
+            blank_heat_flow: Heat flow of the blank run (mW), same program
+                and sampling; if None, heat flows are taken as corrected
+            **kwargs: MODULATED: modulation_period (s, default 60),
+                periods_per_window (default 2)
 
         Returns:
             CpResult object with calculated heat capacity
@@ -61,65 +162,65 @@ class CpCalculator:
         Raises:
             ValueError: If inputs are invalid or method is unsupported
         """
-        # Validate inputs
+        temperature = np.asarray(temperature, dtype=np.float64)
+        heat_flow = np.asarray(heat_flow, dtype=np.float64)
         self.data_validator.validate_temperature_data(temperature)
-        self.data_validator.validate_heat_flow_data(heat_flow, temperature)
+        self._check_length(heat_flow, temperature, "Heat flow")
+        if not np.all(np.isfinite(heat_flow)):
+            raise ValueError("Heat flow contains invalid values")
 
         if sample_mass <= 0:
             raise ValueError("Sample mass must be positive")
-        if heating_rate == 0:
-            raise ValueError("Heating rate cannot be zero")
+        if heating_rate <= 0:
+            raise ValueError("Heating rate must be positive")
 
-        # Convert string enums to proper types
-        method_enum = CpMethod(method) if isinstance(method, str) else method
-        operation_mode_enum = (
-            OperationMode(operation_mode)
-            if isinstance(operation_mode, str)
-            else operation_mode
-        )
-        stability_method_enum = (
-            StabilityMethod(stability_method)
-            if isinstance(stability_method, str)
-            else stability_method
-        )
+        method = CpMethod(method)
+        operation_mode = OperationMode(operation_mode)
 
-        # Select calculation method
-        result: CpResult
-        if method_enum == CpMethod.THREE_STEP:
-            if reference_data is None:
-                raise ValueError("Reference data required for three-step method")
-            result = self._calculate_three_step_cp(
-                temperature,
-                heat_flow,
-                sample_mass,
-                heating_rate,
-                reference_data,
-                operation_mode_enum,
-                stability_method_enum,
-                **kwargs,
-            )
-        elif method_enum == CpMethod.SINGLE_STEP:
-            result = self._calculate_single_step_cp(
-                temperature,
-                heat_flow,
-                sample_mass,
-                heating_rate,
-                operation_mode_enum,
-                stability_method_enum,
-                **kwargs,
-            )
-        elif method_enum == CpMethod.MODULATED:
+        if time is not None:
+            time = np.asarray(time, dtype=np.float64)
+            self._check_length(time, temperature, "Time")
+        if blank_heat_flow is not None:
+            blank_heat_flow = np.asarray(blank_heat_flow, dtype=np.float64)
+            self._check_length(blank_heat_flow, temperature, "Blank heat flow")
+
+        if method == CpMethod.MODULATED:
+            if time is None:
+                raise ValueError("Time array required for modulated method")
             result = self._calculate_modulated_cp(
-                temperature,
-                heat_flow,
-                sample_mass,
-                heating_rate,
-                **kwargs,
+                temperature, heat_flow, sample_mass, heating_rate, time, **kwargs
             )
+        elif method in (CpMethod.SINGLE_STEP, CpMethod.THREE_STEP):
+            if method == CpMethod.THREE_STEP:
+                if reference_data is None:
+                    raise ValueError("Reference data required for three-step method")
+                self.validate_reference_data(reference_data, len(temperature))
+            if operation_mode == OperationMode.STEPPED:
+                if time is None:
+                    raise ValueError("Time array required for stepped mode")
+                result = self._calculate_stepped_cp(
+                    temperature,
+                    heat_flow,
+                    sample_mass,
+                    heating_rate,
+                    time,
+                    blank_heat_flow,
+                    method,
+                    reference_data,
+                )
+            else:
+                result = self._calculate_continuous_cp(
+                    temperature,
+                    heat_flow,
+                    sample_mass,
+                    heating_rate,
+                    blank_heat_flow,
+                    method,
+                    reference_data,
+                )
         else:
-            raise ValueError(f"Unsupported Cp calculation method: {method_enum}")
+            raise ValueError(f"Unsupported Cp calculation method: {method}")
 
-        # Apply calibration if requested
         if use_calibration and self.calibration_data is not None:
             result = self._apply_calibration(result)
 
@@ -127,658 +228,524 @@ class CpCalculator:
 
     def calibrate(
         self,
-        temperature: NDArray[np.float64],
-        heat_flow: NDArray[np.float64],
+        temperature: FloatArray,
+        heat_flow: FloatArray,
         sample_mass: float,
         heating_rate: float,
-        reference_material: str,
+        reference_material: str = "sapphire",
         operation_mode: Union[OperationMode, str] = OperationMode.CONTINUOUS,
-        stability_method: Union[StabilityMethod, str] = StabilityMethod.STATISTICAL,
+        time: Optional[FloatArray] = None,
+        blank_heat_flow: Optional[FloatArray] = None,
     ) -> CalibrationData:
         """
-        Perform DSC calibration using reference material.
+        Calibrate single-step Cp with a run of a reference material.
+
+        The calibration factors are reference Cp / measured single-step Cp;
+        subsequent single-step results are multiplied by them.
 
         Args:
-            temperature: Temperature array (K)
-            heat_flow: Heat flow array (mW)
-            sample_mass: Sample mass (mg)
+            temperature: Temperature array of the reference run (K)
+            heat_flow: Heat flow of the reference run (mW)
+            sample_mass: Mass of the reference material (mg)
             heating_rate: Heating rate (K/min)
-            reference_material: Name of reference material
+            reference_material: Name of the reference material
             operation_mode: Measurement mode
-            stability_method: Method for detecting stable regions
+            time: Time array (s), required for stepped mode
+            blank_heat_flow: Heat flow of the blank run (mW)
 
         Returns:
-            CalibrationData object
+            CalibrationData object (also stored on the calculator)
 
         Raises:
-            ValueError: If reference material is unknown or data is invalid
+            ValueError: If the reference material is unknown or data is invalid
         """
-        # Get reference Cp data
-        ref_data = self._get_reference_cp(reference_material)
-        if ref_data is None:
+        if reference_material.lower() not in REFERENCE_MATERIALS:
             raise ValueError(f"Unknown reference material: {reference_material}")
+        operation_mode = OperationMode(operation_mode)
 
-        op_mode_enum = (
-            OperationMode(operation_mode)
-            if isinstance(operation_mode, str)
-            else operation_mode
-        )
-
-        # Calculate measured Cp without calibration
-        measured_result = self.calculate_cp(
+        measured = self.calculate_cp(
             temperature,
             heat_flow,
             sample_mass,
             heating_rate,
             method=CpMethod.SINGLE_STEP,
-            operation_mode=op_mode_enum,
-            stability_method=stability_method,
+            operation_mode=operation_mode,
             use_calibration=False,
+            time=time,
+            blank_heat_flow=blank_heat_flow,
         )
 
-        # Interpolate reference Cp to measurement temperatures
-        ref_cp_interp = np.interp(
-            measured_result.temperature,
-            ref_data["temperature"],
-            ref_data["cp"],
-        )
+        ref_cp = reference_cp(reference_material, measured.temperature)
+        factors = ref_cp / measured.specific_heat
 
-        # Interpolate reference uncertainty to measurement temperatures
-        ref_uncertainty_raw = ref_data.get("uncertainty", 0.0)
-        if isinstance(ref_uncertainty_raw, (int, float)):
-            ref_uncertainty_raw = np.full_like(
-                ref_data["temperature"], ref_uncertainty_raw
-            )
+        u_ref = REFERENCE_MATERIALS[reference_material.lower()]["relative_uncertainty"]
+        u_meas = measured.uncertainty / np.abs(measured.specific_heat)
+        uncertainty = np.sqrt(u_meas**2 + u_ref**2) * np.abs(factors)
 
-        ref_uncertainty_interp = np.interp(
-            measured_result.temperature,
-            ref_data["temperature"],
-            ref_uncertainty_raw,
-        )
-
-        # Calculate calibration factors
-        factors = ref_cp_interp / measured_result.specific_heat
-
-        # Calculate uncertainty
-        uncertainty = self._calculate_calibration_uncertainty(
-            measured_result.specific_heat,
-            ref_cp_interp,
-            measured_result.uncertainty,
-            ref_uncertainty_interp,
-        )
-
-        # Create and store calibration data
         self.calibration_data = CalibrationData(
             reference_material=reference_material,
-            temperature=measured_result.temperature,
-            measured_cp=measured_result.specific_heat,
-            reference_cp=ref_cp_interp,
+            temperature=measured.temperature,
+            measured_cp=measured.specific_heat,
+            reference_cp=ref_cp,
             calibration_factors=factors,
             uncertainty=uncertainty,
-            valid_range=(float(np.min(temperature)), float(np.max(temperature))),
+            valid_range=(
+                float(np.min(measured.temperature)),
+                float(np.max(measured.temperature)),
+            ),
             metadata={
                 "sample_mass": sample_mass,
                 "heating_rate": heating_rate,
-                "operation_mode": op_mode_enum.value,
+                "operation_mode": operation_mode.value,
+                "reference_source": REFERENCE_MATERIALS[reference_material.lower()][
+                    "source"
+                ],
             },
         )
-
         return self.calibration_data
 
-    def _calculate_three_step_cp(
+    # ------------------------------------------------------------------
+    # Continuous ramps
+    # ------------------------------------------------------------------
+
+    def _calculate_continuous_cp(
         self,
-        temperature: NDArray[np.float64],
-        heat_flow: NDArray[np.float64],
+        temperature: FloatArray,
+        heat_flow: FloatArray,
         sample_mass: float,
         heating_rate: float,
-        reference_data: Dict[str, Any],
-        operation_mode: OperationMode,
-        stability_method: StabilityMethod,
-        **kwargs: Any,
+        blank_heat_flow: Optional[FloatArray],
+        method: CpMethod,
+        reference_data: Optional[Dict[str, Any]],
     ) -> CpResult:
+        """Cp at every point of a linear heating ramp."""
+        sample_signal = self._endo_positive(heat_flow, blank_heat_flow)
+        metadata: Dict[str, Any] = {
+            "sample_mass": sample_mass,
+            "heating_rate": heating_rate,
+            "operation_mode": OperationMode.CONTINUOUS.value,
+            "blank_corrected": blank_heat_flow is not None,
+        }
+
+        if method == CpMethod.SINGLE_STEP:
+            cp = sample_signal / sample_mass / (heating_rate / 60)
+            u_rel = np.sqrt(U_HEAT_FLOW**2 + U_MASS**2 + U_HEATING_RATE**2)
+        else:
+            assert reference_data is not None
+            ref_signal = self._endo_positive(
+                np.asarray(reference_data["heat_flow"], dtype=np.float64),
+                blank_heat_flow,
+            )
+            ref_cp = self._reference_cp_at(reference_data, temperature)
+            ref_mass = float(reference_data["mass"])
+            if np.any(ref_signal == 0):
+                raise ValueError("Reference heat flow equals the blank")
+            cp = sample_signal / ref_signal * ref_mass / sample_mass * ref_cp
+            u_rel = self._three_step_relative_uncertainty(reference_data)
+            metadata["reference_mass"] = ref_mass
+
+        return self._result(
+            temperature,
+            cp,
+            np.abs(cp) * u_rel,
+            method,
+            OperationMode.CONTINUOUS,
+            metadata,
+        )
+
+    # ------------------------------------------------------------------
+    # Stepped programs
+    # ------------------------------------------------------------------
+
+    def _calculate_stepped_cp(
+        self,
+        temperature: FloatArray,
+        heat_flow: FloatArray,
+        sample_mass: float,
+        heating_rate: float,
+        time: FloatArray,
+        blank_heat_flow: Optional[FloatArray],
+        method: CpMethod,
+        reference_data: Optional[Dict[str, Any]],
+    ) -> CpResult:
+        """Mean Cp over each heating step between two isotherms."""
+        steps = self.find_heating_steps(temperature, time)
+        if not steps:
+            raise ValueError("No heating steps between isotherms found")
+
+        sample_signal = self._endo_positive(heat_flow, blank_heat_flow)
+        if method == CpMethod.THREE_STEP:
+            assert reference_data is not None
+            ref_signal = self._endo_positive(
+                np.asarray(reference_data["heat_flow"], dtype=np.float64),
+                blank_heat_flow,
+            )
+            ref_temperature = np.asarray(
+                reference_data.get("temperature", temperature), dtype=np.float64
+            )
+            ref_mass = float(reference_data["mass"])
+            u_rel = self._three_step_relative_uncertainty(reference_data)
+        else:
+            u_rel = float(np.sqrt(U_HEAT_FLOW**2 + U_MASS**2 + U_HEATING_RATE**2))
+
+        temps, cps, regions = [], [], []
+        for step in steps:
+            q_sample, t_start, t_end = self._step_heat(
+                sample_signal, temperature, time, step
+            )
+            if method == CpMethod.SINGLE_STEP:
+                cp = q_sample / sample_mass / (t_end - t_start)
+            else:
+                q_ref, r_start, r_end = self._step_heat(
+                    ref_signal, ref_temperature, time, step
+                )
+                mean_ref_cp = self._mean_reference_cp(
+                    reference_data, ref_temperature, r_start, r_end, step
+                )
+                # Q_ref = m_ref * mean Cp_ref * dT_ref
+                cp = (
+                    q_sample
+                    / q_ref
+                    * ref_mass
+                    / sample_mass
+                    * mean_ref_cp
+                    * (r_end - r_start)
+                    / (t_end - t_start)
+                )
+            temps.append((t_start + t_end) / 2)
+            cps.append(cp)
+            regions.append((step["start_idx"], step["end_idx"]))
+
+        cp_array = np.array(cps)
+        metadata: Dict[str, Any] = {
+            "sample_mass": sample_mass,
+            "heating_rate": heating_rate,
+            "operation_mode": OperationMode.STEPPED.value,
+            "blank_corrected": blank_heat_flow is not None,
+            "step_temperatures": [
+                (float(temperature[s["start_idx"]]), float(temperature[s["end_idx"]]))
+                for s in steps
+            ],
+        }
+        if method == CpMethod.THREE_STEP:
+            metadata["reference_mass"] = ref_mass
+
+        return self._result(
+            np.array(temps),
+            cp_array,
+            np.abs(cp_array) * u_rel,
+            method,
+            OperationMode.STEPPED,
+            metadata,
+            stable_regions=regions,
+        )
+
+    def find_heating_steps(
+        self, temperature: FloatArray, time: FloatArray
+    ) -> List[Dict[str, int]]:
         """
-        Calculate Cp using three-step method.
+        Find heating steps of a stepped program.
 
         Args:
             temperature: Temperature array (K)
-            heat_flow: Heat flow array (mW)
-            sample_mass: Sample mass (mg)
-            heating_rate: Heating rate (K/min)
-            reference_data: Dictionary containing reference measurement data
-            operation_mode: Measurement operation mode
-            stability_method: Method for detecting stable regions
-            **kwargs: Additional parameters
+            time: Time array (s)
 
         Returns:
-            CpResult containing calculated heat capacity and analysis metrics
-
-        Raises:
-            ValueError: If required reference data is missing or arrays have inconsistent shapes
+            List of dicts with the indices of the preceding isotherm
+            ('iso_start'), the start of the ramp ('start_idx'), the start
+            ('end_idx') and end ('iso_end') of the following isotherm
         """
-        # Ensure arrays are 1D
-        temperature = np.asarray(temperature).ravel()
-        heat_flow = np.asarray(heat_flow).ravel()
-        ref_temp = np.asarray(reference_data["temperature"]).ravel()
-        ref_heat_flow = np.asarray(reference_data["heat_flow"]).ravel()
-        ref_cp = np.asarray(reference_data["cp"]).ravel()
-
-        # Validate array lengths
-        if not all(
-            len(arr) == len(temperature)
-            for arr in [heat_flow, ref_temp, ref_heat_flow, ref_cp]
-        ):
-            raise ValueError("All data arrays must have the same length")
-
-        # Validate reference data
-        required_fields = ["temperature", "heat_flow", "mass", "cp"]
-        if not all(field in reference_data for field in required_fields):
-            raise ValueError(f"Missing required reference data: {required_fields}")
-
-        ref_mass = reference_data["mass"]
-
-        # Find stable regions if in stepped mode
-        stable_regions: Optional[List[Tuple[int, int]]] = None
-        if operation_mode == OperationMode.STEPPED:
-            detected_regions = self.stability_detector.find_stable_regions(
-                heat_flow, x_values=temperature, method=stability_method
-            )
-            # Filter out isothermal holds (must have a significant temperature change)
-            if detected_regions:
-                stable_regions = [
-                    region
-                    for region in detected_regions
-                    if np.ptp(temperature[slice(*region)]) >= 1.0
-                ]
-            else:
-                stable_regions = []
-
-        cp_array: NDArray[np.float64]
-        temp_array: NDArray[np.float64]
-        uncertainty_array: NDArray[np.float64]
-
-        if stable_regions:
-            # Calculate Cp for stable regions
-            cp_values: List[float] = []
-            temps: List[float] = []
-            uncertainties: List[float] = []
-
-            for start_idx, end_idx in stable_regions:
-                region_slice = slice(start_idx, end_idx)
-
-                # Calculate regional averages
-                temp = float(np.mean(temperature[region_slice]))
-                sample_signal_avg = float(np.mean(heat_flow[region_slice]))
-                ref_signal_avg = float(np.mean(ref_heat_flow[region_slice]))
-                ref_cp_value = float(np.mean(ref_cp[region_slice]))
-
-                # Calculate Cp
-                cp = self._calculate_regional_cp(
-                    sample_signal_avg,
-                    ref_signal_avg,
-                    sample_mass,
-                    ref_mass,
-                    ref_cp_value,
+        segments = self.data_validator.detect_temperature_program(temperature, time)[
+            "segments"
+        ]
+        steps = []
+        for before, ramp, after in zip(segments, segments[1:], segments[2:]):
+            if (
+                before["type"] == "isothermal"
+                and ramp["type"] == "heating"
+                and after["type"] == "isothermal"
+            ):
+                steps.append(
+                    {
+                        "iso_start": int(before["start_idx"]),
+                        "start_idx": int(ramp["start_idx"]),
+                        "end_idx": int(after["start_idx"]),
+                        "iso_end": int(after["end_idx"]),
+                    }
                 )
+        return steps
 
-                # Calculate uncertainty
-                uncertainty = self._calculate_three_step_uncertainty(
-                    np.array(sample_signal_avg),
-                    np.array(ref_signal_avg),
-                    ref_cp_value,
-                    sample_mass,
-                    ref_mass,
-                )
+    @staticmethod
+    def _step_heat(
+        signal: FloatArray,
+        temperature: FloatArray,
+        time: FloatArray,
+        step: Dict[str, int],
+    ) -> Tuple[float, float, float]:
+        """
+        Heat absorbed in a heating step (mJ) and the isotherm temperatures.
 
-                cp_values.append(cp)
-                temps.append(temp)
-                uncertainties.append(float(uncertainty))
+        The signal is referenced to the isothermal levels: the level of the
+        preceding isotherm before the ramp and of the following isotherm
+        after it, joined linearly over the ramp. The levels are the means of
+        the last third of each isotherm, where the response has settled. The
+        integral runs until the start of that last third.
+        """
+        pre = slice(
+            step["start_idx"] - (step["start_idx"] - step["iso_start"]) // 3,
+            step["start_idx"],
+        )
+        post_start = step["iso_end"] - (step["iso_end"] - step["end_idx"]) // 3
+        post = slice(post_start, step["iso_end"])
 
-            # Convert to arrays
-            cp_array = np.array(cp_values)
-            temp_array = np.array(temps)
-            uncertainty_array = np.array(uncertainties)
+        level_pre = float(np.mean(signal[pre]))
+        level_post = float(np.mean(signal[post]))
 
-        else:
-            # Continuous mode calculations
-            cp_array = self._calculate_continuous_cp(
-                heat_flow,
-                ref_heat_flow,
-                sample_mass,
-                ref_mass,
-                ref_cp,
-            )
-            temp_array = temperature
-            uncertainty_array = np.asarray(
-                self._calculate_three_step_uncertainty(
-                    heat_flow,
-                    ref_heat_flow,
-                    ref_cp,
-                    sample_mass,
-                    ref_mass,
-                )
-            )
-
-        # Ensure all output arrays are 1D
-        temp_array = np.asarray(temp_array).ravel()
-        cp_array = np.asarray(cp_array).ravel()
-        uncertainty_array = np.asarray(uncertainty_array).ravel()
-
-        # Calculate quality metrics
-        quality_metrics = self._calculate_quality_metrics(
-            temp_array, cp_array, uncertainty_array
+        window = slice(step["start_idx"], post_start)
+        t = time[window]
+        t_ramp_end = time[step["end_idx"]]
+        base = np.where(
+            t < t_ramp_end,
+            np.interp(t, [t[0], t_ramp_end], [level_pre, level_post]),
+            level_post,
+        )
+        heat = float(trapezoid(signal[window] - base, t))
+        return (
+            heat,
+            float(np.mean(temperature[pre])),
+            float(np.mean(temperature[post])),
         )
 
-        return CpResult(
-            temperature=temp_array,
-            specific_heat=cp_array,
-            uncertainty=uncertainty_array,
-            method=CpMethod.THREE_STEP,
-            quality_metrics=quality_metrics,
-            metadata={
-                "sample_mass": sample_mass,
-                "reference_mass": ref_mass,
-                "heating_rate": heating_rate,
-                "operation_mode": operation_mode.value,
-            },
-            operation_mode=operation_mode,
-            stable_regions=stable_regions,
-        )
-
-    def _calculate_single_step_cp(
+    def _mean_reference_cp(
         self,
-        temperature: NDArray[np.float64],
-        heat_flow: NDArray[np.float64],
-        sample_mass: float,
-        heating_rate: float,
-        operation_mode: OperationMode,
-        stability_method: StabilityMethod,
-        **kwargs: Any,
-    ) -> CpResult:
-        """Calculate Cp using single-step method."""
-        # Find stable regions if in stepped mode
-        stable_regions = None
-        if operation_mode == OperationMode.STEPPED:
-            detected_regions = self.stability_detector.find_stable_regions(
-                heat_flow, x_values=temperature, method=stability_method
-            )
-            # Filter out isothermal holds (must have a significant temperature change)
-            if detected_regions:
-                stable_regions = [
-                    region
-                    for region in detected_regions
-                    if np.ptp(temperature[slice(*region)]) >= 1.0
-                ]
-            else:
-                stable_regions = []
+        reference_data: Optional[Dict[str, Any]],
+        ref_temperature: FloatArray,
+        t_start: float,
+        t_end: float,
+        step: Dict[str, int],
+    ) -> float:
+        """Mean reference Cp between two temperatures."""
+        assert reference_data is not None
+        if "cp" in reference_data:
+            cp = np.asarray(reference_data["cp"], dtype=np.float64)
+            window = slice(step["start_idx"], step["end_idx"] + 1)
+            order = np.argsort(ref_temperature[window])
+            grid = np.linspace(t_start, t_end, 200)
+            values = np.interp(grid, ref_temperature[window][order], cp[window][order])
+            return float(np.mean(values))
+        material = reference_data.get("material", "sapphire")
+        grid = np.linspace(t_start, t_end, 200)
+        return float(np.mean(reference_cp(material, grid)))
 
-        cp_array: NDArray[np.float64]
-        temp_array: NDArray[np.float64]
-        uncertainty_array: NDArray[np.float64]
-
-        if stable_regions:
-            # Calculate Cp for stable regions
-            cp_values = []
-            temps = []
-            uncertainties = []
-
-            for start_idx, end_idx in stable_regions:
-                region_slice = slice(start_idx, end_idx)
-
-                # Calculate regional averages
-                temp = np.mean(temperature[region_slice])
-                heat_flow_avg = np.mean(heat_flow[region_slice])
-
-                # Calculate Cp
-                cp = heat_flow_avg / (sample_mass * heating_rate)
-
-                # Calculate uncertainty
-                uncertainty = self._calculate_single_step_uncertainty(
-                    heat_flow_avg, heating_rate, sample_mass
-                )
-
-                cp_values.append(cp)
-                temps.append(temp)
-                uncertainties.append(float(uncertainty))
-
-            # Convert to arrays
-            cp_array = np.array(cp_values)
-            temp_array = np.array(temps)
-            uncertainty_array = np.array(uncertainties)
-
-        else:
-            # Continuous mode calculations
-            cp_array = heat_flow / (sample_mass * heating_rate)
-            temp_array = temperature
-            uncertainty_array = cast(
-                NDArray[np.float64],
-                self._calculate_single_step_uncertainty(
-                    heat_flow, heating_rate, sample_mass
-                ),
-            )
-
-        # Calculate quality metrics
-        quality_metrics = self._calculate_quality_metrics(
-            temp_array, cp_array, uncertainty_array
-        )
-
-        return CpResult(
-            temperature=temp_array,
-            specific_heat=cp_array,
-            uncertainty=uncertainty_array,
-            method=CpMethod.SINGLE_STEP,
-            quality_metrics=quality_metrics,
-            metadata={
-                "sample_mass": sample_mass,
-                "heating_rate": heating_rate,
-                "operation_mode": operation_mode.value,
-            },
-            operation_mode=operation_mode,
-            stable_regions=stable_regions,
-        )
+    # ------------------------------------------------------------------
+    # Temperature-modulated DSC
+    # ------------------------------------------------------------------
 
     def _calculate_modulated_cp(
         self,
-        temperature: NDArray[np.float64],
-        heat_flow: NDArray[np.float64],
+        temperature: FloatArray,
+        heat_flow: FloatArray,
         sample_mass: float,
         heating_rate: float,
+        time: FloatArray,
+        modulation_period: float = 60.0,
+        periods_per_window: int = 2,
         **kwargs: Any,
     ) -> CpResult:
-        """Calculate Cp using modulated DSC method."""
-        modulation_period = kwargs.get("modulation_period", 60.0)
-        modulation_amplitude = kwargs.get("modulation_amplitude", 0.5)
+        """
+        Reversing Cp = A_q / (A_beta * m), from the first-harmonic amplitudes
+        of heat flow (mW) and heating rate (K/s), in sliding windows of whole
+        modulation periods (linear trends removed).
+        """
+        if modulation_period <= 0:
+            raise ValueError("Modulation period must be positive")
 
-        # Calculate modulation parameters
+        dt = float(np.median(np.diff(time)))
+        window = int(round(periods_per_window * modulation_period / dt))
+        if window < 8 or window > len(time):
+            raise ValueError(
+                "Data must cover whole modulation periods with enough points"
+            )
+
+        rate = np.gradient(temperature, time)
         omega = 2 * np.pi / modulation_period
-        heating_rate_mod = omega * modulation_amplitude
 
-        # Separate reversing and non-reversing components
-        reversing_cp = heat_flow / (sample_mass * heating_rate_mod)
+        def amplitude(x: FloatArray, t: FloatArray) -> float:
+            trend = np.polyval(np.polyfit(t, x, 1), t)
+            residual = x - trend
+            span = t[-1] - t[0]
+            a = 2 / span * trapezoid(residual * np.sin(omega * t), t)
+            b = 2 / span * trapezoid(residual * np.cos(omega * t), t)
+            return float(np.hypot(a, b))
 
-        # Calculate phase angle and uncertainty
-        phase_angle = np.arctan2(np.gradient(heat_flow, temperature), heat_flow)
+        step = max(window // (2 * periods_per_window), 1)
+        temps, cps = [], []
+        for start in range(0, len(time) - window + 1, step):
+            sl = slice(start, start + window)
+            a_rate = amplitude(rate[sl], time[sl])
+            if a_rate <= 0:
+                continue
+            a_q = amplitude(heat_flow[sl], time[sl])
+            temps.append(float(np.mean(temperature[sl])))
+            cps.append(a_q / a_rate / sample_mass)
 
-        uncertainty = self._calculate_modulated_uncertainty(
-            heat_flow, modulation_amplitude, modulation_period, sample_mass
-        )
+        if not cps:
+            raise ValueError("No valid modulation windows found")
 
-        # Calculate quality metrics
-        quality_metrics = self._calculate_quality_metrics(
-            temperature, reversing_cp, uncertainty
-        )
-        quality_metrics["phase_angle"] = float(np.mean(phase_angle))
-        quality_metrics["modulation_quality"] = float(1 - np.std(phase_angle) / np.pi)
-
-        return CpResult(
-            temperature=temperature,
-            specific_heat=reversing_cp,
-            uncertainty=uncertainty,
-            method=CpMethod.MODULATED,
-            quality_metrics=quality_metrics,
-            metadata={
+        cp_array = np.array(cps)
+        u_rel = float(np.sqrt(2 * U_HEAT_FLOW**2 + U_MASS**2))
+        return self._result(
+            np.array(temps),
+            cp_array,
+            cp_array * u_rel,
+            CpMethod.MODULATED,
+            OperationMode.CONTINUOUS,
+            {
                 "sample_mass": sample_mass,
                 "heating_rate": heating_rate,
                 "modulation_period": modulation_period,
-                "modulation_amplitude": modulation_amplitude,
+                "periods_per_window": periods_per_window,
                 "operation_mode": OperationMode.CONTINUOUS.value,
             },
-            operation_mode=OperationMode.CONTINUOUS,
         )
 
-    def _calculate_three_step_uncertainty(
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _check_length(array: FloatArray, temperature: FloatArray, name: str) -> None:
+        if len(array) != len(temperature):
+            raise ValueError(f"{name} and temperature arrays must have same length")
+
+    def _endo_positive(
+        self, heat_flow: FloatArray, blank_heat_flow: Optional[FloatArray]
+    ) -> FloatArray:
+        """Blank-corrected heat flow with endothermic heat flow positive."""
+        corrected = (
+            heat_flow if blank_heat_flow is None else heat_flow - blank_heat_flow
+        )
+        return -corrected if self.exo_up else corrected
+
+    @staticmethod
+    def _reference_cp_at(
+        reference_data: Dict[str, Any], temperature: FloatArray
+    ) -> FloatArray:
+        """Reference Cp at the measurement temperatures."""
+        if "cp" in reference_data:
+            return np.asarray(reference_data["cp"], dtype=np.float64)
+        ref_temperature = np.asarray(
+            reference_data.get("temperature", temperature), dtype=np.float64
+        )
+        return reference_cp(reference_data.get("material", "sapphire"), ref_temperature)
+
+    @staticmethod
+    def _three_step_relative_uncertainty(reference_data: Dict[str, Any]) -> float:
+        """Relative uncertainty of the three-step ratio method."""
+        material = reference_data.get("material", "sapphire").lower()
+        u_ref = reference_data.get(
+            "relative_uncertainty",
+            REFERENCE_MATERIALS.get(material, {}).get("relative_uncertainty", 0.01),
+        )
+        # Two heat flow differences, two masses, reference Cp
+        return float(np.sqrt(2 * U_HEAT_FLOW**2 + 2 * U_MASS**2 + u_ref**2))
+
+    def _result(
         self,
-        sample_signal: Union[float, NDArray[np.float64]],
-        ref_signal: Union[float, NDArray[np.float64]],
-        ref_cp: Union[float, NDArray[np.float64]],
-        sample_mass: float,
-        ref_mass: float,
-    ) -> Union[float, NDArray[np.float64]]:
-        """Calculate uncertainty for three-step method."""
-        # Component uncertainties
-        u_signal = 0.01  # 1% signal uncertainty
-        u_mass = 0.001  # 0.1% mass uncertainty
-        u_ref = 0.02  # 2% reference Cp uncertainty
-
-        # Combined uncertainty using propagation of errors
-        u_combined = np.sqrt(
-            (u_signal * sample_signal / ref_signal) ** 2
-            + u_signal**2
-            + (u_mass * sample_mass) ** 2
-            + (u_mass * ref_mass) ** 2
-            + (u_ref * ref_cp) ** 2
+        temperature: FloatArray,
+        cp: FloatArray,
+        uncertainty: FloatArray,
+        method: CpMethod,
+        operation_mode: OperationMode,
+        metadata: Dict[str, Any],
+        stable_regions: Optional[List[Tuple[int, int]]] = None,
+    ) -> CpResult:
+        return CpResult(
+            temperature=np.asarray(temperature, dtype=np.float64),
+            specific_heat=np.asarray(cp, dtype=np.float64),
+            uncertainty=np.asarray(uncertainty, dtype=np.float64),
+            method=method,
+            quality_metrics=self._calculate_quality_metrics(
+                temperature, cp, uncertainty
+            ),
+            metadata=metadata,
+            operation_mode=operation_mode,
+            stable_regions=stable_regions,
         )
-
-        return u_combined
-
-    def _calculate_single_step_uncertainty(
-        self,
-        heat_flow: Union[float, NDArray[np.float64]],
-        heating_rate: float,
-        sample_mass: float,
-    ) -> Union[float, NDArray[np.float64]]:
-        """Calculate uncertainty for single-step method."""
-        # Component uncertainties
-        u_flow = 0.01  # 1% heat flow uncertainty
-        u_rate = 0.01  # 1% heating rate uncertainty
-        u_mass = 0.001  # 0.1% mass uncertainty
-
-        # Combined uncertainty
-        u_combined = np.sqrt(
-            (u_flow * heat_flow) ** 2
-            + (u_rate * heating_rate) ** 2
-            + (u_mass * sample_mass) ** 2
-        )
-
-        return u_combined
-
-    def _calculate_modulated_uncertainty(
-        self,
-        heat_flow: NDArray[np.float64],
-        amplitude: float,
-        period: float,
-        sample_mass: float,
-    ) -> NDArray[np.float64]:
-        """Calculate uncertainty for modulated DSC method."""
-        # Component uncertainties
-        u_flow = 0.02  # 2% heat flow uncertainty
-        u_amp = 0.01  # 1% amplitude uncertainty
-        u_period = 0.01  # 1% period uncertainty
-        u_mass = 0.001  # 0.1% mass uncertainty
-
-        # Calculate modulation parameters uncertainty
-        omega = 2 * np.pi / period
-        u_omega = omega * u_period
-
-        # Combined uncertainty
-        u_combined = np.sqrt(
-            (u_flow * heat_flow) ** 2
-            + (u_amp * amplitude) ** 2
-            + (u_omega * period) ** 2
-            + (u_mass * sample_mass) ** 2
-        )
-
-        return np.asarray(u_combined)
 
     def _calculate_quality_metrics(
         self,
-        temperature: NDArray[np.float64],
-        cp: NDArray[np.float64],
-        uncertainty: NDArray[np.float64],
+        temperature: FloatArray,
+        cp: FloatArray,
+        uncertainty: FloatArray,
     ) -> Dict[str, float]:
-        """Calculate comprehensive quality metrics."""
+        """Quality metrics of a Cp curve."""
+        temp = np.ravel(temperature)
+        cp_vals = np.ravel(cp)
+        unc = np.ravel(uncertainty)
         metrics: Dict[str, float] = {}
 
-        # Ensure arrays are 1D and have content
-        temp = temperature.ravel()
-        cp_vals = cp.ravel()
-        unc = uncertainty.ravel()
+        relative = unc / np.maximum(np.abs(cp_vals), np.finfo(float).tiny)
+        metrics["avg_uncertainty"] = float(np.mean(relative))
+        metrics["max_uncertainty"] = float(np.max(relative))
 
-        if not (len(temp) > 1 and len(cp_vals) > 1 and len(unc) > 1):
-            # Not enough data to calculate metrics
-            metrics.update(
-                {
-                    "snr": 0.0,
-                    "avg_uncertainty": 0.0,
-                    "max_uncertainty": 0.0,
-                    "smoothness": 0.0,
-                    "slope": 0.0,
-                    "intercept": 0.0,
-                    "r_squared": 0.0,
-                    "std_error": 0.0,
-                    "quality_score": 0.0,
-                }
-            )
-            return metrics
-
-        # Signal-to-noise ratio
-        noise = np.std(np.diff(cp_vals))
-        signal_range: float = float(np.ptp(cp_vals))
-        metrics["snr"] = float(signal_range / noise if noise > 0 else np.inf)
-
-        # Relative uncertainty, avoid division by zero
-        valid_cp = cp_vals[np.abs(cp_vals) > 1e-9]
-        valid_unc = unc[np.abs(cp_vals) > 1e-9]
-        if len(valid_cp) > 0:
-            rel_unc = valid_unc / valid_cp
-            metrics["avg_uncertainty"] = float(np.mean(rel_unc))
-            metrics["max_uncertainty"] = float(np.max(rel_unc))
+        if len(cp_vals) > 2:
+            noise = float(np.std(np.diff(cp_vals)))
+            spread = float(np.ptp(cp_vals))
+            metrics["snr"] = spread / noise if noise > 0 else float("inf")
+            metrics["smoothness"] = float(1 / (1 + np.std(np.gradient(cp_vals))))
         else:
-            metrics["avg_uncertainty"] = float("inf")
-            metrics["max_uncertainty"] = float("inf")
+            metrics["snr"] = float("nan")
+            metrics["smoothness"] = float("nan")
 
-        # Smoothness metric
-        dcp_dt = np.gradient(cp_vals)
-        smoothness = 1 / (1 + np.std(dcp_dt))
-        metrics["smoothness"] = float(smoothness)
-
-        # Linear fit metrics
-        try:
-            slope, intercept, r_value, p_value, stderr = stats.linregress(temp, cp_vals)
+        if len(cp_vals) > 1 and np.ptp(temp) > 0:
+            fit = stats.linregress(temp, cp_vals)
             metrics.update(
                 {
-                    "slope": float(slope),
-                    "intercept": float(intercept),
-                    "r_squared": float(r_value**2),
-                    "std_error": float(stderr),
+                    "slope": float(fit.slope),
+                    "intercept": float(fit.intercept),
+                    "r_squared": float(fit.rvalue**2),
+                    "std_error": float(fit.stderr),
                 }
             )
-        except ValueError:
-            metrics.update(
-                {"slope": 0.0, "intercept": 0.0, "r_squared": 0.0, "std_error": 0.0}
-            )
-
-        # Overall quality score (0 to 1)
-        avg_unc = metrics.get("avg_uncertainty", 1.0)
-        valid_metrics_list = [
-            metrics["snr"] / (metrics["snr"] + 1) if np.isfinite(metrics["snr"]) else 0,
-            (1 - avg_unc if np.isfinite(avg_unc) else 0),
-            metrics.get("smoothness", 0.0),
-            metrics.get("r_squared", 0.0),
-        ]
-        metrics["quality_score"] = float(
-            np.mean([m for m in valid_metrics_list if m is not None])
-        )
-
         return metrics
 
-    def _load_reference_data(self) -> Dict[str, Any]:
-        """Load reference material Cp data."""
-        # Example reference data (should be loaded from database)
-        # Sapphire (Al2O3) reference data
-        temp_range_sapphire = np.linspace(200, 800, 601)
-
-        sapphire: Dict[str, Any] = {
-            "temperature": temp_range_sapphire,
-            "cp": 1.0289
-            + 2.3506e-4 * temp_range_sapphire
-            + 1.6818e-7 * temp_range_sapphire**2,
-            "uncertainty": 0.02,  # 2% uncertainty
-            "valid_range": (200, 800),
-            "molecular_weight": 101.96,  # g/mol
-            "purity": 0.9999,
-        }
-
-        temp_range_zinc = np.linspace(290, 450, 161)
-        # Zinc reference data
-        zinc: Dict[str, Any] = {
-            "temperature": temp_range_zinc,
-            "cp": 0.3889 + 2.7247e-4 * temp_range_zinc,
-            "uncertainty": 0.015,
-            "valid_range": (290, 450),
-            "molecular_weight": 65.38,  # g/mol
-            "purity": 0.9999,
-            "melting_point": 419.53,  # K
-        }
-
-        return {
-            "sapphire": sapphire,
-            "zinc": zinc,
-        }
-
-    def _calculate_calibration_uncertainty(
-        self,
-        measured_cp: NDArray[np.float64],
-        reference_cp: NDArray[np.float64],
-        measurement_uncertainty: NDArray[np.float64],
-        reference_uncertainty: NDArray[np.float64],
-    ) -> NDArray[np.float64]:
-        """Calculate comprehensive uncertainty in calibration factors."""
-        # Relative uncertainties
-        u_meas_rel = measurement_uncertainty / measured_cp
-        u_ref_rel = reference_uncertainty / reference_cp
-
-        # Systematic uncertainty components
-        u_temp = 0.005  # 0.5% temperature uncertainty
-        u_cal = 0.01  # 1% calibration stability
-
-        # Combined relative uncertainty
-        u_combined = np.sqrt(u_meas_rel**2 + u_ref_rel**2 + u_temp**2 + u_cal**2)
-
-        return np.asarray(u_combined * measured_cp)
-
-    def _apply_calibration(
-        self,
-        result: CpResult,
-    ) -> CpResult:
-        """Apply calibration correction to Cp results."""
-        if self.calibration_data is None:
+    def _apply_calibration(self, result: CpResult) -> CpResult:
+        """Multiply by calibration factors interpolated at the result
+        temperatures (only single-step results: the ratio methods do not
+        depend on the instrument sensitivity)."""
+        if self.calibration_data is None or result.method != CpMethod.SINGLE_STEP:
             return result
 
-        # Check temperature range validity
-        if (
-            np.min(result.temperature) < self.calibration_data.valid_range[0]
-            or np.max(result.temperature) > self.calibration_data.valid_range[1]
-        ):
+        low, high = self.calibration_data.valid_range
+        if np.min(result.temperature) < low or np.max(result.temperature) > high:
             raise ValueError("Temperature range outside calibration validity")
 
-        # Interpolate calibration factors
+        order = np.argsort(self.calibration_data.temperature)
+        cal_temp = self.calibration_data.temperature[order]
         factors = np.interp(
             result.temperature,
-            self.calibration_data.temperature,
-            self.calibration_data.calibration_factors,
+            cal_temp,
+            self.calibration_data.calibration_factors[order],
+        )
+        factor_unc = np.interp(
+            result.temperature, cal_temp, self.calibration_data.uncertainty[order]
         )
 
-        # Apply calibration
         calibrated_cp = result.specific_heat * factors
-
-        # Update uncertainty
-        cal_uncertainty = np.interp(
-            result.temperature,
-            self.calibration_data.temperature,
-            self.calibration_data.uncertainty,
-        )
-
         calibrated_uncertainty = np.sqrt(
-            result.uncertainty**2 + (calibrated_cp * cal_uncertainty) ** 2
+            (result.uncertainty * factors) ** 2
+            + (result.specific_heat * factor_unc) ** 2
         )
 
-        # Create new result with calibrated values
         return CpResult(
             temperature=result.temperature,
             specific_heat=calibrated_cp,
             uncertainty=calibrated_uncertainty,
             method=result.method,
-            quality_metrics=result.quality_metrics,
+            quality_metrics=self._calculate_quality_metrics(
+                result.temperature, calibrated_cp, calibrated_uncertainty
+            ),
             metadata={
                 **result.metadata,
                 "calibration_applied": True,
@@ -788,68 +755,40 @@ class CpCalculator:
             stable_regions=result.stable_regions,
         )
 
-    def _calculate_regional_cp(
-        self,
-        sample_signal: float,
-        ref_signal: float,
-        sample_mass: float,
-        ref_mass: float,
-        ref_cp: float,
-    ) -> float:
-        """Calculate Cp for a single region in stepped mode."""
-        return (sample_signal / ref_signal) * (ref_mass / sample_mass) * ref_cp
-
-    def _calculate_continuous_cp(
-        self,
-        sample_signal: NDArray[np.float64],
-        ref_signal: NDArray[np.float64],
-        sample_mass: float,
-        ref_mass: float,
-        ref_cp: Union[float, NDArray[np.float64]],
-    ) -> NDArray[np.float64]:
-        """Calculate Cp for continuous measurement."""
-        result = (sample_signal / ref_signal) * (ref_mass / sample_mass) * ref_cp
-        return cast(NDArray[np.float64], result)
-
-    def _get_reference_cp(self, material: str) -> Optional[Dict[str, Any]]:
-        """Get reference Cp data for calibration material."""
-        return self._reference_data.get(material.lower())
-
     def validate_reference_data(
         self,
         reference_data: Dict[str, Any],
-        required_fields: Optional[List[str]] = None,
+        expected_length: Optional[int] = None,
     ) -> bool:
         """
-        Validate reference measurement data.
+        Validate reference measurement data for the three-step method.
 
         Args:
-            reference_data: Dictionary containing reference data
-            required_fields: List of required field names
+            reference_data: Dictionary with 'heat_flow', 'mass' and either
+                'material' (default 'sapphire') or 'cp'
+            expected_length: Required length of the arrays (sample run)
 
         Returns:
             True if valid, raises ValueError otherwise
         """
-        if required_fields is None:
-            required_fields = ["temperature", "heat_flow", "mass", "cp"]
-
-        # Check required fields
-        missing = [f for f in required_fields if f not in reference_data]
+        missing = [f for f in ("heat_flow", "mass") if f not in reference_data]
         if missing:
             raise ValueError(f"Missing required reference data fields: {missing}")
 
-        # Validate arrays
-        arrays_to_check = [
-            reference_data[f] for f in ["temperature", "heat_flow", "cp"]
-        ]
-        if not all(isinstance(arr, np.ndarray) for arr in arrays_to_check):
-            raise TypeError("Temperature, heat flow, and cp must be numpy arrays")
-        if not all(len(arr) == len(arrays_to_check[0]) for arr in arrays_to_check):
-            raise ValueError("All arrays must have the same length")
-
-        # Validate numeric values
-        mass = reference_data.get("mass", 0)
+        mass = reference_data["mass"]
         if not isinstance(mass, (int, float)) or mass <= 0:
             raise ValueError("Reference mass must be a positive number")
 
+        material = reference_data.get("material", "sapphire")
+        if "cp" not in reference_data and material.lower() not in REFERENCE_MATERIALS:
+            raise ValueError(f"Unknown reference material: {material}")
+
+        for field in ("heat_flow", "cp", "temperature"):
+            if field in reference_data:
+                array = np.asarray(reference_data[field])
+                if expected_length is not None and len(array) != expected_length:
+                    raise ValueError(
+                        f"Reference {field} must have the same length as the "
+                        "sample data"
+                    )
         return True

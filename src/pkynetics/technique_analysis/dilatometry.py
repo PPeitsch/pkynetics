@@ -299,7 +299,11 @@ def calculate_transformed_fraction_lever(
         transformed_fraction[after_transform_mask] = 1.0  # Fully high-T phase
 
     # Clip values to ensure they are strictly within [0, 1] due to potential noise/extrapolation issues
-    return np.clip(transformed_fraction, 0, 1), before_extrap, after_extrap
+    return (
+        np.clip(transformed_fraction, 0, 1),
+        np.asarray(before_extrap, dtype=np.float64),
+        np.asarray(after_extrap, dtype=np.float64),
+    )
 
 
 def analyze_dilatometry_curve(
@@ -971,8 +975,8 @@ def get_extrapolated_values(
     p_end: NDArray[np.float64],
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Calculate extrapolated strain values across the full temperature range using linear fit coefficients."""
-    pred_start = np.polyval(p_start, temperature)
-    pred_end = np.polyval(p_end, temperature)
+    pred_start = np.asarray(np.polyval(p_start, temperature), dtype=np.float64)
+    pred_end = np.asarray(np.polyval(p_end, temperature), dtype=np.float64)
     return pred_start, pred_end
 
 

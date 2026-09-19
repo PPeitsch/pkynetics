@@ -3,10 +3,11 @@
 import logging
 from typing import Dict, Optional, Union
 
-import chardet
 import numpy as np
 import pandas as pd
 from pandas.core.arrays import ExtensionArray
+
+from ._encoding import detect_encoding
 
 logger = logging.getLogger(__name__)
 
@@ -83,16 +84,8 @@ def import_setaram(file_path: str) -> ReturnDict:
     logger.info(f"Importing Setaram data from {file_path}")
 
     try:
-        # Detect file encoding
-        with open(file_path, "rb") as file:
-            raw_data = file.read()
-            detection_result = chardet.detect(raw_data)
-            encoding = detection_result["encoding"]
-
+        encoding = detect_encoding(file_path)
         logger.info(f"Detected file encoding: {encoding}")
-        logger.info(
-            f"File preview: {raw_data[:100].decode(encoding='utf-8', errors='ignore')}"
-        )
 
         # Read the file with detected encoding
         df = pd.read_csv(file_path, sep=";", decimal=",", encoding=encoding, dtype=str)
@@ -168,10 +161,7 @@ def _detect_manufacturer(file_path: str) -> str:
     """
     try:
         # Detect file encoding
-        with open(file_path, "rb") as file:
-            raw_data = file.read()
-            result = chardet.detect(raw_data)
-            encoding = result["encoding"]
+        encoding = detect_encoding(file_path)
 
         logger.info(f"Detected file encoding: {encoding}")
 

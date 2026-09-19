@@ -7,7 +7,7 @@ and heat capacity calculations.
 
 from .baseline import BaselineCorrector
 from .core import DSCAnalyzer
-from .heat_capacity import CpCalculator
+from .heat_capacity import CpCalculator, reference_cp
 from .peak_analysis import PeakAnalyzer
 from .signal_stability import SignalStabilityDetector
 from .thermal_events import ThermalEventDetector
@@ -34,17 +34,22 @@ from .utilities import (
     safe_savgol_filter,
     validate_window_size,
 )
+from .visualization import (
+    plot_cp,
+    plot_dsc_analysis,
+    plot_dsc_curve,
+    plot_thermal_events,
+)
 
 __all__ = [
     # Core components
     "DSCAnalyzer",
-    "DSCExperiment",
-    "DSCPeak",
     "BaselineCorrector",
     "PeakAnalyzer",
     "ThermalEventDetector",
     "CpCalculator",
     "SignalStabilityDetector",
+    "reference_cp",
     # Utility components
     "DSCUnits",
     "SignalProcessor",
@@ -53,6 +58,11 @@ __all__ = [
     "validate_window_size",
     "safe_savgol_filter",
     "find_intersection_point",
+    # Visualization
+    "plot_dsc_curve",
+    "plot_thermal_events",
+    "plot_cp",
+    "plot_dsc_analysis",
     # Types and Enums
     "CpMethod",
     "OperationMode",

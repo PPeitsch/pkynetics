@@ -66,18 +66,28 @@ def main():
     event_detector = ThermalEventDetector(peak_prominence=0.1)
     analyzer = DSCAnalyzer(experiment=experiment, event_detector=event_detector)
 
-    # Perform the full analysis
-    results = analyzer.analyze()
+    # Perform the full analysis (baseline correction and peaks)
+    results = analyzer.analyze(baseline_method="linear")
+
+    # A glass transition is a step in the heat flow: a baseline fitted to the
+    # whole curve runs across it and distorts the events after it. The event
+    # detector fits local baselines itself, so run it on the raw curve.
+    results["events"] = event_detector.detect_events(
+        temperature,
+        heat_flow,
+        heating_rate=experiment.heating_rate,
+        sample_mass=experiment.mass,
+    )
 
     # --- 3. Print Results ---
     print("\n--- Analysis Results ---")
-    if "glass_transitions" in results["events"]:
+    if results["events"]["glass_transitions"]:
         tg = results["events"]["glass_transitions"][0]
         print(f"Detected Glass Transition (Tg): {tg.midpoint_temperature:.2f} K")
     else:
         print("Glass Transition not detected.")
 
-    if "crystallization" in results["events"]:
+    if results["events"]["crystallization"]:
         cryst = results["events"]["crystallization"][0]
         print(
             f"Detected Crystallization: Peak at {cryst.peak_temperature:.2f} K, Enthalpy: {cryst.enthalpy:.2f} J/g"
@@ -85,7 +95,7 @@ def main():
     else:
         print("Crystallization not detected.")
 
-    if "melting" in results["events"]:
+    if results["events"]["melting"]:
         melt = results["events"]["melting"][0]
         print(
             f"Detected Melting: Peak at {melt.peak_temperature:.2f} K, Enthalpy: {melt.enthalpy:.2f} J/g"
@@ -121,7 +131,7 @@ def main():
     )
 
     # Annotate events
-    if "glass_transitions" in results["events"]:
+    if results["events"]["glass_transitions"]:
         tg = results["events"]["glass_transitions"][0]
         ax.axvspan(
             tg.onset_temperature,
@@ -131,7 +141,7 @@ def main():
             label=f"Tg @ {tg.midpoint_temperature:.2f}K",
         )
 
-    if "melting" in results["events"]:
+    if results["events"]["melting"]:
         melt = results["events"]["melting"][0]
         ax.axvspan(
             melt.onset_temperature,
@@ -141,7 +151,7 @@ def main():
             label=f"Melting @ {melt.peak_temperature:.2f}K",
         )
 
-    if "crystallization" in results["events"]:
+    if results["events"]["crystallization"]:
         cryst = results["events"]["crystallization"][0]
         ax.axvspan(
             cryst.onset_temperature,

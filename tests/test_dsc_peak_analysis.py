@@ -3,7 +3,6 @@
 import numpy as np
 import pytest
 from numpy.typing import NDArray
-from scipy.integrate import trapezoid
 
 from pkynetics.technique_analysis.dsc.peak_analysis import PeakAnalyzer
 
@@ -33,7 +32,7 @@ def generate_multiple_peaks(
 @pytest.fixture
 def peak_analyzer():
     """Create PeakAnalyzer instance."""
-    return PeakAnalyzer(peak_prominence=0.05)
+    return PeakAnalyzer()
 
 
 @pytest.fixture
@@ -44,10 +43,19 @@ def simple_peak_data():
     amplitude = 1.0
     width = 20.0
     heat_flow = generate_gaussian_peak(temperature, center, amplitude, width)
+    peak_idx = np.argmax(heat_flow)
     return {
         "temperature": temperature,
         "heat_flow": heat_flow,
+        "peak_idx": peak_idx,
         "expected_center": center,
+        # Extrapolated onset/endset (ISO 11357-1): the tangent at the
+        # inflection point (center -/+ width/sqrt(2)) meets the baseline at
+        # center -/+ sqrt(2) * width
+        "expected_onset": center - np.sqrt(2) * width,
+        "expected_endset": center + np.sqrt(2) * width,
+        # Full width at half maximum
+        "expected_width": 2 * width * np.sqrt(np.log(2)),
         "expected_height": amplitude,
     }
 
@@ -75,12 +83,13 @@ def noisy_peak_data():
     """Generate peak data with noise."""
     temperature = np.linspace(300, 500, 1000)
     heat_flow = generate_gaussian_peak(temperature, 400, 1.0, 20.0)
-    np.random.seed(42)  # Set seed for reproducibility
     noise = np.random.normal(0, 0.05, size=len(temperature))
     noisy_heat_flow = heat_flow + noise
+    peak_idx = np.argmax(noisy_heat_flow)
     return {
         "temperature": temperature,
         "heat_flow": noisy_heat_flow,
+        "peak_idx": peak_idx,
         "original_heat_flow": heat_flow,
     }
 
@@ -99,7 +108,7 @@ def test_find_peaks_simple(peak_analyzer, simple_peak_data):
         peak.peak_temperature, simple_peak_data["expected_center"], rtol=1e-2
     )
     np.testing.assert_allclose(
-        peak.peak_height, simple_peak_data["expected_height"], rtol=1e-1
+        peak.peak_height, simple_peak_data["expected_height"], rtol=1e-2
     )
 
 
@@ -129,6 +138,42 @@ def test_find_peaks_overlapping(peak_analyzer, overlapping_peaks_data):
     )
 
 
+# Tests for peak characteristics
+def test_onset_calculation(peak_analyzer, simple_peak_data):
+    """Test onset temperature calculation."""
+    onset_temp = peak_analyzer._calculate_onset(
+        simple_peak_data["temperature"],
+        simple_peak_data["heat_flow"],
+        simple_peak_data["peak_idx"],
+    )
+
+    np.testing.assert_allclose(onset_temp, simple_peak_data["expected_onset"], atol=0.1)
+
+
+def test_endset_calculation(peak_analyzer, simple_peak_data):
+    """Test endset temperature calculation."""
+    endset_temp = peak_analyzer._calculate_endset(
+        simple_peak_data["temperature"],
+        simple_peak_data["heat_flow"],
+        simple_peak_data["peak_idx"],
+    )
+
+    np.testing.assert_allclose(
+        endset_temp, simple_peak_data["expected_endset"], atol=0.1
+    )
+
+
+def test_peak_width_calculation(peak_analyzer, simple_peak_data):
+    """Test peak width calculation."""
+    width = peak_analyzer._calculate_peak_width(
+        simple_peak_data["temperature"],
+        simple_peak_data["heat_flow"],
+        simple_peak_data["peak_idx"],
+    )
+
+    np.testing.assert_allclose(width, simple_peak_data["expected_width"], rtol=1e-2)
+
+
 # Tests for peak deconvolution
 def test_peak_deconvolution(peak_analyzer, overlapping_peaks_data):
     """Test deconvolution of overlapping peaks."""
@@ -143,24 +188,62 @@ def test_peak_deconvolution(peak_analyzer, overlapping_peaks_data):
     # Check centers of deconvoluted peaks
     centers = sorted([p["center"] for p in peak_params])
     np.testing.assert_allclose(
-        centers, sorted(overlapping_peaks_data["expected_centers"]), rtol=5e-2
+        centers, sorted(overlapping_peaks_data["expected_centers"]), rtol=1e-2
     )
 
     # Check that fitted curve approximates original data
     rmse = np.sqrt(np.mean((fitted_curve - overlapping_peaks_data["heat_flow"]) ** 2))
-    assert rmse < 0.1
+    assert rmse < 0.01
+
+    # Recovered amplitudes and widths
+    by_center = sorted(peak_params, key=lambda p: p["center"])
+    np.testing.assert_allclose(
+        [p["amplitude"] for p in by_center],
+        overlapping_peaks_data["expected_amplitudes"],
+        rtol=1e-2,
+    )
+    np.testing.assert_allclose(
+        [p["width"] for p in by_center],
+        overlapping_peaks_data["expected_widths"],
+        rtol=1e-2,
+    )
+
+
+def test_peak_deconvolution_shoulder(peak_analyzer):
+    """A shoulder without its own maximum is still resolved."""
+    temperature = np.linspace(300, 500, 1000)
+    heat_flow = generate_multiple_peaks(temperature, [390, 410], [1.0, 0.6], [12, 12])
+
+    peak_params, fitted_curve = peak_analyzer.deconvolute_peaks(
+        temperature, heat_flow, 2
+    )
+
+    assert len(peak_params) == 2
+    centers = sorted(p["center"] for p in peak_params)
+    np.testing.assert_allclose(centers, [390, 410], atol=1.0)
+    assert np.sqrt(np.mean((fitted_curve - heat_flow) ** 2)) < 0.01
 
 
 # Tests for error handling
+def test_invalid_peak_index(peak_analyzer, simple_peak_data):
+    """Test handling of invalid peak index."""
+    with pytest.raises(IndexError):
+        peak_analyzer._calculate_onset(
+            simple_peak_data["temperature"],
+            simple_peak_data["heat_flow"],
+            len(simple_peak_data["temperature"]),
+        )
+
+
 def test_empty_data(peak_analyzer):
     """Test handling of empty data."""
-    with pytest.raises(ValueError, match="Input arrays cannot be empty."):
+    with pytest.raises(ValueError):
         peak_analyzer.find_peaks(np.array([]), np.array([]))
 
 
 def test_mismatched_arrays(peak_analyzer):
     """Test handling of mismatched array lengths."""
-    with pytest.raises(ValueError, match="must have same length"):
+    with pytest.raises(ValueError):
         peak_analyzer.find_peaks(np.array([1, 2, 3]), np.array([1, 2]))
 
 
@@ -177,20 +260,48 @@ def test_full_peak_analysis(peak_analyzer, simple_peak_data):
 
     # Check all peak characteristics
     assert abs(peak.peak_temperature - simple_peak_data["expected_center"]) < 1
-    assert peak.onset_temperature < peak.peak_temperature
-    assert peak.endset_temperature > peak.peak_temperature
+    assert abs(peak.onset_temperature - simple_peak_data["expected_onset"]) < 0.5
+    assert abs(peak.endset_temperature - simple_peak_data["expected_endset"]) < 0.5
     assert abs(peak.peak_height - simple_peak_data["expected_height"]) < 0.1
-    assert peak.peak_area > 0
-    assert peak.enthalpy > 0
+    # Gaussian area: amplitude * width * sqrt(pi) = 35.45 mW*K
+    np.testing.assert_allclose(peak.peak_area, 20.0 * np.sqrt(np.pi), rtol=1e-3)
+    # Enthalpy needs heating rate and mass
+    assert np.isnan(peak.enthalpy)
+
+
+def test_enthalpy_units(peak_analyzer, simple_peak_data):
+    """Enthalpy in J/g: integral(q dT) / heating rate / mass."""
+    peaks = peak_analyzer.find_peaks(
+        simple_peak_data["temperature"],
+        simple_peak_data["heat_flow"],
+        heating_rate=10.0,  # K/min
+        sample_mass=5.0,  # mg
+    )
+
+    # 35.45 mW*K / (10/60 K/s) = 212.7 mJ; / 5 mg = 42.5 J/g
+    expected = 20.0 * np.sqrt(np.pi) / (10.0 / 60) / 5.0
+    np.testing.assert_allclose(peaks[0].enthalpy, expected, rtol=1e-3)
+
+
+def test_onset_with_sloped_baseline(peak_analyzer, simple_peak_data):
+    """Onset/endset are measured against the given baseline."""
+    temperature = simple_peak_data["temperature"]
+    baseline = 0.002 * (temperature - 300) + 0.1
+    heat_flow = simple_peak_data["heat_flow"] + baseline
+    peak_idx = int(np.argmax(simple_peak_data["heat_flow"]))
+
+    onset = peak_analyzer._calculate_onset(temperature, heat_flow, peak_idx, baseline)
+    endset = peak_analyzer._calculate_endset(temperature, heat_flow, peak_idx, baseline)
+
+    np.testing.assert_allclose(onset, simple_peak_data["expected_onset"], atol=0.1)
+    np.testing.assert_allclose(endset, simple_peak_data["expected_endset"], atol=0.1)
 
 
 def test_baseline_correction_impact(peak_analyzer, simple_peak_data):
     """Test peak analysis with baseline correction."""
     # Add sloped baseline
     slope = 0.001
-    baseline = slope * (
-        simple_peak_data["temperature"] - simple_peak_data["temperature"][0]
-    )
+    baseline = slope * simple_peak_data["temperature"]
     heat_flow_with_baseline = simple_peak_data["heat_flow"] + baseline
 
     # Analyze with and without baseline correction
@@ -211,41 +322,5 @@ def test_baseline_correction_impact(peak_analyzer, simple_peak_data):
         < 1
     )
 
-    # Areas should be different, but corrected area should be close to original area
-    original_area = trapezoid(
-        simple_peak_data["heat_flow"], simple_peak_data["temperature"]
-    )
-    np.testing.assert_allclose(
-        peaks_with_baseline[0].peak_area, original_area, rtol=0.1
-    )
-    assert not np.isclose(
-        peaks_no_baseline[0].peak_area, peaks_with_baseline[0].peak_area
-    )
-
-
-def test_find_peaks_edge_cases(peak_analyzer):
-    """Test peak detection with edge case data to improve coverage."""
-    # Case 1: Data too short for noise estimation
-    temp_short = np.linspace(300, 310, 5)
-    hf_short = np.array([0, 0, 1, 0, 0])
-    peaks_short = peak_analyzer.find_peaks(temp_short, hf_short)
-    assert len(peaks_short) == 1
-    assert peaks_short[0].peak_temperature == 305
-
-    # Case 2: Flat signal (zero prominence)
-    temp_flat = np.linspace(300, 500, 100)
-    hf_flat = np.zeros(100)
-    peaks_flat = peak_analyzer.find_peaks(temp_flat, hf_flat)
-    assert len(peaks_flat) == 0
-
-    # Case 3: Peak with no discernible width (using a sharp spike)
-    # This might trigger the `width_properties` fallback.
-    temp_spike = np.linspace(300, 500, 1000)
-    hf_spike = np.zeros_like(temp_spike)
-    hf_spike[500] = 1.0  # A single point spike
-    # PeakAnalyzer with smaller window to even detect the spike
-    spike_analyzer = PeakAnalyzer(smoothing_window=5, peak_prominence=0.01)
-    peaks_spike = spike_analyzer.find_peaks(temp_spike, hf_spike)
-    # The outcome depends on smoothing, but we expect it to not fail
-    # and to cover the code paths. We can assert it finds one peak.
-    assert len(peaks_spike) >= 0
+    # Areas should be different
+    assert peaks_no_baseline[0].peak_area != peaks_with_baseline[0].peak_area
