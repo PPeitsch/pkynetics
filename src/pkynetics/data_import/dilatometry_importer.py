@@ -38,7 +38,8 @@ def dilatometry_importer(file_path: str) -> Dict[str, NDArray[np.float64]]:
             sep=r"\s+",
             encoding=encoding,
             engine="python",
-            skiprows=lambda x: x < 2 or (2 < x < 5),
+            # Line 2 holds the column names and line 3 the units; data starts at 4
+            skiprows=lambda x: x < 2 or x == 3,
             index_col=0,
         )
 
@@ -52,10 +53,12 @@ def dilatometry_importer(file_path: str) -> Dict[str, NDArray[np.float64]]:
         }
         df = df.rename(columns=column_mapping)
 
-        # Convert values to float, handling both comma and dot as decimal separators
+        # Convert values to float, handling both comma and dot as decimal separators.
+        # Text columns are "object" in pandas 2 and "str" in pandas 3: test for
+        # numeric instead of matching the dtype name.
         for col in df.columns:
-            if df[col].dtype == "object":
-                df[col] = df[col].str.replace(",", ".").astype(float)
+            if not pd.api.types.is_numeric_dtype(df[col]):
+                df[col] = df[col].astype(str).str.replace(",", ".").astype(float)
             else:
                 df[col] = df[col].astype(float)
 

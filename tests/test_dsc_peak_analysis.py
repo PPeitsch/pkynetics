@@ -83,7 +83,8 @@ def noisy_peak_data():
     """Generate peak data with noise."""
     temperature = np.linspace(300, 500, 1000)
     heat_flow = generate_gaussian_peak(temperature, 400, 1.0, 20.0)
-    noise = np.random.normal(0, 0.05, size=len(temperature))
+    # Seeded: with unseeded noise about 1 % of runs detect a spurious second peak
+    noise = np.random.default_rng(0).normal(0, 0.05, size=len(temperature))
     noisy_heat_flow = heat_flow + noise
     peak_idx = np.argmax(noisy_heat_flow)
     return {

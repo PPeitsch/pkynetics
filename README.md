@@ -44,7 +44,7 @@ A Python library for thermal analysis kinetic methods, providing tools for data 
 
 ## Installation
 
-Pkynetics requires Python 3.9 or later. Install using pip:
+Pkynetics requires Python 3.10 or later. Install using pip:
 
 ```bash
 pip install pkynetics

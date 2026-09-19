@@ -201,8 +201,9 @@ git push origin vX.Y.Z
 
 The CI/CD pipeline will automatically:
 1. Run all quality checks
-2. Run tests on Python 3.9, 3.10, 3.11
-3. Build and publish to PyPI
+2. Run tests on Python 3.10, 3.11, 3.12, 3.13
+3. Build the sdist and wheel and test the installed wheel
+4. Publish those distributions to PyPI
 
 ---
 

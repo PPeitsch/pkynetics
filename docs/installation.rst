@@ -1,7 +1,7 @@
 Installation
 ============
 
-Pkynetics requires Python 3.8 or later. It has been tested with Python 3.8, 3.9, 3.10, and 3.11.
+Pkynetics requires Python 3.10 or later. It is tested with Python 3.10, 3.11, 3.12 and 3.13.
 
 Basic Installation
 ------------------
@@ -12,17 +12,19 @@ You can install Pkynetics using pip:
 
     pip install pkynetics
 
-Make sure you have Python 3.8 or later installed on your system.
+Make sure you have Python 3.10 or later installed on your system.
 
 Dependencies
 ------------
 
 Pkynetics has the following core dependencies:
 
-- numpy==1.24.3
-- pandas==2.0.3
-- scipy==1.10.1
-- matplotlib==3.7.5
+- numpy>=1.24.3,<3
+- pandas>=2.0.3,<4
+- scipy>=1.10.1,<2
+- matplotlib>=3.7.5,<4
+- statsmodels>=0.14.1,<0.16
+- chardet>=5.0.0,<8
 
 These will be automatically installed when you install Pkynetics using pip.
 
