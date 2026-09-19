@@ -2,72 +2,32 @@
 Stepped-Isothermal Heat Capacity (Cp) Example
 ==============================================
 
-This example demonstrates the three-step method for calculating Cp from a
-stepped-isothermal experiment, using both real data from files and
-synthetic data.
+This example demonstrates the three-step method (ASTM E1269 ratio with a
+sapphire reference) for calculating Cp from a stepped-isothermal
+experiment, on synthetic blank, reference and sample runs with a known Cp.
 
 The workflow follows the standard procedure:
-1.  Load data for blank, reference (sapphire), and sample runs.
+1.  Generate blank, reference (sapphire) and sample runs on the same program.
 2.  Subtract the blank signal from both the sample and reference signals.
-3.  Calculate the final Cp using the corrected signals, masses, and the
-    known Cp of the reference material.
+3.  Calculate Cp from the heat absorbed in each heating step (step method),
+    using the masses and the known Cp of the reference material.
 4.  Each key step is visualized with a dedicated plot.
+
+For the same analysis on the bundled real Setaram runs, see
+``stepped_cp_real_data_example.py``.
 """
 
 import logging
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pkynetics.data_import import CustomImporter
 from pkynetics.technique_analysis.dsc import CpCalculator, CpMethod, OperationMode
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-
-def get_data_file_path(filename: str) -> Path:
-    """Constructs a robust path to the heat capacity data files."""
-    try:
-        current_dir = Path(__file__).resolve().parent
-        project_root = current_dir
-        while (
-            not (project_root / "src").exists() and project_root.parent != project_root
-        ):
-            project_root = project_root.parent
-        if not (project_root / "src").exists():
-            raise FileNotFoundError("Could not determine project root.")
-        file_path = (
-            project_root / "src" / "pkynetics" / "data" / "heat_capacity" / filename
-        )
-        if not file_path.exists():
-            raise FileNotFoundError(
-                f"Data file not found at expected path: {file_path}"
-            )
-        return file_path
-    except Exception as e:
-        logger.error(f"Error finding data file for {filename}: {e}")
-        raise
-
-
-def load_real_cp_data(filename: str) -> dict:
-    """Loads a real Cp experiment file using CustomImporter."""
-    path = get_data_file_path(filename)
-    logger.info(f"Loading real data from: {path}")
-    importer = CustomImporter(
-        file_path=str(path),
-        column_names=["index", "time", "furnace_temp", "temperature_c", "tg", "heat_flow"],
-        separator=";",
-        decimal=".",
-        skiprows=14,
-        encoding="utf-16le",
-    )
-    data = importer.import_data()
-    data["temperature"] = data.pop("temperature_c") + 273.15
-    return data
 
 
 def run_analysis(
@@ -104,7 +64,6 @@ def run_analysis(
         "heat_flow": ref_data["heat_flow"],
         "mass": ref_mass,
         "cp": ref_cp_func(ref_data["temperature"]),
-        "blank_heat_flow": blank_data["heat_flow"],
     }
 
     cp_result = calculator.calculate_cp(
@@ -115,6 +74,8 @@ def run_analysis(
         method=CpMethod.THREE_STEP,
         operation_mode=OperationMode.STEPPED,
         reference_data=reference_for_calc,
+        time=sample_data["time"],
+        blank_heat_flow=blank_data["heat_flow"],
     )
 
     # --- Step 3: Plot Final Result ---
@@ -127,7 +88,7 @@ def run_analysis(
             "k--",
             label="True Cp",
         )
-    
+
     if len(cp_result.temperature) > 100:
         plt.plot(
             cp_result.temperature,
@@ -186,30 +147,11 @@ def generate_synthetic_stepped_data(cp_func, mass: float, noise_level: float = 0
 
 
 def main():
-    """Main function to run both real and synthetic Cp examples."""
+    """Run the synthetic stepped Cp example."""
     np.random.seed(42)
 
-    # --- Part 1: Real Data Analysis ---
-    sample_mass_real, ref_mass_real = 20.8, 25.3
     ref_cp_func_known = lambda T: 1.0289 + 2.35e-4 * T
 
-    try:
-        blank_real = load_real_cp_data("zero.txt")
-        ref_real = load_real_cp_data("sapphire.txt")
-        sample_real = load_real_cp_data("sample.txt")
-        run_analysis(
-            "Real Data",
-            sample_real,
-            ref_real,
-            blank_real,
-            sample_mass_real,
-            ref_mass_real,
-            ref_cp_func_known,
-        )
-    except Exception as e:
-        logger.error(f"Could not complete real data analysis: {e}")
-
-    # --- Part 2: Synthetic Data Analysis ---
     sample_mass_synth, ref_mass_synth = 15.0, 25.0
     true_cp_func_synth = lambda T: 1.5 + 0.002 * (T - (100 + 273.15))
 

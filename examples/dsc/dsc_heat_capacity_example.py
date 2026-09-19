@@ -130,24 +130,16 @@ def main():
         isotherm_temps_K, sample_cp_func, sample_mass
     )
 
-    # For simplicity, we assume the reference signal for the stepped method is just
-    # its true value at the isotherm temperatures.
-    ref_cp_at_isotherms = sapphire_cp_func(isotherm_temps_K)
-    ref_signal_at_isotherms = (
-        ref_cp_at_isotherms * sapphire_mass * (5.0 / 60.0)
-    )  # Using ramp rate
-
-    # We'll use a simplified reference for the stepped method calculation
-    # In a real experiment, one would run the reference material through the same program
-    # and extract the average heat flow from its stable regions.
-
-    # To demonstrate the calculation, we'll use a simplified reference_data
-    # where the Cp is known at the target temperatures.
+    # The reference (sapphire) runs through the same stepped program; the step
+    # method compares the heat absorbed by each in every heating step
+    _, _, sapphire_hf_step = generate_stepped_cp_data(
+        isotherm_temps_K, sapphire_cp_func, sapphire_mass
+    )
     ref_data_stepped = {
         "temperature": temp_step,
-        "heat_flow": np.interp(temp_step, isotherm_temps_K, ref_signal_at_isotherms),
+        "heat_flow": sapphire_hf_step,
         "mass": sapphire_mass,
-        "cp": np.interp(temp_step, isotherm_temps_K, ref_cp_at_isotherms),
+        "cp": sapphire_cp_func(temp_step),
     }
 
     cp_result_step = calculator.calculate_cp(
@@ -158,6 +150,7 @@ def main():
         method=CpMethod.THREE_STEP,
         operation_mode=OperationMode.STEPPED,
         reference_data=ref_data_stepped,
+        time=time_step,
     )
 
     # --- Visualization ---
