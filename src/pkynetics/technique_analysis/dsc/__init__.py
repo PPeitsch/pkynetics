@@ -7,7 +7,7 @@ and heat capacity calculations.
 
 from .baseline import BaselineCorrector
 from .core import DSCAnalyzer
-from .heat_capacity import CpCalculator
+from .heat_capacity import CpCalculator, reference_cp
 from .peak_analysis import PeakAnalyzer
 from .signal_stability import SignalStabilityDetector
 from .thermal_events import ThermalEventDetector
@@ -38,13 +38,12 @@ from .utilities import (
 __all__ = [
     # Core components
     "DSCAnalyzer",
-    "DSCExperiment",
-    "DSCPeak",
     "BaselineCorrector",
     "PeakAnalyzer",
     "ThermalEventDetector",
     "CpCalculator",
     "SignalStabilityDetector",
+    "reference_cp",
     # Utility components
     "DSCUnits",
     "SignalProcessor",

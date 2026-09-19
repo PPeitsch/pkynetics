@@ -8,11 +8,16 @@ This module provides comprehensive analysis tools for various thermal analysis t
    - Lever rule and tangent method implementations
    - Transformed fraction calculation
 
-2. DSC Analysis (Planned)
+2. DSC Analysis (``technique_analysis.dsc``):
+   - Baseline correction, peak analysis (ISO 11357 onset/endset, enthalpy)
+   - Thermal events: glass transition, crystallization, melting
+   - Specific heat capacity (single-step, three-step, stepped, modulated)
+   - Complete workflow with DSCAnalyzer
 
 3. TGA Analysis (Planned)
 """
 
+from . import dsc
 from .dilatometry import (
     analyze_dilatometry_curve,
     calculate_fit_quality,
@@ -26,6 +31,8 @@ from .dilatometry import (
 )
 
 __all__ = [
+    # Technique subpackages
+    "dsc",
     # Main analysis function
     "analyze_dilatometry_curve",
     # Core analysis functions
