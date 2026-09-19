@@ -19,9 +19,11 @@ heating_rate = 10  # K/min
 t_range = (400, 800)  # K
 n_true = 1.5  # Reaction order
 
-# Generate synthetic data
+# Generate synthetic data. Freeman-Carroll works on differences of the
+# conversion, so it tolerates little noise: 1e-4 already lowers R^2
+np.random.seed(0)
 temperature, alpha, time = generate_freeman_carroll_data(
-    e_a_true, a_true, heating_rate, t_range, n=n_true, noise_level=0.001
+    e_a_true, a_true, heating_rate, t_range, n=n_true, noise_level=1e-4
 )
 
 # Ensure alpha is within [0, 1] and remove potential artifacts at the boundaries

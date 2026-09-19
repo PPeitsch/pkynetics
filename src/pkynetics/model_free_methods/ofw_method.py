@@ -4,6 +4,7 @@ import logging
 from typing import List, Tuple
 
 import numpy as np
+from scipy.constants import R
 from scipy.stats import linregress
 
 logger = logging.getLogger(__name__)
@@ -24,13 +25,20 @@ def ofw_method(
 
     Returns:
         Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-            - activation_energy for each conversion level
-            - pre_exp_factor for each conversion level
+            - activation_energy for each conversion level (J/mol)
+            - pre_exp_factor for each conversion level: apparent A/g(alpha),
+              in the time unit of the heating rates (1/min for K/min).
+              Model-free methods cannot separate A from the integral reaction
+              model g(alpha): multiply by g(alpha) to get A.
             - conv_levels
             - r_squared values for each linear regression
 
     Raises:
         ValueError: If input data is inconsistent or invalid.
+
+    Note:
+        Uses Doyle's approximation, ln p(x) = -5.331 - 1.052 x, which gives
+        ln(beta) = ln(A E_a / (R g(alpha))) - 5.331 - 1.052 E_a / (R T).
 
     Example:
         temperature = [temp_data1, temp_data2, ...]
@@ -73,12 +81,15 @@ def ofw_method(
 
         if len(temperatures) > 2:  # Ensure enough data points for regression
             y = log_beta
-            x = 1 / (8.314 * np.array(temperatures))  # 1/RT
+            x = 1 / (R * np.array(temperatures))
 
             slope, intercept, r_value, _, _ = linregress(x, y)
 
-            activation_energy[i] = -slope * 1.052  # Correction factor for OFW method
-            pre_exp_factor[i] = np.exp(intercept)
+            # Doyle: slope = -1.052 E_a
+            activation_energy[i] = -slope / 1.052
+            pre_exp_factor[i] = (
+                np.exp(intercept + 5.331) * R / activation_energy[i]
+            )  # A / g(alpha)
             r_squared[i] = r_value**2
         else:
             activation_energy[i] = pre_exp_factor[i] = r_squared[i] = np.nan

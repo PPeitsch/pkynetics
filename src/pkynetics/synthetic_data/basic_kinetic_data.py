@@ -3,9 +3,8 @@ from typing import List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
-
-# Constants
-R = 8.314  # Gas constant in J/(mol·K)
+from scipy.constants import R
+from scipy.special import expn
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +20,16 @@ def generate_basic_kinetic_data(
     n: float = 1.5,
 ) -> Tuple[List[NDArray[np.float64]], List[NDArray[np.float64]]]:
     """
-    Generate basic kinetic data for testing various models.
+    Generate non-isothermal kinetic data at constant heating rates.
+
+    Integrates the rate equation over temperature: at heating rate beta the
+    integral of the reaction model is
+
+        g(alpha) = (A / beta) * integral from T0 to T of exp(-Ea / (R T')) dT'
+
+    evaluated exactly with the exponential integral,
+    integral of exp(-Ea/(R T)) dT = T * E2(Ea / (R T)). The heating rate is
+    converted to K/s so that it matches A in 1/s.
 
     Args:
         e_a (float): Activation energy in J/mol
@@ -41,17 +49,20 @@ def generate_basic_kinetic_data(
 
     for beta in heating_rates:
         t = np.linspace(*t_range, num_points)
-        time = (t - t[0]) / beta
-        k = a * np.exp(-e_a / (R * t))
+        temperature_integral = _temperature_integral(e_a, t) - _temperature_integral(
+            e_a, t[:1]
+        )
+        # Integral of the reaction model, g(alpha); beta from K/min to K/s
+        g_alpha = a / (beta / 60.0) * temperature_integral
 
         # Special case: if n is exactly 1 and reaction_model is nth_order, use first_order formula
         if reaction_model == "nth_order" and abs(n - 1.0) < 1e-10:
             logger.info("Using first_order model when n=1 to avoid division by zero")
-            alpha = 1 - np.exp(-k * time)
+            alpha = 1 - np.exp(-g_alpha)
         elif reaction_model == "first_order":
-            alpha = 1 - np.exp(-k * time)
+            alpha = 1 - np.exp(-g_alpha)
         elif reaction_model == "nth_order":
-            alpha = 1 - (1 + (n - 1) * k * time) ** (1 / (1 - n))
+            alpha = 1 - (1 + (n - 1) * g_alpha) ** (1 / (1 - n))
         else:
             logger.warning(f"Unsupported reaction model: {reaction_model}")
             raise ValueError(f"Unsupported reaction model: {reaction_model}")
@@ -64,3 +75,8 @@ def generate_basic_kinetic_data(
         conversion_data.append(alpha)
 
     return temperature_data, conversion_data
+
+
+def _temperature_integral(e_a: float, t: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Antiderivative of exp(-Ea / (R T)) with respect to T: T * E2(Ea / (R T))."""
+    return np.asarray(t * expn(2, e_a / (R * t)), dtype=np.float64)

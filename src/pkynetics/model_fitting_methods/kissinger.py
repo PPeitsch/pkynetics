@@ -6,11 +6,10 @@ from typing import Tuple, cast
 import numpy as np
 import statsmodels.api as sm
 from numpy.typing import NDArray
+from scipy.constants import R
 from scipy.optimize import fsolve
 
 logger = logging.getLogger(__name__)
-
-R = 8.314  # Gas constant in J/(mol·K)
 
 
 def kissinger_nonlinear_eq(t: float, e_a: float, a: float, b: float) -> float:
@@ -79,7 +78,8 @@ def kissinger_method(
     Perform Kissinger analysis for non-isothermal kinetics.
 
     Args:
-        t_p (np.ndarray): Peak temperatures for different heating rates in °C.
+        t_p (np.ndarray): Peak temperatures for different heating rates in K.
+            (Before 0.5.0 this function took °C.)
         beta (np.ndarray): Heating rates in K/min.
 
     Returns:
@@ -102,17 +102,14 @@ def kissinger_method(
     if len(t_p) < 2:
         raise ValueError("At least two data points are required for Kissinger analysis")
 
-    if np.any(t_p < -273.15):  # Check for temperatures below absolute zero
-        raise ValueError("Temperature values cannot be below absolute zero")
+    if np.any(t_p <= 0):
+        raise ValueError("Temperatures must be in kelvin and positive")
 
     if np.any(beta <= 0):
         raise ValueError("Heating rates must be positive")
 
-    # Convert temperatures to Kelvin
-    t_p_k = t_p + 273.15
-
-    x = 1 / t_p_k
-    y = kissinger_equation(t_p=t_p_k, beta=beta)
+    x = 1 / t_p
+    y = kissinger_equation(t_p=t_p, beta=beta)
 
     X = sm.add_constant(x)
     model = sm.OLS(y, X).fit()

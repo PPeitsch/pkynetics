@@ -9,6 +9,7 @@ from pkynetics.model_fitting_methods.kissinger import (
     kissinger_equation,
     kissinger_method,
 )
+from pkynetics.synthetic_data import generate_basic_kinetic_data
 
 
 class TestKissingerMethod(unittest.TestCase):
@@ -20,19 +21,35 @@ class TestKissingerMethod(unittest.TestCase):
         self.t_p = calculate_t_p(self.true_ea, self.true_a, self.beta)
 
     def test_kissinger_method_accuracy(self):
-        # Convert temperatures to Celsius before analysis
-        t_p_celsius = self.t_p - 273.15
-        e_a, a, se_e_a, se_ln_a, r_squared = kissinger_method(t_p_celsius, self.beta)
+        # Peak temperatures in K, straight from calculate_t_p
+        e_a, a, se_e_a, se_ln_a, r_squared = kissinger_method(self.t_p, self.beta)
 
-        self.assertAlmostEqual(
-            e_a / 1000, self.true_ea / 1000, delta=10
-        )  # Compare in kJ/mol, allow 10 kJ/mol difference
-        self.assertAlmostEqual(
-            np.log10(a), np.log10(self.true_a), delta=1.0
-        )  # Compare order of magnitude with wider tolerance
-        self.assertGreater(r_squared, 0.95)
+        # calculate_t_p solves the same equation: the fit is exact
+        self.assertAlmostEqual(e_a / self.true_ea, 1, delta=1e-3)
+        self.assertAlmostEqual(np.log(a), np.log(self.true_a), delta=0.01)
+        self.assertGreater(r_squared, 0.9999)
         self.assertIsInstance(se_e_a, float)
         self.assertIsInstance(se_ln_a, float)
+
+    def test_peaks_of_first_order_curves(self):
+        """Kissinger is exact for first order: use the peaks of d(alpha)/dT."""
+        a_per_s = 1e12
+        beta = np.array([5.0, 10.0, 20.0, 40.0])
+        temperature, alpha = generate_basic_kinetic_data(
+            self.true_ea, a_per_s, beta, (350, 700), num_points=20000
+        )
+        t_p = np.array(
+            [t[np.argmax(np.gradient(conv, t))] for t, conv in zip(temperature, alpha)]
+        )
+
+        e_a, a, *_ = kissinger_method(t_p, beta)
+
+        self.assertAlmostEqual(e_a / self.true_ea, 1, delta=0.01)
+        self.assertAlmostEqual(np.log(a / 60), np.log(a_per_s), delta=0.2)
+
+    def test_rejects_nonpositive_temperatures(self):
+        with self.assertRaises(ValueError):
+            kissinger_method(np.array([-10.0, 5.0]), np.array([5.0, 10.0]))
 
     def test_kissinger_equation(self):
         # Use the actual signature of kissinger_equation

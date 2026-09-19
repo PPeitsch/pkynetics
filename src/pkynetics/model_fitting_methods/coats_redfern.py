@@ -5,13 +5,14 @@ from typing import Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.constants import R
 from scipy.stats import linregress
 
 logger = logging.getLogger(__name__)
 
 
 def coats_redfern_equation(
-    t: np.ndarray, e_a: float, ln_a: float, n: float, r: float = 8.314
+    t: np.ndarray, e_a: float, ln_a: float, n: float, r: float = R
 ) -> np.ndarray:
     """
     Coats-Redfern equation for kinetic analysis.
@@ -21,7 +22,7 @@ def coats_redfern_equation(
         e_a (float): Activation energy in J/mol.
         ln_a (float): Natural logarithm of pre-exponential factor.
         n (float): Reaction order.
-        r (float): Gas constant in J/(mol·K). Default is 8.314.
+        r (float): Gas constant in J/(mol·K). Default is scipy.constants.R.
 
     Returns:
         np.ndarray: y values for the Coats-Redfern plot.
@@ -46,6 +47,9 @@ def coats_redfern_method(
 ]:
     """
     Perform Coats-Redfern analysis to determine kinetic parameters.
+
+    Linearizes ln(g(alpha)/T^2) = ln(A R / (beta E_a)) - E_a / (R T), neglecting
+    the (1 - 2RT/E_a) term, and fits it against x = 1000/T.
 
     Args:
         temperature (np.ndarray): Temperature data in Kelvin.
@@ -87,9 +91,8 @@ def coats_redfern_method(
     # Perform robust linear regression
     slope, intercept, r_value, _, _ = linregress(x_filtered, y_filtered)
 
-    # Calculate kinetic parameters
-    r = 8.314  # Gas constant in J/(mol·K)
-    e_a = -slope * r  # Activation energy in J/mol
+    # x is 1000/T, so the slope is -E_a / (1000 R)
+    e_a = -slope * R * 1000  # Activation energy in J/mol
 
     # Check if activation energy is physically plausible
     if e_a <= 0:
@@ -104,7 +107,7 @@ def coats_redfern_method(
 
     # Safely calculate pre-exponential factor
     try:
-        ln_a = intercept + np.log(heating_rate / e_a_for_calc)
+        ln_a = intercept + np.log(heating_rate * e_a_for_calc / R)
         a = np.exp(ln_a)
     except (ValueError, RuntimeWarning, FloatingPointError) as e:
         logger.error(f"Error calculating pre-exponential factor: {str(e)}")
