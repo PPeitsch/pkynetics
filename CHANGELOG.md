@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Added
+- DSC visualization (`plot_dsc_curve`, `plot_thermal_events`, `plot_cp`, `plot_dsc_analysis`).
+- `reference_cp()`: NIST-JANAF Shomate reference data for sapphire and zinc, with valid ranges.
+- Importers read TA Instruments Universal Analysis text exports (detected automatically).
+- Examples: eicosane melting (TA data) and stepped Cp on the bundled Setaram runs.
+
+### Changed
+- **Breaking:** DSC enthalpies are in J/g and require `heating_rate` (K/min) and `sample_mass` (mg); they are NaN otherwise. Peak onset/endset follow the ISO 11357-1 extrapolated definition.
+- **Breaking:** `CpCalculator` STEPPED and MODULATED modes require the `time` array; the blank run is passed as `blank_heat_flow`; `exo_up` sets the sign convention.
+- **Breaking:** `StabilityMethod` has two members, `STATISTICAL` and `LINEAR_FIT`.
+- **Breaking:** `DataValidator.check_sampling_rate` takes only the time array; `detect_temperature_program` returns `end_idx` and NaN average rates for absent segment types.
+- `ThermalEventDetector.detect_events` always returns every key (empty lists) and accepts `heating_rate`, `sample_mass` and `exo_up`.
+- `DSCAnalyzer` finds peaks in both directions and reports enthalpies in J/g.
+- `pkynetics.technique_analysis` exports the `dsc` subpackage.
+
+### Fixed
+- Single-step Cp was 60x too small (heating rate in K/min); three-step Cp did not subtract the blank; the sapphire (+43%) and zinc (+21%) reference data were wrong.
+- Stepped Cp integrates the heat of each heating step (step method) instead of averaging heat flow.
+- Signal stability detectors: the enum exported by the package raised "Unknown stability detection method", and the detectors returned regions shorter than `min_points`.
+- Baselines: ALS used a dense N x N matrix (~14 GB for 19k points); `auto` always picked `linear` without regions; rubberband and quiet-region selection.
+- Temperature program detection compared K/s against a K/min threshold; `remove_outliers` produced NaN on flat regions.
+- Encoding detection: chardet 7 misdetects BOM-less UTF-16 and Latin-1 files, so the bundled sample files could not be imported.
+- Setaram header row located by content: the heat capacity runs imported with every column set to None.
+
+
 ## [v0.4.8] - 2026-03-05
 
 ### Changed
