@@ -37,6 +37,7 @@ class PeakAnalyzer:
         self.smoothing_order = smoothing_order
         self.peak_prominence = peak_prominence
         self.height_threshold = height_threshold
+        self.limit_noise_factor = 3.0
 
     def find_peaks(
         self,
@@ -90,24 +91,80 @@ class PeakAnalyzer:
             ),
         )
 
-        peak_list = []
-        for i, peak_idx in enumerate(peaks):
-            left_idx = int(properties["left_bases"][i])
-            right_idx = int(properties["right_bases"][i])
+        limits = self.integration_limits(
+            signal_to_analyze,
+            peaks,
+            properties,
+            self.noise_level(heat_flow if baseline is None else heat_flow - baseline),
+        )
 
+        peak_list = []
+        for peak_idx, (lo, hi) in zip(peaks, limits):
+            if hi - lo < 3:
+                continue
             peak_info = self.analyze_peak_region(
-                temperature[left_idx : right_idx + 1],
-                heat_flow[left_idx : right_idx + 1],
-                int(peak_idx) - left_idx,
-                baseline[left_idx : right_idx + 1] if baseline is not None else None,
+                temperature[lo:hi],
+                heat_flow[lo:hi],
+                int(peak_idx) - lo,
+                baseline[lo:hi] if baseline is not None else None,
                 heating_rate=heating_rate,
                 sample_mass=sample_mass,
             )
-
-            peak_info.peak_indices = (left_idx, right_idx)
+            peak_info.peak_indices = (lo, hi - 1)
             peak_list.append(peak_info)
 
         return peak_list
+
+    def noise_level(self, data: NDArray[np.float64]) -> float:
+        """Estimate noise as the residual of Savitzky-Golay smoothing."""
+        smooth = safe_savgol_filter(data, self.smoothing_window, self.smoothing_order)
+        return float(np.std(data - smooth))
+
+    def integration_limits(
+        self,
+        smooth: NDArray[np.float64],
+        peak_indices: NDArray[np.intp],
+        properties: Dict[str, Any],
+        noise: float,
+    ) -> List[Tuple[int, int]]:
+        """
+        Integration limits (start, stop) of peaks found by scipy find_peaks.
+
+        The limits are where the (smoothed) peak has decayed to 0.1% of its
+        prominence above its reference base, but not below
+        limit_noise_factor times the noise remaining after smoothing, where
+        the limits would wander. Unlike the find_peaks bases, they do not
+        extend into neighbouring events.
+
+        Args:
+            smooth: Smoothed signal the peaks were found in
+            peak_indices: Peak indices from find_peaks
+            properties: find_peaks properties (with prominences)
+            noise: Noise level of the unsmoothed signal
+
+        Returns:
+            List of (start, stop) index pairs, stop exclusive
+        """
+        window = validate_window_size(len(smooth), self.smoothing_window)
+        coeffs = signal.savgol_coeffs(window, min(self.smoothing_order, window - 1))
+        smooth_noise = noise * float(np.sqrt(np.sum(coeffs**2)))
+
+        limits = []
+        for j, peak_idx in enumerate(peak_indices):
+            prom = float(properties["prominences"][j])
+            level = max(1e-3 * prom, self.limit_noise_factor * smooth_noise)
+            _, _, left, right = signal.peak_widths(
+                smooth,
+                [peak_idx],
+                rel_height=1 - min(level / prom, 0.5),
+                prominence_data=(
+                    properties["prominences"][j : j + 1],
+                    properties["left_bases"][j : j + 1],
+                    properties["right_bases"][j : j + 1],
+                ),
+            )
+            limits.append((int(np.floor(left[0])), int(np.ceil(right[0])) + 1))
+        return limits
 
     def _calculate_onset(
         self,
@@ -433,7 +490,8 @@ class PeakAnalyzer:
 
         # dH = integral(q dT) / beta / m: mW*K / (K/s) = mJ, mJ / mg = J/g
         if heating_rate and sample_mass:
-            enthalpy = abs(peak_area) / (heating_rate / 60) / sample_mass
+            # Magnitude: on cooling both the area and beta are negative
+            enthalpy = abs(peak_area / (heating_rate / 60)) / sample_mass
         else:
             enthalpy = float("nan")
 

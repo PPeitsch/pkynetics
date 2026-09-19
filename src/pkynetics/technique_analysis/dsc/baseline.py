@@ -369,9 +369,10 @@ class BaselineCorrector:
     ) -> List[Tuple[float, float]]:
         """Baseline regions at both ends of the data (first/last fraction)."""
         n_points = max(2, int(len(temperature) * fraction))
+        first, last = temperature[:n_points], temperature[-n_points:]
         return [
-            (float(temperature[0]), float(temperature[n_points - 1])),
-            (float(temperature[-n_points]), float(temperature[-1])),
+            (float(np.min(first)), float(np.max(first))),
+            (float(np.min(last)), float(np.max(last))),
         ]
 
     @staticmethod
@@ -383,9 +384,8 @@ class BaselineCorrector:
         """Select the data points falling inside any of the regions."""
         mask = np.zeros(len(temperature), dtype=bool)
         for start_temp, end_temp in regions:
-            mask |= (temperature >= float(start_temp)) & (
-                temperature <= float(end_temp)
-            )
+            low, high = sorted((float(start_temp), float(end_temp)))
+            mask |= (temperature >= low) & (temperature <= high)
         return temperature[mask], heat_flow[mask]
 
     def _find_quiet_regions(
@@ -426,7 +426,7 @@ class BaselineCorrector:
                 break
 
         return [
-            (float(temperature[i]), float(temperature[i + window - 1]))
+            tuple(sorted((float(temperature[i]), float(temperature[i + window - 1]))))
             for i in sorted(selected)
         ]
 
@@ -444,7 +444,8 @@ class BaselineCorrector:
         if regions:
             residuals = []
             for start_temp, end_temp in regions:
-                mask = (temperature >= start_temp) & (temperature <= end_temp)
+                low, high = sorted((float(start_temp), float(end_temp)))
+                mask = (temperature >= low) & (temperature <= high)
                 residuals.extend(heat_flow[mask] - baseline[mask])
 
             metrics["baseline_rmse"] = float(np.sqrt(np.mean(np.array(residuals) ** 2)))

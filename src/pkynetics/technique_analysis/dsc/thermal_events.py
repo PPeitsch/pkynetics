@@ -21,7 +21,7 @@ from .types import (
     MeltingEvent,
     PhaseTransition,
 )
-from .utilities import safe_savgol_filter, validate_window_size
+from .utilities import safe_savgol_filter
 
 logger = logging.getLogger(__name__)
 
@@ -339,8 +339,7 @@ class ThermalEventDetector:
 
     def _noise_level(self, y: NDArray[np.float64]) -> float:
         """Estimate noise as the residual of Savitzky-Golay smoothing."""
-        smooth = safe_savgol_filter(y, self.smoothing_window, self.smoothing_order)
-        return float(np.std(y - smooth))
+        return self.peak_analyzer.noise_level(y)
 
     def _find_peaks(
         self,
@@ -373,33 +372,16 @@ class ThermalEventDetector:
         smooth = safe_savgol_filter(y, self.smoothing_window, self.smoothing_order)
         noise = self._noise_level(y)
         prominence = max(self.peak_prominence, self.noise_threshold * noise)
-        # Noise remaining after Savitzky-Golay smoothing (limits are
-        # located on the smoothed signal)
-        window = validate_window_size(len(y), self.smoothing_window)
-        coeffs = signal.savgol_coeffs(window, min(self.smoothing_order, window - 1))
-        smooth_noise = noise * float(np.sqrt(np.sum(coeffs**2)))
 
         idx, props = signal.find_peaks(smooth, prominence=prominence)
         if len(idx) == 0:
             return []
+        self.peak_analyzer.limit_noise_factor = self.limit_noise_factor
+        limits = self.peak_analyzer.integration_limits(smooth, idx, props, noise)
+
         results = []
-        for j, peak_idx in enumerate(idx):
-            # Integration limits: 0.1% of the prominence, but not below the
-            # noise, where the limits would wander
+        for j, (peak_idx, (lo, hi)) in enumerate(zip(idx, limits)):
             prom = float(props["prominences"][j])
-            level = max(1e-3 * prom, self.limit_noise_factor * smooth_noise)
-            _, _, left_arr, right_arr = signal.peak_widths(
-                smooth,
-                [peak_idx],
-                rel_height=1 - min(level / prom, 0.5),
-                prominence_data=(
-                    props["prominences"][j : j + 1],
-                    props["left_bases"][j : j + 1],
-                    props["right_bases"][j : j + 1],
-                ),
-            )
-            lo = int(np.floor(left_arr[0]))
-            hi = int(np.ceil(right_arr[0])) + 1
             if hi - lo < 3:
                 continue
 
