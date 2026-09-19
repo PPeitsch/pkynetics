@@ -27,11 +27,8 @@ class OperationMode(Enum):
 class StabilityMethod(Enum):
     """Methods for detecting stable regions."""
 
-    BASIC = "basic"  # Simple dT/dt and signal thresholds
-    STATISTICAL = "statistical"  # Statistical analysis of signal
-    LINEAR_FIT = "linear_fit"  # Linear regression analysis
-    ADAPTIVE = "adaptive"  # Adaptive segmentation
-    WAVELET = "wavelet"  # Wavelet-based analysis
+    STATISTICAL = "statistical"  # Flat within the noise (plateaus, isotherms)
+    LINEAR_FIT = "linear_fit"  # Linear within the noise (drifts, ramps)
 
 
 @dataclass
@@ -67,14 +64,11 @@ class DSCExperiment:
     metadata: Dict = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate data and calculate heating rate."""
-        if not isinstance(self.temperature, np.ndarray):
-            self.temperature = np.array(self.temperature, dtype=np.float64)
-        if not isinstance(self.heat_flow, np.ndarray):
-            self.heat_flow = np.array(self.heat_flow, dtype=np.float64)
-        if not isinstance(self.time, np.ndarray):
-            self.time = np.array(self.time, dtype=np.float64)
+        self.temperature = np.asarray(self.temperature, dtype=np.float64)
+        self.heat_flow = np.asarray(self.heat_flow, dtype=np.float64)
+        self.time = np.asarray(self.time, dtype=np.float64)
 
         # Validate data
         if len(self.temperature) != len(self.heat_flow) or len(self.temperature) != len(
@@ -178,7 +172,7 @@ class CpResult:
     stable_regions: Optional[List[Tuple[int, int]]] = None
     timestamp: datetime = field(default_factory=datetime.now)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate arrays and calculations."""
         arrays = [self.temperature, self.specific_heat, self.uncertainty]
         if not all(isinstance(arr, np.ndarray) for arr in arrays):
@@ -205,7 +199,7 @@ class CalibrationData:
     metadata: Dict = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate calibration data."""
         arrays = [
             self.temperature,
