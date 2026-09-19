@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy import signal, stats
+from scipy import signal
 
 
 def validate_window_size(
@@ -183,8 +183,8 @@ class SignalProcessor:
         """
         import statsmodels.api as sm
 
-        window = window_length or self.default_window
-        polyorder = polyorder or self.default_polyorder
+        window = window_length if window_length is not None else self.default_window
+        polyorder = polyorder if polyorder is not None else self.default_polyorder
 
         if window % 2 == 0:
             window += 1  # Ensure odd window length
@@ -225,14 +225,14 @@ class SignalProcessor:
         # Use rolling window to detect local outliers
         for i in range(len(data)):
             start = max(0, i - win // 2)
-            end = min(len(data), i + win // 2)
+            end = min(len(data), i + win // 2 + 1)
             local_data = data[start:end]
 
-            # zscore of an empty or single-element array is NaN, handle this
-            if local_data.size < 2:
-                continue
+            local_std = np.std(local_data)
+            if local_std == 0:
+                continue  # Flat window: nothing can be an outlier
 
-            z_score = np.abs(stats.zscore(local_data))
+            z_score = np.abs(local_data - np.mean(local_data)) / local_std
             local_mask = z_score < threshold
 
             if not local_mask[i - start]:
@@ -255,7 +255,7 @@ class SignalProcessor:
         Args:
             data: Input signal array
             sampling_rate: Data sampling rate in Hz
-            cutoff_freq: Filter cutoff frequency in Hz
+            cutoff_freq: Filter cutoff frequency in Hz, or (low, high) for bandpass
             filter_type: Filter type ('lowpass', 'highpass', 'bandpass')
             order: Filter order
 
@@ -263,11 +263,17 @@ class SignalProcessor:
             Filtered signal array
         """
         nyquist = sampling_rate / 2
-        normalized_cutoff: Union[float, NDArray[np.float64]]
+
+        if filter_type == "bandpass":
+            if not isinstance(cutoff_freq, tuple) or len(cutoff_freq) != 2:
+                raise ValueError("Bandpass filter requires tuple of frequencies")
+            low, high = cutoff_freq
+            b, a = signal.butter(order, (low / nyquist, high / nyquist), btype="band")
+            return signal.filtfilt(b, a, data)
+
         if isinstance(cutoff_freq, tuple):
-            normalized_cutoff = np.array(cutoff_freq) / nyquist
-        else:
-            normalized_cutoff = cutoff_freq / nyquist
+            raise ValueError("Tuple of frequencies is only valid for bandpass")
+        normalized_cutoff = cutoff_freq / nyquist
 
         b: NDArray[np.float64]
         a: NDArray[np.float64]
@@ -275,10 +281,6 @@ class SignalProcessor:
             b, a = signal.butter(order, normalized_cutoff, btype="low")
         elif filter_type == "highpass":
             b, a = signal.butter(order, normalized_cutoff, btype="high")
-        elif filter_type == "bandpass":
-            if not isinstance(normalized_cutoff, np.ndarray):
-                raise ValueError("Bandpass filter requires tuple of frequencies")
-            b, a = signal.butter(order, normalized_cutoff, btype="band")
         else:
             raise ValueError(f"Unknown filter type: {filter_type}")
 
@@ -555,75 +557,99 @@ class DataValidator:
     def detect_temperature_program(
         temperature: NDArray[np.float64],
         time: NDArray[np.float64],
+        min_segment_duration: float = 120.0,
     ) -> Dict[str, Any]:
         """
         Detect temperature program type and parameters.
 
         Args:
             temperature: Temperature array
-            time: Time array
+            time: Time array in seconds
+            min_segment_duration: Shortest segment to report, in seconds. The
+                rate is median-filtered over this window and shorter runs are
+                merged into the preceding segment, so noise and brief sample
+                temperature stalls (e.g. during melting) do not split ramps.
 
         Returns:
-            Dictionary containing program type and parameters
+            Dictionary containing program type ('continuous', 'stepped' or
+            'cyclic'), segments (type, mean rate in K/min, start_idx, end_idx
+            exclusive), average heating/cooling rates in K/min (nan if absent)
+            and segment counts
         """
-        # Calculate temperature rate
-        temp_rate = np.gradient(temperature, time)
+        # Heating rate in K/min (time is in seconds)
+        temp_rate = np.gradient(temperature, time) * 60
 
-        # Detect segments
-        segments: List[Dict[str, Any]] = []
-        current_type = "isothermal"
-        current_rate = 0.0
+        # Median-filter the rate over min_segment_duration
+        dt = float(np.median(np.diff(time)))
+        window = int(min_segment_duration / dt) if dt > 0 else 1
+        window = min(window, len(temp_rate))
+        if window % 2 == 0:
+            window -= 1
+        smoothed_rate = signal.medfilt(temp_rate, window) if window >= 3 else temp_rate
 
-        # Threshold for rate detection (K/min)
+        # Rates below this magnitude are treated as isothermal (K/min)
         rate_threshold = 0.5
 
-        for i, rate in enumerate(temp_rate):
-            if abs(rate) < rate_threshold:
-                if current_type != "isothermal":
-                    segments.append(
-                        {"type": current_type, "rate": current_rate, "start_idx": i}
-                    )
-                    current_type = "isothermal"
-            elif rate > rate_threshold:
-                if current_type != "heating":
-                    segments.append(
-                        {"type": current_type, "rate": current_rate, "start_idx": i}
-                    )
-                    current_type = "heating"
-                    current_rate = rate * 60  # Convert to K/min
-            else:  # rate < -rate_threshold
-                if current_type != "cooling":
-                    segments.append(
-                        {"type": current_type, "rate": current_rate, "start_idx": i}
-                    )
-                    current_type = "cooling"
-                    current_rate = rate * 60  # Convert to K/min
-
-        # Add final segment
-        segments.append(
-            {"type": current_type, "rate": current_rate, "start_idx": len(temperature)}
+        labels = np.where(
+            smoothed_rate > rate_threshold,
+            "heating",
+            np.where(smoothed_rate < -rate_threshold, "cooling", "isothermal"),
         )
 
-        # Analyze program type
-        heating_rates = [s["rate"] for s in segments if s["type"] == "heating"]
-        cooling_rates = [s["rate"] for s in segments if s["type"] == "cooling"]
-        n_isothermal = sum(1 for s in segments if s["type"] == "isothermal")
-        n_heating = len(heating_rates)
-        n_cooling = len(cooling_rates)
+        def _runs(lbl: NDArray[Any]) -> Tuple[List[int], List[int]]:
+            boundaries = np.flatnonzero(lbl[1:] != lbl[:-1]) + 1
+            return (
+                [0, *boundaries.tolist()],
+                [*boundaries.tolist(), len(lbl)],
+            )
 
-        program_type: str
-        if n_isothermal > n_heating + n_cooling:
-            program_type = "stepped"
-        elif n_cooling > 0:
+        # Merge the shortest run below min_segment_duration into its preceding
+        # run (the following one for the first run) until none remain
+        starts, ends = _runs(labels)
+        while len(starts) > 1:
+            durations = [time[e - 1] - time[st] for st, e in zip(starts, ends)]
+            shortest = int(np.argmin(durations))
+            if durations[shortest] >= min_segment_duration:
+                break
+            neighbour = shortest - 1 if shortest > 0 else 1
+            labels[starts[shortest] : ends[shortest]] = labels[starts[neighbour]]
+            starts, ends = _runs(labels)
+
+        segments: List[Dict[str, Union[str, float, int]]] = [
+            {
+                "type": str(labels[a]),
+                "rate": float(np.mean(temp_rate[a:b])),
+                "start_idx": int(a),
+                "end_idx": int(b),
+            }
+            for a, b in zip(starts, ends)
+        ]
+
+        types = [seg["type"] for seg in segments]
+        n_isothermal = types.count("isothermal")
+        n_heating = types.count("heating")
+        n_cooling = types.count("cooling")
+
+        # Isothermal holds between two ramps indicate a stepped program;
+        # leading/trailing equilibration holds do not.
+        n_interior_isothermal = types[1:-1].count("isothermal")
+
+        if n_cooling > 0 and n_heating > 0:
             program_type = "cyclic"
+        elif n_interior_isothermal > 0:
+            program_type = "stepped"
         else:
             program_type = "continuous"
+
+        def _mean_rate(kind: str) -> float:
+            rates = [float(seg["rate"]) for seg in segments if seg["type"] == kind]
+            return float(np.mean(rates)) if rates else float("nan")
 
         return {
             "type": program_type,
             "segments": segments,
-            "avg_heating_rate": float(np.mean(heating_rates) if heating_rates else 0.0),
-            "avg_cooling_rate": float(np.mean(cooling_rates) if cooling_rates else 0.0),
+            "avg_heating_rate": _mean_rate("heating"),
+            "avg_cooling_rate": _mean_rate("cooling"),
             "n_isothermal": n_isothermal,
             "n_heating": n_heating,
             "n_cooling": n_cooling,
@@ -631,7 +657,6 @@ class DataValidator:
 
     @staticmethod
     def check_sampling_rate(
-        temperature: NDArray[np.float64],
         time: NDArray[np.float64],
         tolerance: float = 0.1,
     ) -> float:
@@ -639,20 +664,20 @@ class DataValidator:
         Check if sampling is uniform.
 
         Args:
-            temperature: Temperature array
             time: Time array
-            tolerance: Allowed deviation from uniform sampling
+            tolerance: Allowed relative deviation from the mean sampling interval
 
         Returns:
-            Average sampling rate if uniform, raises ValueError otherwise
+            Mean sampling interval if uniform, raises ValueError otherwise
         """
-        dt = np.diff(time)
-        if len(dt) == 0:
-            return 0.0
+        if len(time) < 2:
+            raise ValueError("Time array must have at least 2 points")
 
+        dt = np.diff(time)
         mean_dt = np.mean(dt)
-        if mean_dt == 0:
-            return 0.0  # Avoid division by zero if time is constant
+
+        if mean_dt <= 0:
+            raise ValueError("Time must be increasing")
 
         if np.any(np.abs(dt - mean_dt) / mean_dt > tolerance):
             raise ValueError("Non-uniform time sampling detected")
