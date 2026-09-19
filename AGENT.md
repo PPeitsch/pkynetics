@@ -27,7 +27,7 @@ When in doubt, ask the user which environment they are working on.
 | Tool | Purpose | Configuration |
 |------|---------|---------------|
 | **hatch** | Build system | `pyproject.toml` |
-| **black** | Code formatting | `line-length = 88`, `target-version = ["py39"]` |
+| **black** | Code formatting | `line-length = 88`, `target-version = ["py310"]` |
 | **isort** | Import sorting | `profile = "black"`, `line_length = 88` |
 | **mypy** | Type checking | Strict mode, see `pyproject.toml` |
 | **pytest** | Testing | With `pytest-cov` for coverage |
@@ -35,7 +35,7 @@ When in doubt, ask the user which environment they are working on.
 
 ## Python Version Support
 
-- Python 3.9, 3.10, 3.11
+- Python 3.10, 3.11, 3.12, 3.13
 
 ## Development Setup
 
@@ -93,11 +93,15 @@ The GitHub Actions workflow (`.github/workflows/test-and-publish.yaml`) runs:
    - isort --check-only
    - mypy
 
-2. **Tests** (Python 3.9, 3.10, 3.11):
+2. **Tests** (Python 3.10, 3.11, 3.12, 3.13):
    - pytest with coverage
 
-3. **Publish** (on tag push `v*`):
-   - Build and publish to PyPI
+3. **Package** (every push and PR):
+   - `python -m build` (sdist, then the wheel from the sdist)
+   - Check the sdist contains the code; run the tests against the installed wheel
+
+4. **Publish** (on tag push `v*`):
+   - Publish the distributions tested in the Package job to PyPI
 
 ## Commit Message Format
 
