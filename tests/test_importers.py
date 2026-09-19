@@ -1,4 +1,4 @@
-"""Unit tests for tga_importer and dsc_importer functions."""
+"""Unit tests for the tga, dsc and dilatometry importers."""
 
 import os
 import tempfile
@@ -7,7 +7,8 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from pkynetics.data_import import dsc_importer, tga_importer
+import pkynetics
+from pkynetics.data_import import dilatometry_importer, dsc_importer, tga_importer
 
 
 class TestImporters(unittest.TestCase):
@@ -142,9 +143,10 @@ if __name__ == "__main__":
     unittest.main()
 
 
-DATA_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "src", "pkynetics", "data", "dsc"
-)
+# Bundled data from the imported package, so the tests also check that the
+# data files ship in the built distribution
+PKG_DATA_DIR = os.path.join(os.path.dirname(pkynetics.__file__), "data")
+DATA_DIR = os.path.join(PKG_DATA_DIR, "dsc")
 
 
 class TestEncodingDetection(unittest.TestCase):
@@ -229,3 +231,24 @@ class TestSetaramHeader(unittest.TestCase):
         np.testing.assert_allclose(
             data["heat_flow"], [-17.2, -18.2, -19.2, -20.2, -21.2]
         )
+
+
+class TestDilatometryImporter(unittest.TestCase):
+    def test_bundled_files_with_decimal_comma(self):
+        """Both bundled .asc exports use a decimal comma (pandas 3: dtype "str")."""
+        cases = {
+            "sample_dilatometry_data.asc": (73.03217316, 630.20642090),
+            "ejemplo_enfriamiento.asc": (2410.00341797, 1049.95727539),
+        }
+        for name, (time0, temp0) in cases.items():
+            with self.subTest(file=name):
+                data = dilatometry_importer(os.path.join(PKG_DATA_DIR, name))
+                self.assertEqual(
+                    set(data),
+                    {"time", "temperature", "relative_change", "differential_change"},
+                )
+                for values in data.values():
+                    self.assertEqual(values.dtype, np.float64)
+                    self.assertTrue(np.all(np.isfinite(values)))
+                self.assertAlmostEqual(data["time"][0], time0)
+                self.assertAlmostEqual(data["temperature"][0], temp0)
