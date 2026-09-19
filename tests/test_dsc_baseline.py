@@ -51,9 +51,9 @@ def complex_data():
     temperature, _ = generate_test_data()
     # Create non-linear baseline
     baseline = 0.001 * (temperature - 300) + 0.00001 * (temperature - 300) ** 2
-    # Add multiple peaks
-    peak1 = generate_test_peak(temperature, 350, 0.8, 15.0)
-    peak2 = generate_test_peak(temperature, 450, 1.2, 25.0)
+    # Add multiple peaks, leaving the first/last 10% free of events
+    peak1 = generate_test_peak(temperature, 360, 0.8, 15.0)
+    peak2 = generate_test_peak(temperature, 430, 1.2, 20.0)
     heat_flow = baseline + peak1 + peak2
     return {
         "temperature": temperature,
@@ -71,9 +71,7 @@ def test_linear_baseline(baseline_corrector, simple_data):
     )
 
     assert isinstance(result, BaselineResult)
-    np.testing.assert_allclose(
-        result.baseline, simple_data["baseline"], rtol=0.1, atol=1e-3
-    )
+    np.testing.assert_allclose(result.baseline, simple_data["baseline"], atol=1e-2)
     assert "slope" in result.parameters
     assert "intercept" in result.parameters
 
@@ -88,11 +86,9 @@ def test_polynomial_baseline(baseline_corrector, complex_data):
     )
 
     assert isinstance(result, BaselineResult)
-
-    # Assert with a more realistic tolerance, as the default fit won't be perfect.
-    np.testing.assert_allclose(
-        result.baseline, complex_data["baseline"], rtol=0.5, atol=1
-    )
+    np.testing.assert_allclose(result.baseline, complex_data["baseline"], atol=1e-2)
+    assert "coefficients" in result.parameters
+    assert len(result.parameters["coefficients"]) == 3  # degree 2 + 1
 
 
 def test_spline_baseline(baseline_corrector, complex_data):
@@ -126,8 +122,10 @@ def test_rubberband_baseline(baseline_corrector, simple_data):
 
     assert isinstance(result, BaselineResult)
     assert "n_hull_points" in result.parameters
-    # Baseline should be below or equal to data points
-    assert np.all(result.baseline <= simple_data["heat_flow"] + 1e-9)
+    # Baseline should be below or equal to data points (up to smoothing error)
+    assert np.all(result.baseline <= simple_data["heat_flow"] + 1e-6)
+    # ...and follow the linear baseline instead of cutting over the peak
+    np.testing.assert_allclose(result.baseline, simple_data["baseline"], atol=1e-2)
 
 
 def test_auto_baseline(baseline_corrector, complex_data):
@@ -137,7 +135,10 @@ def test_auto_baseline(baseline_corrector, complex_data):
     )
 
     assert isinstance(result, BaselineResult)
-    assert result.method in ["linear", "polynomial", "spline", "asymmetric"]
+    assert result.method in ["linear", "polynomial"]
+    assert "method" not in result.parameters
+    # Within the overlap of the two peak tails in the valley between them
+    np.testing.assert_allclose(result.baseline, complex_data["baseline"], atol=0.05)
 
 
 # Region detection and optimization tests
@@ -208,7 +209,7 @@ def test_mismatched_arrays(baseline_corrector):
     heat_flow = np.array([1, 2])
 
     with pytest.raises(ValueError, match="must have same length"):
-        baseline_corrector.correct(temperature, heat_flow, method="linear")
+        baseline_corrector.correct(temperature, heat_flow)
 
 
 def test_insufficient_data(baseline_corrector):
@@ -217,7 +218,7 @@ def test_insufficient_data(baseline_corrector):
     heat_flow = np.array([1, 2, 3])
 
     with pytest.raises(ValueError, match="Data length must be at least"):
-        baseline_corrector.correct(temperature, heat_flow, method="linear")
+        baseline_corrector.correct(temperature, heat_flow)
 
 
 # Integration tests
@@ -241,7 +242,7 @@ def test_full_baseline_workflow(baseline_corrector, complex_data):
     assert isinstance(result, BaselineResult)
     assert result.regions == regions
     assert len(result.baseline) == len(complex_data["heat_flow"])
-    assert all(metric >= 0 for metric in result.quality_metrics.values())
+    assert all(metric > 0 for metric in result.quality_metrics.values())
 
 
 def test_baseline_reproducibility(baseline_corrector, simple_data):
@@ -256,3 +257,44 @@ def test_baseline_reproducibility(baseline_corrector, simple_data):
 
     np.testing.assert_array_equal(result1.baseline, result2.baseline)
     assert result1.parameters == result2.parameters
+
+
+def test_quiet_regions_avoid_peaks(baseline_corrector, complex_data):
+    """Peak apexes are locally flat but must not be taken as baseline."""
+    temperature = complex_data["temperature"]
+    peak_signal = sum(complex_data["peaks"])
+    regions = baseline_corrector._find_quiet_regions(
+        temperature, complex_data["heat_flow"]
+    )
+
+    for start, end in regions:
+        mask = (temperature >= start) & (temperature <= end)
+        # Only the overlapping peak tails between the two peaks remain
+        assert np.max(peak_signal[mask]) < 0.05
+
+
+def test_spline_baseline_accuracy(baseline_corrector, complex_data):
+    """Spline through the detected quiet regions recovers the baseline."""
+    result = baseline_corrector.correct(
+        complex_data["temperature"], complex_data["heat_flow"], method="spline"
+    )
+    np.testing.assert_allclose(result.baseline, complex_data["baseline"], atol=0.05)
+
+
+def test_asymmetric_baseline_accuracy(baseline_corrector, simple_data):
+    """ALS keeps the peak and does not depend on the number of points.
+
+    ALS is approximate (~5% of the peak height here); the regression guarded
+    against is the baseline absorbing the whole peak (error ~1.0).
+    """
+    result = baseline_corrector.correct(
+        simple_data["temperature"], simple_data["heat_flow"], method="asymmetric"
+    )
+    np.testing.assert_allclose(result.baseline, simple_data["baseline"], atol=0.075)
+
+    # Same curve sampled 20x more densely: same baseline, reasonable memory
+    temperature = np.linspace(300, 500, 20000)
+    baseline = 0.001 * (temperature - 300)
+    heat_flow = baseline + generate_test_peak(temperature, 400, 1.0, 20.0)
+    result = baseline_corrector.correct(temperature, heat_flow, method="asymmetric")
+    np.testing.assert_allclose(result.baseline, baseline, atol=0.075)
