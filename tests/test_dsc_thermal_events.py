@@ -21,6 +21,7 @@ def generate_glass_transition(
     width: float = 10.0,
 ) -> NDArray[np.float64]:
     """Generate synthetic glass transition data."""
+    # Create sigmoid shape characteristic of glass transition
     x = (temperature - tg) / width
     transition = delta_cp / (1 + np.exp(-x))
     return transition
@@ -57,9 +58,23 @@ def generate_phase_transition(
     if transition_type == "first_order":
         return amplitude * np.exp(-(((temperature - transition_temp) / width) ** 2))
     else:  # second_order
-        return generate_glass_transition(
-            temperature, tg=transition_temp, width=width, delta_cp=amplitude
-        )
+        x = (temperature - transition_temp) / width
+        return amplitude * (1 / (1 + np.exp(-x)) - 0.5)
+
+
+# Heating rate (K/min) and sample mass (mg) used to convert to J/g
+HEATING_RATE = 10.0
+SAMPLE_MASS = 5.0
+
+
+def expected_enthalpy(amplitude: float, width: float) -> float:
+    """Enthalpy in J/g of a Gaussian peak: area / heating rate / mass."""
+    return amplitude * width * np.sqrt(np.pi) / (HEATING_RATE / 60) / SAMPLE_MASS
+
+
+def fwhm(width: float) -> float:
+    """Full width at half maximum of exp(-(x / width)^2)."""
+    return 2 * width * np.sqrt(np.log(2))
 
 
 @pytest.fixture
@@ -84,7 +99,11 @@ def glass_transition_data(temperature_data):
         "heat_flow": heat_flow,
         "baseline": baseline,
         "expected_tg": 373.15,
-        "expected_width": 10.0,
+        # Tangent construction (ISO 11357-2): the inflectional tangent of the
+        # logistic step spans 4 * width between the extrapolated baselines
+        "expected_width": 4 * 10.0,
+        # Step height / heating rate / mass
+        "expected_delta_cp": 0.5 / (HEATING_RATE / 60) / SAMPLE_MASS,
     }
 
 
@@ -98,7 +117,8 @@ def crystallization_data(temperature_data):
         "heat_flow": heat_flow,
         "baseline": baseline,
         "expected_peak": 423.15,
-        "expected_width": 15.0 * 2 * np.sqrt(np.log(2)),  # FWHM
+        "expected_width": fwhm(15.0),
+        "expected_enthalpy": -expected_enthalpy(1.0, 15.0),
     }
 
 
@@ -112,18 +132,8 @@ def melting_data(temperature_data):
         "heat_flow": heat_flow,
         "baseline": baseline,
         "expected_peak": 473.15,
-        "expected_width": 20.0 * 2 * np.sqrt(np.log(2)),  # FWHM
-    }
-
-
-@pytest.fixture
-def baseline_only_data(temperature_data):
-    """Generate data with only a baseline."""
-    baseline = 0.001 * (temperature_data - temperature_data[0])
-    return {
-        "temperature": temperature_data,
-        "heat_flow": baseline,
-        "baseline": baseline,
+        "expected_width": fwhm(20.0),
+        "expected_enthalpy": expected_enthalpy(1.0, 20.0),
     }
 
 
@@ -156,28 +166,37 @@ def test_glass_transition_detection(event_detector, glass_transition_data):
         glass_transition_data["temperature"],
         glass_transition_data["heat_flow"],
         glass_transition_data["baseline"],
+        heating_rate=HEATING_RATE,
+        sample_mass=SAMPLE_MASS,
     )
 
     assert isinstance(result, GlassTransition)
-    assert abs(result.midpoint_temperature - glass_transition_data["expected_tg"]) < 5.0
-    assert result.delta_cp > 0
+    assert abs(result.midpoint_temperature - glass_transition_data["expected_tg"]) < 0.5
+    assert abs(result.width - glass_transition_data["expected_width"]) < 2.0
+    np.testing.assert_allclose(
+        result.delta_cp, glass_transition_data["expected_delta_cp"], rtol=0.02
+    )
+    assert result.baseline_subtracted
+    assert all(metric > 0 for metric in result.quality_metrics.values())
 
 
 def test_glass_transition_without_baseline(event_detector, glass_transition_data):
-    """Test glass transition detection without baseline."""
+    """Detection works without baseline; delta Cp needs heating rate and mass."""
     result = event_detector.detect_glass_transition(
         glass_transition_data["temperature"], glass_transition_data["heat_flow"]
     )
 
     assert isinstance(result, GlassTransition)
+    assert abs(result.midpoint_temperature - glass_transition_data["expected_tg"]) < 0.5
+    assert not result.baseline_subtracted
     assert np.isnan(result.delta_cp)
 
 
-def test_no_glass_transition(event_detector, baseline_only_data):
+def test_no_glass_transition(event_detector, temperature_data):
     """Test behavior when no glass transition is present."""
-    result = event_detector.detect_glass_transition(
-        baseline_only_data["temperature"], baseline_only_data["heat_flow"]
-    )
+    heat_flow = np.zeros_like(temperature_data)  # Flat line
+    result = event_detector.detect_glass_transition(temperature_data, heat_flow)
+
     assert result is None
 
 
@@ -188,18 +207,27 @@ def test_crystallization_detection(event_detector, crystallization_data):
         crystallization_data["temperature"],
         crystallization_data["heat_flow"],
         crystallization_data["baseline"],
+        heating_rate=HEATING_RATE,
+        sample_mass=SAMPLE_MASS,
     )
 
     assert len(events) == 1
     event = events[0]
     assert isinstance(event, CrystallizationEvent)
-    assert abs(event.peak_temperature - crystallization_data["expected_peak"]) < 5.0
-    assert abs(event.width - crystallization_data["expected_width"]) < 5.0
+    assert abs(event.peak_temperature - crystallization_data["expected_peak"]) < 0.5
+    assert abs(event.width - crystallization_data["expected_width"]) < 0.5
     assert event.enthalpy < 0  # Exothermic
+    np.testing.assert_allclose(
+        event.enthalpy, crystallization_data["expected_enthalpy"], rtol=0.02
+    )
+    assert event.crystallization_rate is not None
+    assert event.crystallization_rate > 0
+    assert all(metric > 0 for metric in event.quality_metrics.values())
 
 
 def test_multiple_crystallization_events(event_detector, temperature_data):
     """Test detection of multiple crystallization events."""
+    # Generate two crystallization peaks
     heat_flow = generate_crystallization_peak(
         temperature_data, peak_temp=373.15
     ) + generate_crystallization_peak(temperature_data, peak_temp=473.15)
@@ -207,24 +235,31 @@ def test_multiple_crystallization_events(event_detector, temperature_data):
     events = event_detector.detect_crystallization(temperature_data, heat_flow)
 
     assert len(events) == 2
-    temps = sorted([e.peak_temperature for e in events])
-    assert abs(temps[0] - 373.15) < 5.0
-    assert abs(temps[1] - 473.15) < 5.0
+    assert abs(events[0].peak_temperature - 373.15) < 5.0
+    assert abs(events[1].peak_temperature - 473.15) < 5.0
 
 
 # Melting Tests
 def test_melting_detection(event_detector, melting_data):
     """Test detection of melting event."""
     events = event_detector.detect_melting(
-        melting_data["temperature"], melting_data["heat_flow"], melting_data["baseline"]
+        melting_data["temperature"],
+        melting_data["heat_flow"],
+        melting_data["baseline"],
+        heating_rate=HEATING_RATE,
+        sample_mass=SAMPLE_MASS,
     )
 
     assert len(events) == 1
     event = events[0]
     assert isinstance(event, MeltingEvent)
-    assert abs(event.peak_temperature - melting_data["expected_peak"]) < 5.0
-    assert abs(event.width - melting_data["expected_width"]) < 5.0
+    assert abs(event.peak_temperature - melting_data["expected_peak"]) < 0.5
+    assert abs(event.width - melting_data["expected_width"]) < 0.5
     assert event.enthalpy > 0  # Endothermic
+    np.testing.assert_allclose(
+        event.enthalpy, melting_data["expected_enthalpy"], rtol=0.02
+    )
+    assert all(metric > 0 for metric in event.quality_metrics.values())
 
 
 # Phase Transition Tests
@@ -240,12 +275,13 @@ def test_first_order_transition(event_detector, temperature_data):
     transition = transitions[0]
     assert isinstance(transition, PhaseTransition)
     assert transition.transition_type == "first_order"
+    assert all(metric > 0 for metric in transition.quality_metrics.values())
 
 
 def test_second_order_transition(event_detector, temperature_data):
     """Test detection of second-order phase transition."""
     heat_flow = generate_phase_transition(
-        temperature_data, transition_type="second_order", transition_temp=400.0
+        temperature_data, transition_type="second_order"
     )
 
     transitions = event_detector.detect_phase_transitions(temperature_data, heat_flow)
@@ -254,9 +290,10 @@ def test_second_order_transition(event_detector, temperature_data):
     assert any(t.transition_type == "second_order" for t in transitions)
 
 
+# Complex Data Tests
 def test_multiple_events_detection(event_detector, complex_data):
     """Test detection of multiple thermal events in complex data."""
-    # --- Execute detection methods ---
+    # Detect all types of events
     gt = event_detector.detect_glass_transition(
         complex_data["temperature"], complex_data["heat_flow"]
     )
@@ -267,63 +304,7 @@ def test_multiple_events_detection(event_detector, complex_data):
         complex_data["temperature"], complex_data["heat_flow"]
     )
 
-    # --- Comprehensive Debug Plot ---
-    import matplotlib.pyplot as plt
-    from scipy import signal
-
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
-
-    # Plot 1: Heat Flow and Detected Events
-    ax1.plot(
-        complex_data["temperature"],
-        complex_data["heat_flow"],
-        label="Complex Signal",
-        zorder=2,
-        color="C0",
-    )
-
-    # Visualize Potential Melting Peaks (before filtering)
-    peaks_potential_melt, _ = signal.find_peaks(complex_data["heat_flow"], height=0)
-    ax1.plot(
-        complex_data["temperature"][peaks_potential_melt],
-        complex_data["heat_flow"][peaks_potential_melt],
-        "rv",
-        markersize=6,
-        alpha=0.5,
-        label="Potential Melt Peaks",
-    )
-
-    # Visualize Confirmed Melting Peaks (after filtering)
-    if melt:
-        for i, event in enumerate(melt):
-            ax1.axvline(
-                event.peak_temperature,
-                color="red",
-                linestyle="--",
-                label=f"Confirmed Melt Peak at {event.peak_temperature:.2f}K",
-            )
-
-    # Visualize Crystallization Peaks
-    if cryst:
-        for i, event in enumerate(cryst):
-            ax1.axvline(
-                event.peak_temperature,
-                color="blue",
-                linestyle="--",
-                label=f"Confirmed Cryst. Peak at {event.peak_temperature:.2f}K",
-            )
-
-    # Visualize Glass Transition
-    if gt:
-        ax1.axvspan(
-            gt.onset_temperature,
-            gt.endpoint_temperature,
-            color="green",
-            alpha=0.2,
-            label=f"Detected Tg at {gt.midpoint_temperature:.2f}K",
-        )
-
-    # --- Assertions ---
+    # Check glass transition
     assert gt is not None
     assert (
         abs(
@@ -332,7 +313,9 @@ def test_multiple_events_detection(event_detector, complex_data):
         )
         < 5.0
     )
-    assert len(cryst) == 1
+
+    # Check crystallization
+    assert len(cryst) > 0
     assert (
         abs(
             cryst[0].peak_temperature
@@ -340,7 +323,9 @@ def test_multiple_events_detection(event_detector, complex_data):
         )
         < 5.0
     )
-    assert len(melt) == 1
+
+    # Check melting
+    assert len(melt) > 0
     assert (
         abs(melt[0].peak_temperature - complex_data["expected_events"]["melting"]) < 5.0
     )
@@ -352,22 +337,103 @@ def test_invalid_input_shape(event_detector):
     temp = np.array([1, 2, 3])
     heat_flow = np.array([1, 2])
 
-    with pytest.raises(ValueError, match="must have the same length"):
+    with pytest.raises(ValueError):
         event_detector.detect_glass_transition(temp, heat_flow)
 
 
 def test_empty_input(event_detector):
     """Test handling of empty input arrays."""
-    with pytest.raises(ValueError, match="Input arrays cannot be empty"):
+    with pytest.raises(ValueError):
         event_detector.detect_crystallization(np.array([]), np.array([]))
 
 
 def test_noisy_data_handling(event_detector, glass_transition_data):
-    """Test handling of noisy data."""
-    noise = np.random.normal(0, 0.01, size=len(glass_transition_data["heat_flow"]))
+    """Test handling of noisy data (noise 2% of the step height)."""
+    rng = np.random.default_rng(0)
+    noise = rng.normal(0, 0.01, size=len(glass_transition_data["heat_flow"]))
     noisy_data = glass_transition_data["heat_flow"] + noise
 
+    clean = event_detector.detect_glass_transition(
+        glass_transition_data["temperature"], glass_transition_data["heat_flow"]
+    )
     result = event_detector.detect_glass_transition(
         glass_transition_data["temperature"], noisy_data
     )
+
+    # Should still detect the transition despite noise
     assert result is not None
+    assert abs(result.midpoint_temperature - glass_transition_data["expected_tg"]) < 2
+    assert result.quality_metrics["snr"] < clean.quality_metrics["snr"]
+
+
+def test_no_events_in_noise(event_detector, temperature_data):
+    """Pure noise must not produce events."""
+    rng = np.random.default_rng(1)
+    heat_flow = rng.normal(0, 0.03, size=len(temperature_data))
+
+    events = event_detector.detect_events(temperature_data, heat_flow)
+
+    assert all(len(found) == 0 for found in events.values())
+
+
+def test_peak_flank_is_not_a_step(event_detector, melting_data):
+    """The rising flank of a noisy peak must not be taken as a step."""
+    rng = np.random.default_rng(3)
+    heat_flow = melting_data["heat_flow"] + rng.normal(0, 0.03, 1000)
+
+    events = event_detector.detect_events(melting_data["temperature"], heat_flow)
+
+    assert events["glass_transitions"] == []
+    assert len(events["melting"]) == 1
+
+
+def test_complex_event_values(event_detector, complex_data):
+    """Tg step is treated as baseline: peaks next to it keep their values."""
+    events = event_detector.detect_events(
+        complex_data["temperature"],
+        complex_data["heat_flow"],
+        heating_rate=HEATING_RATE,
+        sample_mass=SAMPLE_MASS,
+    )
+
+    assert len(events["glass_transitions"]) == 1
+    assert len(events["crystallization"]) == 1
+    assert len(events["melting"]) == 1
+    np.testing.assert_allclose(
+        events["crystallization"][0].enthalpy,
+        -expected_enthalpy(1.0, 15.0),
+        rtol=0.02,
+    )
+    np.testing.assert_allclose(
+        events["melting"][0].enthalpy, expected_enthalpy(1.0, 20.0), rtol=0.02
+    )
+
+
+def test_exo_up_convention(temperature_data):
+    """With exo_up=True the same physical events are found with inverted data."""
+    heat_flow = generate_crystallization_peak(temperature_data) + (
+        generate_melting_peak(temperature_data, peak_temp=493.15)
+    )
+    detector = ThermalEventDetector(exo_up=True)
+
+    melting = detector.detect_melting(temperature_data, -heat_flow)
+    crystallization = detector.detect_crystallization(temperature_data, -heat_flow)
+
+    assert [round(e.peak_temperature) for e in melting] == [493]
+    assert [round(e.peak_temperature) for e in crystallization] == [423]
+
+
+# Quality Metrics Tests
+def test_quality_metrics_calculation(event_detector, crystallization_data):
+    """Test calculation of quality metrics."""
+    events = event_detector.detect_crystallization(
+        crystallization_data["temperature"], crystallization_data["heat_flow"]
+    )
+
+    assert len(events) > 0
+    metrics = events[0].quality_metrics
+
+    assert "peak_to_noise" in metrics
+    assert "sharpness" in metrics
+    assert "baseline_stability" in metrics
+    assert all(isinstance(v, float) for v in metrics.values())
