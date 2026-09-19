@@ -4,6 +4,7 @@ import logging
 from typing import List, Tuple
 
 import numpy as np
+from scipy.constants import R
 from scipy.stats import linregress
 
 logger = logging.getLogger(__name__)
@@ -24,8 +25,11 @@ def kas_method(
 
     Returns:
         Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-            - Activation energy for each conversion degree (E_a)
-            - Pre-exponential factor for each conversion degree (A)
+            - Activation energy for each conversion degree (E_a, J/mol)
+            - Apparent pre-exponential factor A/g(alpha) for each conversion
+              degree, in the time unit of the heating rates (1/min for K/min).
+              Model-free methods cannot separate A from the integral reaction
+              model g(alpha): multiply by g(alpha) to get A.
             - Conversion levels used for the analysis
             - R-squared values for each linear regression
 
@@ -33,6 +37,7 @@ def kas_method(
         ValueError: If input data is inconsistent or invalid.
 
     Note:
+        Linearizes ln(beta/T^2) = ln(A R / (E_a g(alpha))) - E_a / (R T).
         This method assumes that the Arrhenius equation and the integral approximation used in
         the KAS method are valid for the reaction being studied.
     """
@@ -71,14 +76,14 @@ def kas_method(
             T = temp[idx]
 
             y_data.append(np.log(beta / T**2))
-            x_data.append(1 / (T * 8.314))  # 1 / (R * T), where R is the gas constant
+            x_data.append(1 / (R * T))
 
         # Perform linear regression
         slope, intercept, r_value, _, _ = linregress(x_data, y_data)
 
-        # Calculate activation energy and pre-exponential factor
-        E_a = -slope * 8.314  # E_a = -slope * R
-        A = np.exp(intercept + np.log(E_a / 8.314))  # Approximation for A
+        # x is already 1/(R T), so the slope is -E_a
+        E_a = -slope
+        A = np.exp(intercept) * E_a / R  # A / g(alpha)
 
         activation_energy.append(E_a)
         pre_exp_factor.append(A)

@@ -4,57 +4,41 @@ import unittest
 
 import numpy as np
 
-from pkynetics.model_free_methods.ofw_method import ofw_method
+from pkynetics.model_free_methods import ofw_method
+from pkynetics.synthetic_data import generate_basic_kinetic_data
 
 
 class TestOFWMethod(unittest.TestCase):
     def setUp(self):
-        # Generate sample data
+        # Non-isothermal first-order data, integrated over temperature
         self.e_a_true = 150000  # J/mol
-        self.a_true = 1e15  # 1/s
+        self.a_true = 1e12  # 1/s
         self.heating_rates = [5, 10, 20, 40]  # K/min
-        self.r = 8.314  # Gas constant in J/(mol·K)
 
-        self.temperature_data = []
-        self.conversion_data = []
-
-        for beta in self.heating_rates:
-            t = np.linspace(400, 800, 1000)
-            time = (t - t[0]) / beta
-            k = self.a_true * np.exp(-self.e_a_true / (self.r * t))
-            alpha = 1 - np.exp(-k * time)
-
-            self.temperature_data.append(t)
-            self.conversion_data.append(alpha)
+        self.temperature_data, self.conversion_data = generate_basic_kinetic_data(
+            self.e_a_true,
+            self.a_true,
+            np.array(self.heating_rates, dtype=np.float64),
+            (350, 700),
+            num_points=5000,
+        )
 
     def test_ofw_method_accuracy(self):
         activation_energy, pre_exp_factor, conv_levels, r_squared = ofw_method(
             self.temperature_data, self.conversion_data, self.heating_rates
         )
 
-        # Check if mean activation_energy is within a reasonable range of true e_a
-        relative_error_e_a = (
-            abs(np.nanmean(activation_energy) - self.e_a_true) / self.e_a_true
-        )
-        self.assertLess(relative_error_e_a, 0.25)  # Allow for up to 25% relative error
+        # Doyle's approximation overestimates E_a by about 1 % at E/RT ~ 33
+        np.testing.assert_allclose(activation_energy, self.e_a_true, rtol=0.02)
+        self.assertGreater(np.min(r_squared), 0.999)
 
-        # Check if mean ln(pre_exp_factor) is within a reasonable range of true ln(a)
-        ln_a_estimated = np.nanmean(np.log(pre_exp_factor))
-        ln_a_true = np.log(self.a_true)
-        relative_error_ln_a = abs(ln_a_estimated - ln_a_true) / abs(ln_a_true)
-        self.assertLess(relative_error_ln_a, 0.35)  # Allow for up to 35% relative error
+        # pre_exp_factor is A/g(alpha) in 1/min; first order: g = -ln(1 - alpha)
+        a_estimated = pre_exp_factor * -np.log(1 - conv_levels) / 60
+        np.testing.assert_allclose(np.log(a_estimated), np.log(self.a_true), atol=0.5)
 
-        # Check if R-squared values are reasonably high
-        self.assertGreater(np.nanmean(r_squared), 0.9)
-
-        # Print diagnostic information
-        print(f"True E_a: {self.e_a_true}")
-        print(f"Mean estimated E_a: {np.nanmean(activation_energy)}")
-        print(f"Relative error E_a: {relative_error_e_a}")
-        print(f"True ln(A): {ln_a_true}")
-        print(f"Mean estimated ln(A): {ln_a_estimated}")
-        print(f"Relative error ln(A): {relative_error_ln_a}")
-        print(f"Mean R-squared: {np.nanmean(r_squared)}")
+    def test_ofw_method_exported(self):
+        """The package exports the function, not the module of the same name."""
+        self.assertTrue(callable(ofw_method))
 
     def test_ofw_method_with_noise(self):
         # Add noise to conversion data
