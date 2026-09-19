@@ -236,7 +236,7 @@ class SignalProcessor:
                 # Replace outlier with local median
                 cleaned_data[i] = np.median(local_data[local_mask])
 
-        return cleaned_data
+        return np.asarray(cleaned_data, dtype=np.float64)
 
     def filter_signal(
         self,

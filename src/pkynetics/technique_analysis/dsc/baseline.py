@@ -165,7 +165,7 @@ class BaselineCorrector:
             raise ValueError("Not enough points in baseline regions for linear fit")
 
         coeffs = np.polyfit(temp_points, heat_points, 1)
-        baseline = np.polyval(coeffs, temperature)
+        baseline = np.asarray(np.polyval(coeffs, temperature), dtype=np.float64)
 
         params = {"slope": float(coeffs[0]), "intercept": float(coeffs[1])}
         return baseline, params
@@ -203,7 +203,7 @@ class BaselineCorrector:
             raise ValueError(f"Not enough points for polynomial degree {degree}")
 
         coeffs = np.polyfit(temp_points, heat_points, degree)
-        baseline = np.polyval(coeffs, temperature)
+        baseline = np.asarray(np.polyval(coeffs, temperature), dtype=np.float64)
 
         params = {"coefficients": coeffs.tolist(), "degree": degree}
         return baseline, params
@@ -317,7 +317,7 @@ class BaselineCorrector:
             bic = n * np.log(rss / n) + n_params * np.log(n)
             if bic < best_bic:
                 best_bic = bic
-                baseline = np.polyval(coeffs, temperature)
+                baseline = np.asarray(np.polyval(coeffs, temperature), dtype=np.float64)
                 if degree == 1:
                     params: Dict = {
                         "method": "linear",
