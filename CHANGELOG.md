@@ -6,6 +6,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [v0.5.0] - 2026-09-19
+
+### Added
+- DSC visualization (`plot_dsc_curve`, `plot_thermal_events`, `plot_cp`, `plot_dsc_analysis`).
+- `reference_cp()`: NIST-JANAF Shomate reference data for sapphire and zinc, with valid ranges.
+- Importers read TA Instruments Universal Analysis text exports (detected automatically).
+- Examples: eicosane melting (TA data) and stepped Cp on the bundled Setaram runs.
+- CI builds the sdist and wheel on every push and PR and runs the tests against the installed wheel; releases publish exactly those files.
+- Tests for Coats-Redfern and the synthetic data generator; KAS, OFW and Kissinger tests check the recovered activation energy.
+
+### Changed
+- **Breaking:** Python 3.10 or later is required (3.9 is end of life). Tested on 3.10-3.13.
+- **Breaking:** `kissinger_method` takes peak temperatures in kelvin, like every other function (it took °C). Passing °C does not raise an error: add 273.15 first.
+- **Breaking:** `generate_basic_kinetic_data` integrates the rate equation over temperature, so the generated curves change (see Fixed).
+- KAS and OFW document their pre-exponential output as the apparent A/g(α).
+- Upper bounds on dependencies (`numpy<3`, `pandas<4`, `scipy<2`, `matplotlib<4`, `statsmodels<0.16`, `chardet<8`); `scikit-learn` and `seaborn` are no longer dependencies (unused).
+- **Breaking:** DSC enthalpies are in J/g and require `heating_rate` (K/min) and `sample_mass` (mg); they are NaN otherwise. Peak onset/endset follow the ISO 11357-1 extrapolated definition.
+- **Breaking:** `CpCalculator` STEPPED and MODULATED modes require the `time` array; the blank run is passed as `blank_heat_flow`; `exo_up` sets the sign convention.
+- **Breaking:** `StabilityMethod` has two members, `STATISTICAL` and `LINEAR_FIT`.
+- **Breaking:** `DataValidator.check_sampling_rate` takes only the time array; `detect_temperature_program` returns `end_idx` and NaN average rates for absent segment types.
+- `ThermalEventDetector.detect_events` always returns every key (empty lists) and accepts `heating_rate`, `sample_mass` and `exo_up`.
+- `DSCAnalyzer` finds peaks in both directions and reports enthalpies in J/g.
+- `pkynetics.technique_analysis` exports the `dsc` subpackage.
+
+### Fixed
+- The sdist contained no modules (every release since 0.4.5): installing from source gave an empty package.
+- KAS activation energy was multiplied by R (1245 kJ/mol for 150); OFW multiplied by Doyle's 1.052 instead of dividing (+11 %); Coats-Redfern returned kJ/mol labelled J/mol and a wrong pre-exponential factor.
+- `from pkynetics.model_free_methods import ofw_method` returned the module instead of the function.
+- `generate_basic_kinetic_data` used `1 - exp(-k(T)·t)` with A in 1/s and t in minutes instead of non-isothermal kinetics.
+- `dilatometry_importer` failed on decimal-comma files with pandas 3 and dropped the first data row.
+- Single-step Cp was 60x too small (heating rate in K/min); three-step Cp did not subtract the blank; the sapphire (+43%) and zinc (+21%) reference data were wrong.
+- Stepped Cp integrates the heat of each heating step (step method) instead of averaging heat flow.
+- Signal stability detectors: the enum exported by the package raised "Unknown stability detection method", and the detectors returned regions shorter than `min_points`.
+- Baselines: ALS used a dense N x N matrix (~14 GB for 19k points); `auto` always picked `linear` without regions; rubberband and quiet-region selection.
+- Temperature program detection compared K/s against a K/min threshold; `remove_outliers` produced NaN on flat regions.
+- Encoding detection: chardet 7 misdetects BOM-less UTF-16 and Latin-1 files, so the bundled sample files could not be imported.
+- Setaram header row located by content: the heat capacity runs imported with every column set to None.
+
+
 ## [v0.4.8] - 2026-03-05
 
 ### Changed
