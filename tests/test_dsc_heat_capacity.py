@@ -283,7 +283,13 @@ def test_calibration_workflow(cp_calculator, continuous_runs):
 
 # Stepped programs
 def test_stepped_three_step(cp_calculator, stepped_runs):
-    """Step method: lag and isothermal offsets do not bias the result."""
+    """Step method: lag and isothermal offsets do not bias the result.
+
+    Regression for #73: STEPPED used to process every point individually
+    instead of averaging over each isothermal plateau, so instability at
+    the start of an isotherm scattered the result. One Cp per step is the
+    property that guards it — hence the assertion on the length.
+    """
     runs = stepped_runs
     result = cp_calculator.calculate_cp(
         runs["temperature"],

@@ -50,7 +50,10 @@ tests against the installed wheel, on Python 3.10–3.13.
 
 ## Skills submodule
 
-Workflows live in the `skills/` submodule. **Use the wrapper, not the individual
+Workflows live in the `skills/` submodule, which is a **private** repository
+and is not needed to build, test or use the library — only to cut a release
+and to drive GitHub. A plain `git clone` is the right way in; `--recursive`
+just fails for anyone without access. **Use the wrapper, not the individual
 scripts**, and prefer these over raw shell commands for GitHub and release work:
 
 ```bash

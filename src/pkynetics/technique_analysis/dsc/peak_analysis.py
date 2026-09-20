@@ -319,6 +319,14 @@ class PeakAnalyzer:
         minima (shoulders). Peaks closer than about their half width at half
         maximum cannot be separated reliably.
 
+        Peaks pointing either way are handled: the orientation is taken from
+        whichever of the two deviations from the median is larger, the fit is
+        performed on peaks pointing up, and the amplitudes and areas are
+        returned with the sign of the original data. A curve whose peaks
+        point down used to fit against an amplitude lower bound of zero and
+        return a flat fit with ~1e-11 amplitudes, which reads as a converged
+        result rather than a failure.
+
         Args:
             temperature: Temperature array
             heat_flow: Heat flow array
@@ -326,8 +334,20 @@ class PeakAnalyzer:
             peak_shape: Peak function type ("gaussian" or "lorentzian")
 
         Returns:
-            Tuple of (list of peak parameters, fitted curve)
+            Tuple of (list of peak parameters, fitted curve). The list is
+            empty and the curve zero if the fit does not converge.
+
+        Raises:
+            ValueError: If n_peaks is not positive, or there are fewer data
+                points than the 3 * n_peaks parameters to fit.
         """
+        if n_peaks < 1:
+            raise ValueError("n_peaks must be at least 1")
+        if len(temperature) < 3 * n_peaks:
+            raise ValueError(
+                f"Need at least {3 * n_peaks} points to fit {n_peaks} peaks, "
+                f"got {len(temperature)}"
+            )
 
         def gaussian(
             x: NDArray[np.float64], amp: float, cen: float, wid: float
@@ -346,6 +366,23 @@ class PeakAnalyzer:
         smooth_flow = safe_savgol_filter(
             heat_flow, validate_window_size(len(heat_flow), self.smoothing_window), 3
         )
+
+        # Orient the peaks upwards. The fit constrains amplitudes to be
+        # non-negative, so downward peaks would otherwise be fitted as
+        # nothing at all. The median sits on the flat part of the curve, and
+        # the larger excursion from it says which way the peaks point; the
+        # flat level itself is then the zero the Gaussians are measured
+        # from, since the model has no constant term of its own.
+        median = float(np.median(smooth_flow))
+        points_down = abs(float(np.min(smooth_flow) - median)) > abs(
+            float(np.max(smooth_flow) - median)
+        )
+        sign = -1.0 if points_down else 1.0
+        offset = (
+            float(np.max(smooth_flow)) if points_down else float(np.min(smooth_flow))
+        )
+        smooth_flow = sign * (smooth_flow - offset)
+        heat_flow = sign * (heat_flow - offset)
 
         # Find all potential peaks; keep the most prominent n_peaks
         peaks, properties = signal.find_peaks(
@@ -422,10 +459,12 @@ class PeakAnalyzer:
 
             for i in range(0, len(popt), 3):
                 params = {
-                    "amplitude": float(popt[i]),
+                    # Reported in the orientation of the input data
+                    "amplitude": sign * float(popt[i]),
                     "center": float(popt[i + 1]),
                     "width": float(popt[i + 2]),
-                    "area": float(
+                    "area": sign
+                    * float(
                         trapezoid(
                             peak_func(temperature, popt[i], popt[i + 1], popt[i + 2]),
                             temperature,
@@ -435,7 +474,8 @@ class PeakAnalyzer:
                 peak_params.append(params)
                 fitted_curve += peak_func(temperature, *popt[i : i + 3])
 
-            return peak_params, fitted_curve
+            # Back to the original orientation and level
+            return peak_params, sign * fitted_curve + offset
 
         except RuntimeError as e:
             logger.warning(f"Peak deconvolution did not converge: {e}")
