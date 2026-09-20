@@ -208,10 +208,19 @@ class SignalProcessor:
         """
         Remove outliers from signal data.
 
+        The local score is a modified z-score built on the median and the
+        median absolute deviation, not on the mean and the standard
+        deviation. A mean/std score is computed from statistics the outlier
+        itself shifts, so it caps at (n-1)/sqrt(n) for a window of n points:
+        in the truncated windows at the edges, or when two outliers share a
+        window, it never reaches the usual threshold. The median and the MAD
+        do not move with a minority of contaminated points, so the score
+        stays large no matter where the outlier sits.
+
         Args:
             data: Input signal array
             window: Window size for local outlier detection
-            threshold: Z-score threshold for outlier detection
+            threshold: Modified z-score threshold for outlier detection
 
         Returns:
             Signal array with outliers removed
@@ -225,16 +234,23 @@ class SignalProcessor:
             end = min(len(data), i + window // 2 + 1)
             local_data = data[start:end]
 
-            local_std = np.std(local_data)
-            if local_std == 0:
-                continue  # Flat window: nothing can be an outlier
+            local_median = float(np.median(local_data))
+            deviations = np.abs(local_data - local_median)
+            # 1.4826 * MAD estimates sigma for normally distributed data
+            scale = 1.4826 * float(np.median(deviations))
+            if scale == 0:
+                # Over half the window holds the exact same value (a flat,
+                # coarsely digitized stretch), so the MAD carries no spread.
+                # Fall back to the mean absolute deviation, which a minority
+                # of outliers still cannot dominate.
+                scale = 1.2533 * float(np.mean(deviations))
+            if scale == 0:
+                # Every point identical: nothing can be an outlier
+                continue
 
-            z_score = np.abs(local_data - np.mean(local_data)) / local_std
-            local_mask = z_score < threshold
-
-            if not local_mask[i - start]:
+            if abs(float(data[i]) - local_median) / scale >= threshold:
                 # Replace outlier with local median
-                cleaned_data[i] = np.median(local_data[local_mask])
+                cleaned_data[i] = local_median
 
         return np.asarray(cleaned_data, dtype=np.float64)
 

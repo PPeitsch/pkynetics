@@ -85,8 +85,6 @@ def test_remove_outliers(signal_processor, noisy_data):
     """Test outlier removal."""
     # Add artificial outliers
     signal_with_outliers = noisy_data["signal"].copy()
-    # Seeded, distinct indices: the z-score detector misses outliers that share
-    # a window or sit in the truncated edge windows (see remove_outliers)
     rng = np.random.default_rng(0)
     outlier_indices = rng.choice(len(signal_with_outliers), 10, replace=False)
     signal_with_outliers[outlier_indices] += 10.0
@@ -95,6 +93,47 @@ def test_remove_outliers(signal_processor, noisy_data):
 
     assert len(cleaned) == len(signal_with_outliers)
     assert np.max(np.abs(cleaned)) < np.max(np.abs(signal_with_outliers))
+
+
+def test_remove_outliers_at_the_edges(signal_processor):
+    """Outliers in the truncated windows at either end are removed.
+
+    A mean/std z-score is bounded by (n-1)/sqrt(n), so in the short windows
+    at the edges it cannot reach the threshold and the spike survived.
+    """
+    data = np.ones(200)
+    for idx in (0, 1, 198, 199):
+        data[idx] += 10.0
+
+    cleaned = signal_processor.remove_outliers(data)
+
+    np.testing.assert_allclose(cleaned, np.ones(200))
+
+
+def test_remove_outliers_sharing_a_window(signal_processor):
+    """Outliers inside one window are all removed.
+
+    Each one inflates the standard deviation the others are measured
+    against, so with three in the 21-point window none of them reached the
+    threshold under the mean/std score and all three survived.
+    """
+    data = np.ones(200)
+    for idx in (100, 103, 106):
+        data[idx] += 10.0
+
+    cleaned = signal_processor.remove_outliers(data)
+
+    np.testing.assert_allclose(cleaned, np.ones(200))
+
+
+def test_remove_outliers_keeps_a_genuine_signal(signal_processor):
+    """A real peak is not flattened as a run of outliers."""
+    x = np.linspace(0, 1, 500)
+    peak = np.exp(-(((x - 0.5) / 0.05) ** 2))
+
+    cleaned = signal_processor.remove_outliers(peak)
+
+    np.testing.assert_allclose(cleaned, peak, atol=1e-6)
 
 
 def test_filter_signal(signal_processor, noisy_data):

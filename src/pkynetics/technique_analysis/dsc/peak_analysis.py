@@ -38,6 +38,10 @@ class PeakAnalyzer:
         self.peak_prominence = peak_prominence
         self.height_threshold = height_threshold
         self.limit_noise_factor = 3.0
+        # A fluctuation of the smoothing residual this many sigmas tall is
+        # not a peak. Five sigma keeps the false positives negligible over
+        # the thousands of points of a scan.
+        self.noise_prominence_factor = 5.0
 
     def find_peaks(
         self,
@@ -79,11 +83,19 @@ class PeakAnalyzer:
         if baseline is not None:
             signal_to_analyze = smooth_heat_flow - baseline
 
+        # Noise left after smoothing, which is what a spurious peak is made
+        # of: the prominence and height floors are raised to a multiple of it
+        # so that detection scales with the data instead of trusting the
+        # absolute defaults, which a noisier signal clears on its own.
+        noise = self.noise_level(
+            heat_flow if baseline is None else heat_flow - baseline
+        )
+
         # Find peaks with enhanced criteria
         peaks, properties = signal.find_peaks(
             signal_to_analyze,
-            prominence=self.peak_prominence,
-            height=self.height_threshold,
+            prominence=max(self.peak_prominence, self.noise_prominence_factor * noise),
+            height=max(self.height_threshold, self.noise_prominence_factor * noise),
             width=validate_window_size(len(signal_to_analyze), self.smoothing_window)
             // 2,
             distance=validate_window_size(
@@ -91,12 +103,7 @@ class PeakAnalyzer:
             ),
         )
 
-        limits = self.integration_limits(
-            signal_to_analyze,
-            peaks,
-            properties,
-            self.noise_level(heat_flow if baseline is None else heat_flow - baseline),
-        )
+        limits = self.integration_limits(signal_to_analyze, peaks, properties, noise)
 
         peak_list = []
         for peak_idx, (lo, hi) in zip(peaks, limits):

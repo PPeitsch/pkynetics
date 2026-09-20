@@ -450,3 +450,52 @@ def test_optimize_baseline_without_quiet_regions(baseline_corrector, monkeypatch
 
     with pytest.raises(ValueError, match="No quiet regions"):
         baseline_corrector.optimize_baseline(temperature, baseline)
+
+
+# D14: the spline smoothing factor is relative to the noise, not absolute
+def test_spline_baseline_is_scale_invariant(baseline_corrector):
+    """The same curve in mW and in uW gives the same baseline, rescaled.
+
+    UnivariateSpline's ``s`` bounds the sum of squared residuals, so a fixed
+    ``s=1.0`` was a loose fit on a small signal and an interpolation on a
+    large one: the same experiment reported in different units came back
+    with a different baseline.
+    """
+    temperature, _ = generate_test_data(n_points=1000, temp_range=(300, 500))
+    baseline = 0.001 * (temperature - 300)
+    rng = np.random.default_rng(0)
+    heat_flow = (
+        baseline
+        + generate_test_peak(temperature, 400, 1.0, 20.0)
+        + rng.normal(0, 0.002, size=len(temperature))
+    )
+
+    in_mw = baseline_corrector.correct(temperature, heat_flow, method="spline")
+    in_uw = baseline_corrector.correct(temperature, heat_flow * 1000, method="spline")
+
+    np.testing.assert_allclose(in_uw.baseline / 1000, in_mw.baseline, rtol=1e-6)
+
+
+def test_spline_baseline_is_sampling_invariant(baseline_corrector):
+    """Sampling the same curve more densely does not change the baseline.
+
+    ``s`` bounds a *sum* over the fitted points, so with a fixed value the
+    fit tightened as points were added; scaling by the point count keeps it
+    steady.
+    """
+    results = []
+    for n_points in (1000, 4000):
+        temperature, _ = generate_test_data(n_points=n_points, temp_range=(300, 500))
+        baseline = 0.001 * (temperature - 300)
+        rng = np.random.default_rng(0)
+        heat_flow = (
+            baseline
+            + generate_test_peak(temperature, 400, 1.0, 20.0)
+            + rng.normal(0, 0.002, size=len(temperature))
+        )
+        result = baseline_corrector.correct(temperature, heat_flow, method="spline")
+        results.append(np.max(np.abs(result.baseline - baseline)))
+
+    assert max(results) < 0.05
+    # Neither sampling degenerates into interpolating the noise
+    assert abs(results[0] - results[1]) < 0.03

@@ -227,7 +227,30 @@ class BaselineCorrector:
         smoothing: float = 1.0,
         **kwargs: Any,
     ) -> Tuple[NDArray[np.float64], Dict]:
-        """Fit spline baseline with automatic knot selection."""
+        """
+        Fit spline baseline with automatic knot selection.
+
+        Args:
+            temperature: Temperature array
+            heat_flow: Heat flow array
+            regions: List of (start_temp, end_temp) baseline regions
+            smoothing: Smoothing factor **relative to the noise**, not an
+                absolute residual budget. UnivariateSpline's ``s`` bounds the
+                sum of squared residuals, so a fixed value means something
+                different for every signal: for heat flow in mW the same
+                ``s=1.0`` is a loose fit on a microwatt-level baseline and an
+                interpolation on a milliwatt-level one, and it also tightens
+                as points are added. Here ``s = smoothing * n * sigma**2``,
+                with sigma estimated robustly from the point-to-point
+                differences of the baseline points, which is the residual a
+                correct fit is expected to leave. So ``smoothing=1.0`` means
+                "follow the trend, not the noise" on any signal and any
+                sampling rate; lower values fit tighter.
+            **kwargs: Additional parameters
+
+        Returns:
+            Tuple[NDArray[np.float64], Dict]: Baseline array and parameters
+        """
         if regions is None:
             regions = self._find_quiet_regions(temperature, heat_flow)
 
@@ -235,13 +258,42 @@ class BaselineCorrector:
             temperature, heat_flow, regions
         )
 
+        # On noise-free (synthetic) data the estimate is 0, and s=0 forces
+        # the spline to interpolate every point: it then adds knots to chase
+        # the curvature the peak tails leave in the baseline points, and
+        # swings between regions. Floor sigma at 1e-2 of the spread so clean
+        # data gets the simplest smooth curve that fits, not an interpolant.
+        sigma = np.sqrt(self._noise_variance(heat_points))
+        sigma = max(sigma, 1e-2 * float(np.ptp(heat_points)))
+        s = smoothing * len(heat_points) * sigma**2
+
         # Fit univariate spline
-        spline = UnivariateSpline(temp_points, heat_points, s=smoothing)
+        spline = UnivariateSpline(temp_points, heat_points, s=s)
         baseline = spline(temperature)
 
-        params = {"smoothing": smoothing, "n_knots": len(spline.get_knots())}
+        params = {
+            "smoothing": smoothing,
+            "s": s,
+            "n_knots": len(spline.get_knots()),
+        }
 
         return baseline, params
+
+    @staticmethod
+    def _noise_variance(values: NDArray[np.float64]) -> float:
+        """
+        Estimate the noise variance of a signal robustly.
+
+        Uses the MAD of the successive differences: differencing removes any
+        smooth trend, the median absolute deviation ignores the few large
+        jumps an event or an outlier leaves, and the sqrt(2) divides out the
+        variance the difference itself adds.
+        """
+        if len(values) < 2:
+            return 0.0
+        diffs = np.diff(values)
+        sigma = 1.4826 * float(np.median(np.abs(diffs - np.median(diffs)))) / np.sqrt(2)
+        return float(sigma**2)
 
     def _fit_asymmetric_baseline(
         self,

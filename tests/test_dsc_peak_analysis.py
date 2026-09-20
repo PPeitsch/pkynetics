@@ -83,7 +83,6 @@ def noisy_peak_data():
     """Generate peak data with noise."""
     temperature = np.linspace(300, 500, 1000)
     heat_flow = generate_gaussian_peak(temperature, 400, 1.0, 20.0)
-    # Seeded: with unseeded noise about 1 % of runs detect a spurious second peak
     noise = np.random.default_rng(0).normal(0, 0.05, size=len(temperature))
     noisy_heat_flow = heat_flow + noise
     peak_idx = np.argmax(noisy_heat_flow)
@@ -121,6 +120,40 @@ def test_find_peaks_with_noise(peak_analyzer, noisy_peak_data):
 
     assert len(peaks) == 1
     # Peak should be detected within 5K of the true peak
+    assert abs(peaks[0].peak_temperature - 400) < 5
+
+
+def test_find_peaks_noise_does_not_create_spurious_peaks(peak_analyzer):
+    """No realization of 5 % noise on a single peak yields a second peak.
+
+    The absolute prominence/height defaults (0.1 and 0.05 mW) are below what
+    a noise fluctuation reaches on this signal, so detection used to depend
+    on the draw: about 1 % of seeds found a second, spurious peak. The floors
+    now scale with the noise left after smoothing.
+    """
+    temperature = np.linspace(300, 500, 1000)
+    clean = generate_gaussian_peak(temperature, 400, 1.0, 20.0)
+
+    counts = []
+    for seed in range(200):
+        noise = np.random.default_rng(seed).normal(0, 0.05, size=len(temperature))
+        peaks = peak_analyzer.find_peaks(temperature, clean + noise)
+        counts.append(len(peaks))
+
+    assert set(counts) == {1}, f"spurious detections: {sorted(set(counts))}"
+
+
+def test_find_peaks_still_detects_a_peak_just_above_the_noise(peak_analyzer):
+    """Raising the floor with the noise does not swallow genuine small peaks."""
+    temperature = np.linspace(300, 500, 1000)
+    # Modest peak: it clears the absolute 0.1 mW prominence floor, and the
+    # noise-scaled floor has to leave it alone too
+    heat_flow = generate_gaussian_peak(temperature, 400, 0.3, 20.0)
+    noise = np.random.default_rng(1).normal(0, 0.005, size=len(temperature))
+
+    peaks = peak_analyzer.find_peaks(temperature, heat_flow + noise)
+
+    assert len(peaks) == 1
     assert abs(peaks[0].peak_temperature - 400) < 5
 
 
