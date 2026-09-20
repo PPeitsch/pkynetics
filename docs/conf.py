@@ -9,6 +9,9 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.mathjax",
+    # Lets docs/changelog.md include CHANGELOG.md directly, so the published
+    # changelog cannot drift from the repository's (it had stopped at v0.3.6)
+    "myst_parser",
 ]
 
 templates_path = ["_templates"]

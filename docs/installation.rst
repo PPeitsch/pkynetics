@@ -31,16 +31,9 @@ These will be automatically installed when you install Pkynetics using pip.
 Optional Dependencies
 ^^^^^^^^^^^^^^^^^^^^^
 
-For advanced features and improved performance, you may want to install the following optional dependencies:
-
-- scikit-learn>=1.0.2 (for machine learning-based methods)
-- numba>=0.56.4 (for performance optimizations)
-
-To install Pkynetics with all optional dependencies, use:
-
-.. code-block:: bash
-
-    pip install pkynetics[full]
+Pkynetics installs everything it needs by default; there are no optional
+runtime extras. The only extra is ``dev``, for working on the library
+itself, described below.
 
 Development Installation
 ------------------------
@@ -49,7 +42,7 @@ For developers who want to contribute to Pkynetics, clone the repository and ins
 
 .. code-block:: bash
 
-    git clone https://github.com/your_username/pkynetics.git
+    git clone https://github.com/PPeitsch/pkynetics.git
     cd pkynetics
     pip install -e .[dev]
 

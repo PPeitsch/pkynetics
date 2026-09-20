@@ -9,6 +9,7 @@ Sign convention: by default endothermic heat flow is positive
 run when one is given; otherwise they are assumed to be blank-corrected.
 
 Methods:
+
 - SINGLE_STEP: Cp from the sample run alone (optionally blank-corrected);
   accurate only with a heat flow calibration (see :meth:`CpCalculator.calibrate`).
 - THREE_STEP: ratio method of ASTM E1269 with blank, reference (sapphire)
@@ -17,6 +18,7 @@ Methods:
   and heating rate in temperature-modulated DSC.
 
 Operation modes:
+
 - CONTINUOUS: Cp at every point of a linear ramp.
 - STEPPED: heating steps between isotherms (e.g. ISO 11357-4 step method);
   the heat absorbed in each step, relative to the isothermal levels, gives
