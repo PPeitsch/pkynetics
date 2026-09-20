@@ -365,3 +365,88 @@ def test_step_regions_need_data_on_at_least_one_side(baseline_corrector):
             method="linear",
             step_regions=[(float(temperature[0]), float(temperature[-1]))],
         )
+
+
+def test_stepped_baseline_with_explicit_regions(baseline_corrector):
+    """Given regions are clipped to each segment; a segment without any
+    falls back to the method's own choice."""
+    temperature, heat_flow, baseline, step = stepped_signal()
+
+    result = baseline_corrector.correct(
+        temperature,
+        heat_flow,
+        method="linear",
+        # The second region spans the step; the third lies beyond the peak
+        regions=[(300.0, 340.0), (360.0, 430.0), (480.0, 500.0)],
+        step_regions=[(385.0, 415.0)],
+    )
+
+    assert result.method.startswith("stepped")
+    first, second = result.parameters["segments"]
+    assert first["range"] == (300.0, 385.0)
+    assert second["range"] == (415.0, 500.0)
+
+    expected = baseline + step
+    before = temperature < 380
+    after = (temperature > 420) & (temperature < 440)
+    np.testing.assert_allclose(result.baseline[before], expected[before], atol=0.02)
+    np.testing.assert_allclose(result.baseline[after], expected[after], atol=0.02)
+
+
+def test_stepped_baseline_ignores_regions_outside_a_segment(baseline_corrector):
+    """A segment whose regions all fall outside it still gets a baseline."""
+    temperature, heat_flow, baseline, step = stepped_signal()
+
+    result = baseline_corrector.correct(
+        temperature,
+        heat_flow,
+        method="linear",
+        regions=[(300.0, 340.0)],  # only inside the first segment
+        step_regions=[(385.0, 415.0)],
+    )
+
+    assert len(result.parameters["segments"]) == 2
+    before = temperature < 380
+    np.testing.assert_allclose(
+        result.baseline[before], (baseline + step)[before], atol=0.02
+    )
+
+
+# Error paths of the fitting methods
+def test_linear_baseline_needs_two_points(baseline_corrector, simple_data):
+    temperature, heat_flow = simple_data["temperature"], simple_data["heat_flow"]
+    empty_region = [(float(temperature[0]) - 50, float(temperature[0]) - 40)]
+
+    with pytest.raises(ValueError, match="Not enough points"):
+        baseline_corrector.correct(
+            temperature, heat_flow, method="linear", regions=empty_region
+        )
+
+
+def test_polynomial_baseline_needs_more_points_than_the_degree(
+    baseline_corrector, simple_data
+):
+    temperature, heat_flow = simple_data["temperature"], simple_data["heat_flow"]
+    two_points = [(float(temperature[0]), float(temperature[2]))]
+
+    with pytest.raises(ValueError, match="Not enough points"):
+        baseline_corrector.correct(
+            temperature, heat_flow, method="polynomial", regions=two_points, degree=3
+        )
+
+
+def test_auto_baseline_needs_points(baseline_corrector):
+    """Fewer points than parameters: no candidate model can be fitted."""
+    temperature = np.array([300.0, 310.0])
+    heat_flow = np.array([0.0, 1.0])
+
+    with pytest.raises(ValueError, match="Not enough points"):
+        baseline_corrector._auto_baseline(temperature, heat_flow, [(300.0, 310.0)])
+
+
+def test_optimize_baseline_without_quiet_regions(baseline_corrector, monkeypatch):
+    temperature, baseline = generate_test_data()
+    monkeypatch.setattr(baseline_corrector, "_find_quiet_regions", lambda *a, **k: [])
+
+    with pytest.raises(ValueError, match="No quiet regions"):
+        baseline_corrector.optimize_baseline(temperature, baseline)

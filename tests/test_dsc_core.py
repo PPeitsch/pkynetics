@@ -4,7 +4,9 @@ import numpy as np
 import pytest
 
 from pkynetics.technique_analysis.dsc import DSCAnalyzer, DSCExperiment
+from pkynetics.technique_analysis.dsc.core import _step_region
 from pkynetics.technique_analysis.dsc.thermal_events import ThermalEventDetector
+from pkynetics.technique_analysis.dsc.types import GlassTransition
 
 HEATING_RATE = 10.0  # K/min
 MASS = 5.0  # mg
@@ -204,3 +206,42 @@ def test_curve_without_step_is_unchanged(experiment):
 
     assert results["baseline"]["type"] == "linear"
     assert len(results["peaks"]) == 2
+
+
+def glass_transition(onset, endpoint):
+    return GlassTransition(
+        onset_temperature=onset,
+        midpoint_temperature=(onset + endpoint) / 2,
+        endpoint_temperature=endpoint,
+        delta_cp=0.3,
+        width=endpoint - onset,
+    )
+
+
+@pytest.mark.parametrize(
+    "transition, expected",
+    [
+        (None, None),
+        (glass_transition(340.0, 360.0), (340.0, 360.0)),
+        (glass_transition(np.nan, 360.0), None),  # detector could not bracket it
+        (glass_transition(340.0, np.nan), None),
+        (glass_transition(360.0, 340.0), None),  # endpoint below onset
+    ],
+)
+def test_step_region_of_a_transition(transition, expected):
+    assert _step_region(transition) == expected
+
+
+def test_unusable_transition_falls_back_to_one_baseline(experiment, monkeypatch):
+    """A transition without a usable range must not produce step regions."""
+    detector = ThermalEventDetector(exo_up=False)
+    monkeypatch.setattr(
+        detector,
+        "detect_glass_transition",
+        lambda *args, **kwargs: glass_transition(np.nan, np.nan),
+    )
+    analyzer = DSCAnalyzer(experiment, event_detector=detector)
+
+    results = analyzer.analyze(baseline_method="linear")
+
+    assert results["baseline"]["type"] == "linear"

@@ -471,10 +471,13 @@ class BaselineCorrector:
     def _interpolate_gaps(
         temperature: NDArray[np.float64], baseline: NDArray[np.float64]
     ) -> None:
-        """Fill the steps in place, interpolating between the fitted segments."""
+        """
+        Fill the steps in place, interpolating between the fitted segments.
+
+        There is always at least one fitted segment: _fit_stepped_baseline
+        rejects step regions that leave no data to fit.
+        """
         fitted = ~np.isnan(baseline)
-        if not fitted.any():
-            raise ValueError("No baseline could be fitted outside the step regions")
         baseline[~fitted] = np.interp(
             temperature[~fitted], temperature[fitted], baseline[fitted]
         )
