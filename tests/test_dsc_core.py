@@ -245,3 +245,42 @@ def test_unusable_transition_falls_back_to_one_baseline(experiment, monkeypatch)
     results = analyzer.analyze(baseline_method="linear")
 
     assert results["baseline"]["type"] == "linear"
+
+
+# D21: the enthalpy of a peak of known area is recovered exactly
+@pytest.mark.parametrize("dh_true", [50.0, 250.0, 500.0])
+def test_enthalpy_is_exact_on_a_peak_of_known_area(dh_true):
+    """analyze() returns the enthalpy the peak was built to have.
+
+    Recorded against the eicosane example, where the reported enthalpy of
+    fusion (286 J/g) sits ~16 % above the literature value (~247 J/g). The
+    integration is not what is off: numerically integrating that file by
+    hand gives ~283 J/g for any sensible pair of limits, and here the
+    pipeline recovers a synthetic peak to better than 1 %. The discrepancy
+    belongs to the measurement (the file's own TempCal is off by 1.3 K at
+    the indium point, and the onset comes out ~1 K low to match), not to
+    this code.
+    """
+    beta, mass = 1.0, 9.0  # K/min, mg
+    temperature = np.linspace(283.15, 343.15, 6000)
+    time = (temperature - temperature[0]) / (beta / 60)
+
+    peak = gaussian(temperature, 310.15, 1.0, np.sqrt(2.0))
+    # Scale so that the integral is exactly dh_true * mass (in mJ)
+    peak *= dh_true * mass / np.trapezoid(peak, time)
+    heat_flow = 0.02 * (temperature - temperature[0]) - 1.0 + peak
+
+    experiment = DSCExperiment(
+        temperature=temperature,
+        heat_flow=heat_flow,
+        time=time,
+        mass=mass,
+        heating_rate=beta,
+        sample_name="synthetic",
+    )
+    results = DSCAnalyzer(
+        experiment, event_detector=ThermalEventDetector(exo_up=True)
+    ).analyze(baseline_method="polynomial", degree=2)
+
+    assert len(results["peaks"]) == 1
+    assert results["peaks"][0].enthalpy == pytest.approx(dh_true, rel=0.01)
