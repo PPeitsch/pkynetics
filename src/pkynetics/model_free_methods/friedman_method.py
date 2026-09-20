@@ -4,6 +4,7 @@ import logging
 from typing import List, Tuple
 
 import numpy as np
+from scipy.constants import R
 from scipy.stats import linregress
 
 logger = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ def friedman_method(
                 )
                 if da_dt > 0:  # Only include positive reaction rates
                     y_data.append(np.log(da_dt))
-                    x_data.append(1 / (8.314 * temp[idx]))  # 1/RT
+                    x_data.append(1 / (R * temp[idx]))  # 1/RT
 
         # Perform linear regression
         if len(x_data) > 2:  # Ensure enough data points for regression

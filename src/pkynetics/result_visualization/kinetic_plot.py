@@ -4,9 +4,7 @@ from typing import List
 
 import matplotlib.pyplot as plt
 import numpy as np
-
-# Constants
-R = 8.314  # Gas constant in J/(mol·K)
+from scipy.constants import R
 
 
 def plot_arrhenius(

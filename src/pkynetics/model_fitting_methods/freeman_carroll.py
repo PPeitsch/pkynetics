@@ -3,6 +3,7 @@ from typing import Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
+from scipy.constants import R
 from scipy.signal import savgol_filter
 from scipy.stats import linregress
 
@@ -21,8 +22,7 @@ def freeman_carroll_equation(
     Returns:
         np.ndarray: y values for the Freeman-Carroll plot.
     """
-    r = 8.314  # Gas constant in J/(mol·K)
-    return np.array(-e_a / r * x + n, dtype=np.float64)
+    return np.array(-e_a / R * x + n, dtype=np.float64)
 
 
 def smooth_data(
@@ -126,8 +126,7 @@ def freeman_carroll_method(
     slope, intercept, r_value, _, _ = linregress(x_filtered, y_filtered)
 
     # Calculate kinetic parameters
-    r = 8.314  # Gas constant in J/(mol·K)
-    e_a = -slope * r  # Activation energy in J/mol
+    e_a = -slope * R  # Activation energy in J/mol
     n = intercept  # Reaction order
 
     return e_a, n, r_value**2, x, y, x_filtered, y_filtered
