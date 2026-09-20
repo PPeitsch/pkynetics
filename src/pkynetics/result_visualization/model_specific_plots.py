@@ -136,6 +136,7 @@ def plot_freeman_carroll(
 def plot_horowitz_metzger(
     temperature: np.ndarray,
     alpha: np.ndarray,
+    heating_rate: float,
     n: float = 1,
     show_plot: bool = True,
     ax: Optional[plt.Axes] = None,
@@ -146,6 +147,7 @@ def plot_horowitz_metzger(
     Args:
         temperature (np.ndarray): Temperature data in Kelvin.
         alpha (np.ndarray): Conversion data.
+        heating_rate (float): Heating rate in K/min.
         n (float): Reaction order. Default is 1.
         show_plot (bool): Whether to show the plot. Default is True.
         ax (plt.Axes, optional): Matplotlib axes to plot on. If None, creates a new figure.
@@ -157,7 +159,7 @@ def plot_horowitz_metzger(
 
     # Get plot data
     theta, y, e_a, a, t_s, r_squared, theta_selected, y_selected = (
-        horowitz_metzger_plot(temperature, alpha, n)
+        horowitz_metzger_plot(temperature, alpha, heating_rate, n)
     )
 
     # Create plot

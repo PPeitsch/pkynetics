@@ -1,7 +1,7 @@
 Horowitz-Metzger Method
 =======================
 
-.. py:function:: horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, n: float = 1) -> Tuple[float, float, float, float]
+.. py:function:: horowitz_metzger_method(temperature: np.ndarray, alpha: np.ndarray, heating_rate: float, n: float = 1) -> Tuple[float, float, float, float]
 
    Perform Horowitz-Metzger analysis to determine kinetic parameters for thermal decomposition reactions.
 
@@ -9,6 +9,8 @@ Horowitz-Metzger Method
    :type temperature: np.ndarray
    :param alpha: Conversion data.
    :type alpha: np.ndarray
+   :param heating_rate: Heating rate in K/min. Required for the pre-exponential factor.
+   :type heating_rate: float
    :param n: Reaction order. Default is 1.
    :type n: float
    :return: Tuple containing activation energy (E_a in J/mol), pre-exponential factor (A in min^-1), temperature of maximum decomposition rate (T_s in K), and R-squared value.
@@ -30,6 +32,17 @@ where:
    - T_s is the temperature at the maximum rate of decomposition
    - R is the gas constant
 
+The slope of that plot gives :math:`E_a`. The pre-exponential factor is not
+given by the intercept: it follows from the rate being at its maximum at
+:math:`T_s`, which is the Kissinger condition,
+
+.. math::
+
+   \frac{\beta E_a}{RT_s^2} = A \exp\left(-\frac{E_a}{RT_s}\right)
+
+so :math:`A = \frac{\beta E_a}{RT_s^2} \exp\left(\frac{E_a}{RT_s}\right)`,
+which is why the heating rate :math:`\beta` has to be supplied.
+
 Usage Example
 -------------
 
@@ -42,9 +55,10 @@ Usage Example
    # Generate sample data
    temperature = np.linspace(300, 800, 1000)
    alpha = 1 - np.exp(-0.01 * (temperature - 300))
+   heating_rate = 10.0  # K/min
 
    # Perform Horowitz-Metzger analysis
-   e_a, a, t_s, r_squared = horowitz_metzger_method(temperature, alpha)
+   e_a, a, t_s, r_squared = horowitz_metzger_method(temperature, alpha, heating_rate)
 
    print(f"Activation energy (E_a): {e_a/1000:.2f} kJ/mol")
    print(f"Pre-exponential factor (A): {a:.2e} min^-1")
@@ -52,13 +66,14 @@ Usage Example
    print(f"R-squared: {r_squared:.4f}")
 
    # Visualize results (assuming a plot_horowitz_metzger function exists)
-   plot_horowitz_metzger(temperature, alpha, e_a, a, t_s, r_squared)
+   plot_horowitz_metzger(temperature, alpha, heating_rate)
 
 Parameters
 ----------
 
 - **temperature** (np.ndarray): Temperature data in Kelvin. Must be in ascending order.
 - **alpha** (np.ndarray): Conversion data. Must be between 0 and 1 (exclusive).
+- **heating_rate** (float): Heating rate in K/min. Must be positive.
 - **n** (float, optional): Reaction order. Default is 1.
 
 Returns
@@ -82,6 +97,7 @@ Notes
 - The analysis focuses on the most linear region of the data, typically between 20-80% conversion.
 - If not enough points are available in the 20-80% conversion range, the range is expanded to 10-90%.
 - The method assumes first-order kinetics by default, but other reaction orders can be specified.
+- The method approximates the temperature integral by expanding :math:`1/T` around :math:`T_s`, which biases :math:`E_a` high: on exact first-order non-isothermal data it returns 133.6 kJ/mol for a true 120 kJ/mol (+11 %). Since :math:`A` is exponential in :math:`E_a`, it comes out over an order of magnitude high even though the formula above is exact. Prefer a model-free method (Friedman, KAS, OFW) when the absolute value matters.
 
 See Also
 --------
