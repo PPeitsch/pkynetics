@@ -50,6 +50,7 @@ dev = [
     "isort~=9.0.0",
     "mypy~=2.3.0",
     "sphinx>=4.0.0,<6.0.0",
+    "myst-parser>=1.0.0,<4",
     "pandas-stubs>=2.0.0,<4",
 ]
 

@@ -28,9 +28,16 @@ Contents
    :caption: Modules:
 
    modules/data_import/index
+   modules/technique_analysis/index
    modules/model_fitting_methods/index
    modules/model_free_methods/index
    modules/result_visualization/index
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Examples:
+
+   examples/index
 
 .. toctree::
    :maxdepth: 1
