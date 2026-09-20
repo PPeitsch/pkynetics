@@ -7,6 +7,15 @@ heat/cool cycle, corrects the baseline and characterizes the melting peak
 Sample (from the file header): eicosane, 9.00 mg, 1 K/min, "Exotherm Up".
 Literature for comparison: melting ~36.4-36.8 degC, enthalpy of fusion
 ~247 J/g.
+
+This run reads ~1 K low on the onset and ~16 % high on the enthalpy, and
+that comes from the measurement, not from the analysis: the file's own
+header reports a temperature calibration off by 1.3 K at the indium point
+(``TempCal 157.87 156.60``), and integrating the peak numerically by hand
+gives ~283 J/g for any sensible pair of limits, matching what this example
+prints. An uncalibrated cell reads both temperature and heat high or low
+together. The integration itself is checked against synthetic peaks of
+known area in ``tests/test_dsc_core.py``.
 """
 
 import os
@@ -71,9 +80,7 @@ def main() -> None:
     )
 
     # The file header states "Exotherm Up"
-    analyzer = DSCAnalyzer(
-        experiment, event_detector=ThermalEventDetector(exo_up=True)
-    )
+    analyzer = DSCAnalyzer(experiment, event_detector=ThermalEventDetector(exo_up=True))
     results = analyzer.analyze(baseline_method="polynomial", degree=2)
 
     print(f"\nBaseline: {results['baseline']['type']}")
