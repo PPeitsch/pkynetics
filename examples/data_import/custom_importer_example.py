@@ -1,19 +1,19 @@
 """Example usage of CustomImporter class."""
 
 import os
+import tempfile
 
 import matplotlib.pyplot as plt
 
 from pkynetics.data_import import CustomImporter
 
-# Get the absolute path of the project root directory
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-PKG_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "src", "pkynetics", "data")
-
 
 def custom_import_example():
     """Example of using CustomImporter class."""
-    custom_file_path = os.path.join(PKG_DATA_DIR, "sample_custom_data.csv")
+    # Written to a temporary directory: the example makes up its own data and
+    # the installed package must not be written to
+    temp_dir = tempfile.mkdtemp()
+    custom_file_path = os.path.join(temp_dir, "sample_custom_data.csv")
 
     # Create a sample custom data file
     with open(custom_file_path, "w") as f:
@@ -67,6 +67,7 @@ def custom_import_example():
     finally:
         # Remove the sample file
         os.remove(custom_file_path)
+        os.rmdir(temp_dir)
 
 
 if __name__ == "__main__":

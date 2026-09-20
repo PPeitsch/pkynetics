@@ -13,6 +13,7 @@ import numpy as np
 warnings.simplefilter("always", UserWarning)
 
 
+import pkynetics
 from pkynetics.data_import import dilatometry_importer
 from pkynetics.data_preprocessing import smooth_data
 from pkynetics.result_visualization import plot_dilatometry_analysis
@@ -30,12 +31,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Assuming the script is in 'examples' folder, navigate up and then to src/pkynetics/data
-SCRIPT_DIR = os.path.dirname(__file__)
-PROJECT_ROOT = os.path.abspath(
-    os.path.join(SCRIPT_DIR, "..")
-)  # Adjust if script location changes
-PKG_DATA_DIR = os.path.join(PROJECT_ROOT, "src", "pkynetics", "data")
+# Bundled data of the installed package, wherever it lives
+PKG_DATA_DIR = os.path.join(os.path.dirname(pkynetics.__file__), "data")
 
 
 def get_analysis_range(

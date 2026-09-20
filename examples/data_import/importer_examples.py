@@ -3,11 +3,12 @@
 import os
 import time
 
+import pkynetics
 from pkynetics.data_import import dilatometry_importer, dsc_importer, tga_importer
 
 # Get the absolute path of the project root directory
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-PKG_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "src", "pkynetics", "data")
+# Bundled data of the installed package, wherever it lives
+PKG_DATA_DIR = os.path.join(os.path.dirname(pkynetics.__file__), "data")
 
 
 def tga_import_example():
@@ -27,9 +28,10 @@ def tga_import_example():
 
 def dsc_import_example():
     """Example of using dsc_importer function."""
-    dsc_file_path = os.path.join(PKG_DATA_DIR, "sample_dsc_data.txt")
+    dsc_file_path = os.path.join(PKG_DATA_DIR, "dsc", "sample_dsc_setaram.txt")
     try:
-        dsc_data = dsc_importer(file_path=dsc_file_path, manufacturer="Setaram")
+        # The manufacturer is detected from the header
+        dsc_data = dsc_importer(file_path=dsc_file_path)
         print("DSC data imported successfully.")
         print("Available keys:", dsc_data.keys())
         print("Temperature data shape:", dsc_data["temperature"].shape)

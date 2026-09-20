@@ -9,6 +9,7 @@ import pandas as pd
 
 import pkynetics
 from pkynetics.data_import import dilatometry_importer, dsc_importer, tga_importer
+from pkynetics.data_import._manufacturer import detect_manufacturer
 
 
 class TestImporters(unittest.TestCase):
@@ -252,3 +253,70 @@ class TestDilatometryImporter(unittest.TestCase):
                     self.assertTrue(np.all(np.isfinite(values)))
                 self.assertAlmostEqual(data["time"][0], time0)
                 self.assertAlmostEqual(data["temperature"][0], temp0)
+
+
+class TestManufacturerDetection(unittest.TestCase):
+    """Every bundled file must import without naming the manufacturer."""
+
+    def test_bundled_dsc_files(self):
+        for name in [
+            "sample_dsc_setaram.csv",
+            "sample_dsc_setaram.txt",
+            "sample_dsc_tainstruments.txt",
+        ]:
+            with self.subTest(file=name):
+                data = dsc_importer(os.path.join(DATA_DIR, name))
+                self.assertIsNotNone(data["time"])
+                self.assertGreater(len(data["time"]), 0)
+
+    def test_bundled_heat_capacity_files(self):
+        for name in ["sample.txt", "sapphire.txt", "zero.txt"]:
+            with self.subTest(file=name):
+                path = os.path.join(PKG_DATA_DIR, "heat_capacity", name)
+                data = dsc_importer(path)
+                self.assertIsNotNone(data["heat_flow"])
+
+    def test_bundled_tga_file(self):
+        data = tga_importer(os.path.join(PKG_DATA_DIR, "sample_tga_data.csv"))
+        self.assertIsNotNone(data["weight"])
+
+    def test_setaram_export_without_the_name(self):
+        """The whitespace-separated export names no manufacturer, only columns."""
+        header = (
+            "Duran - MAC250-MS20 34.04mg\n"
+            "Creation Date : 26/07/2024 06:03:05 p.m.\n"
+            "User : admin\n\n"
+            "Index Time       Furnace                  Sample"
+            "                  TG         HeatFlow\n"
+            "1     0          50.06274                 53.444034"
+            "               240.908142 -11.195387\n"
+        )
+        path = os.path.join(tempfile.mkdtemp(), "run.txt")
+        with open(path, "w", encoding="utf-16") as f:
+            f.write(header)
+        try:
+            self.assertEqual(detect_manufacturer(path), "Setaram")
+        finally:
+            os.remove(path)
+            os.rmdir(os.path.dirname(path))
+
+    def test_other_manufacturers_and_unknown(self):
+        cases = {
+            "TA Instruments Thermal Analysis\nSig1\tTime\nStartOfData\n": "TA",
+            "METTLER TOLEDO STARe\n": "Mettler",
+            "NETZSCH Proteus\n": "Netzsch",
+            "Some other instrument\ncol1,col2\n": None,
+        }
+        temp_dir = tempfile.mkdtemp()
+        for i, (header, expected) in enumerate(cases.items()):
+            with self.subTest(expected=expected):
+                path = os.path.join(temp_dir, f"run{i}.txt")
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(header)
+                if expected is None:
+                    with self.assertRaises(ValueError):
+                        detect_manufacturer(path)
+                else:
+                    self.assertEqual(detect_manufacturer(path), expected)
+                os.remove(path)
+        os.rmdir(temp_dir)
