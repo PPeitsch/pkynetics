@@ -363,10 +363,10 @@ def dilatometry_analysis_example(
                         "margin_percent": (
                             None if method == "tangent" else 0.2
                         ),  # Let tangent find optimal if None
-                        "find_inflection_margin": 0.3,  # Specific to lever method point finding
+                        "find_inflection_margin": 0.2,  # Baseline span for the lever method
                         "min_points_fit": 10,
                         "min_r2_optimal_margin": 0.98,  # Slightly relaxed default
-                        "deviation_threshold": None,  # Let tangent calculate
+                        "deviation_fraction": 0.05,  # Share of the dS/dT excursion
                     }
 
                     # Perform analysis

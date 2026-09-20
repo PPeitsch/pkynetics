@@ -1,20 +1,26 @@
-"""Tests for dilatometry curve analysis (L1).
+"""Tests for dilatometry curve analysis.
 
-The synthetic curve is the shape the analysis is meant to handle: two
-linear thermal-expansion segments joined by a sigmoidal transformation of
-known centre and width. It lets the correct results be asserted tightly,
-and it is what shows that the transformation *limits* are not yet right —
-see ``test_transformation_start_is_far_too_early`` and
-``test_tangent_method_returns_the_whole_data_range``, both xfail.
+Two curves are used. The synthetic one is two linear thermal-expansion
+segments joined by a sigmoidal transformation of known centre and width,
+which lets the results be asserted tightly. The real one is the Zry-4
+heating run shipped in ``pkynetics/data``, which has the curved baselines
+and the noise the synthetic curve lacks — it is what showed that locating
+the limits by deviation from an extrapolated tangent could not work
+(issue #94).
 """
+
+import os
 
 import numpy as np
 import pytest
 
+import pkynetics
+from pkynetics.data_import import dilatometry_importer
 from pkynetics.technique_analysis.dilatometry import (
     analyze_dilatometry_curve,
     calculate_transformed_fraction_lever,
     find_optimal_margin,
+    find_transformation_limits,
 )
 from pkynetics.technique_analysis.utilities import (
     analyze_range,
@@ -43,9 +49,41 @@ def dilatometry_curve(n_points=1000, cooling=False):
     return temperature, strain
 
 
+# The Zry-4 alpha->beta contraction in the shipped sample, read off the
+# local slope of the curve: it flattens from ~855 degC, is frankly negative
+# between 870 and 918, and is back on a linear expansion by ~935 degC
+REAL_TRANSFORMATION = (855.0, 935.0)
+
+
 @pytest.fixture
 def curve():
     return dilatometry_curve()
+
+
+@pytest.fixture
+def real_cooling_curve():
+    """A cooling run, windowed onto the region with a linear baseline on
+    either side of the transformation."""
+    path = os.path.join(
+        os.path.dirname(pkynetics.__file__), "data", "ejemplo_enfriamiento.asc"
+    )
+    data = dilatometry_importer(path)
+    return analyze_range(
+        np.asarray(data["temperature"]),
+        np.asarray(data["relative_change"]),
+        1040.0,
+        700.0,
+    )
+
+
+@pytest.fixture
+def real_curve():
+    """The Zry-4 dilatometry run shipped with the package."""
+    path = os.path.join(
+        os.path.dirname(pkynetics.__file__), "data", "sample_dilatometry_data.asc"
+    )
+    data = dilatometry_importer(path)
+    return np.asarray(data["temperature"]), np.asarray(data["relative_change"])
 
 
 # What the analysis gets right
@@ -107,48 +145,120 @@ def test_tangent_method_reports_fit_quality(curve):
     assert "fit_quality" in result
 
 
-# L1: the transformation limits
-@pytest.mark.xfail(
-    strict=True,
-    reason="L1: the lever start is ~15 K below the transformation, and the "
-    "end ~15 K above. Needs real data to fix, not just a tighter threshold.",
-)
-def test_transformation_start_is_far_too_early(curve):
-    """The lever limits should bracket the ~705-795 degC transformation."""
+# The transformation limits (issue #94)
+@pytest.mark.parametrize("method", ["lever", "tangent"])
+def test_limits_bracket_the_synthetic_transformation(curve, method):
+    """The limits land on the ~705-795 degC transformation, not on the data range."""
     temperature, strain = curve
 
-    result = analyze_dilatometry_curve(temperature, strain, method="lever")
+    result = analyze_dilatometry_curve(temperature, strain, method=method)
 
     assert result["start_temperature"] == pytest.approx(705.0, abs=5.0)
     assert result["end_temperature"] == pytest.approx(795.0, abs=5.0)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="L1: the tangent method returns the first and last temperature of "
-    "the data, i.e. it does not locate the transformation limits at all.",
-)
-def test_tangent_method_returns_the_whole_data_range(curve):
+@pytest.mark.parametrize("method", ["lever", "tangent"])
+def test_limits_stay_inside_the_data(curve, method):
+    """Regression for #94: the limits used to be the first and last point."""
     temperature, strain = curve
 
-    result = analyze_dilatometry_curve(temperature, strain, method="tangent")
+    result = analyze_dilatometry_curve(temperature, strain, method=method)
 
     assert result["start_temperature"] > temperature[0]
     assert result["end_temperature"] < temperature[-1]
 
 
-def test_lever_limits_currently_overshoot_by_about_15_kelvin(curve):
-    """Pins today's behaviour so a change to it is deliberate.
+@pytest.mark.parametrize("method", ["lever", "tangent"])
+def test_limits_bracket_the_real_transformation(real_curve, method):
+    """The limits find the alpha->beta contraction in the shipped Zry-4 run."""
+    temperature, strain = real_curve
+    expected_start, expected_end = REAL_TRANSFORMATION
 
-    Paired with the xfail above: that one says where the limits should be,
-    this one says where they are.
-    """
-    temperature, strain = curve
+    result = analyze_dilatometry_curve(temperature, strain, method=method)
+
+    assert result["start_temperature"] == pytest.approx(expected_start, abs=20.0)
+    assert result["end_temperature"] == pytest.approx(expected_end, abs=20.0)
+    assert result["start_temperature"] > temperature[0]
+    assert result["end_temperature"] < temperature[-1]
+
+
+def test_both_methods_agree_on_the_limits(real_curve):
+    """The methods differ in how they get the fraction, not in where the
+    transformation is, so they share the limit detection."""
+    temperature, strain = real_curve
+
+    lever = analyze_dilatometry_curve(temperature, strain, method="lever")
+    tangent = analyze_dilatometry_curve(temperature, strain, method="tangent")
+
+    assert lever["start_temperature"] == pytest.approx(tangent["start_temperature"])
+    assert lever["end_temperature"] == pytest.approx(tangent["end_temperature"])
+
+
+def test_find_transformation_limits_returns_indices_in_array_order(real_curve):
+    temperature, strain = real_curve
+
+    start_idx, end_idx = find_transformation_limits(temperature, strain)
+
+    assert 0 < start_idx < end_idx < len(temperature) - 1
+
+
+def test_limits_on_a_real_cooling_run(real_cooling_curve):
+    """The transformation on cooling runs from ~945 down to ~760 degC; the
+    limits have to sit inside it, in cooling order, and not on the edges."""
+    temperature, strain = real_cooling_curve
 
     result = analyze_dilatometry_curve(temperature, strain, method="lever")
 
-    assert result["start_temperature"] == pytest.approx(690.0, abs=2.0)
-    assert result["end_temperature"] == pytest.approx(810.0, abs=2.0)
+    assert result["is_cooling"] is True
+    assert result["start_temperature"] > result["end_temperature"]
+    assert 760.0 < result["end_temperature"] < result["start_temperature"] < 945.0
+    assert result["start_temperature"] < temperature[0]
+    assert result["end_temperature"] > temperature[-1]
+
+
+def test_a_spike_does_not_move_the_limits(curve):
+    """Regression: a single bad point used to set the scale for everything,
+    because the limits came from the peak of the derivative."""
+    temperature, strain = curve
+    clean = find_transformation_limits(temperature, strain)
+
+    spiked = strain.copy()
+    spiked[50] += 1e-3  # Half the size of the whole transformation
+
+    assert find_transformation_limits(temperature, spiked) == clean
+
+
+def test_a_curved_baseline_is_reported():
+    """The full cooling run has a transformation inside its own baseline
+    window, which the analysis cannot see past but does report."""
+    path = os.path.join(
+        os.path.dirname(pkynetics.__file__), "data", "ejemplo_enfriamiento.asc"
+    )
+    data = dilatometry_importer(path)
+    temperature = np.asarray(data["temperature"])
+    strain = np.asarray(data["relative_change"])
+
+    with pytest.warns(UserWarning, match="baseline window is not linear"):
+        find_transformation_limits(temperature, strain, is_cooling=True)
+
+
+def test_find_transformation_limits_rejects_an_impossible_fraction(curve):
+    temperature, strain = curve
+
+    with pytest.raises(ValueError, match="deviation_fraction"):
+        find_transformation_limits(temperature, strain, deviation_fraction=1.5)
+
+
+def test_a_wider_deviation_fraction_narrows_the_limits(curve):
+    """The fraction is the knob: more of the excursion counted as baseline
+    means a tighter bracket."""
+    temperature, strain = curve
+
+    narrow = find_transformation_limits(temperature, strain, deviation_fraction=0.01)
+    wide = find_transformation_limits(temperature, strain, deviation_fraction=0.20)
+
+    assert narrow[0] < wide[0]
+    assert narrow[1] > wide[1]
 
 
 # Error handling
@@ -180,6 +290,16 @@ def test_find_optimal_margin_returns_a_usable_margin(curve):
     margin = find_optimal_margin(temperature, strain, is_cooling=False)
 
     assert 0.0 < margin < 0.5
+
+
+def test_find_optimal_margin_prefers_the_widest_acceptable_margin(curve):
+    """A narrower window always fits a line better, so picking the best R2
+    would use the least baseline available (issue #94)."""
+    temperature, strain = curve
+
+    margin = find_optimal_margin(temperature, strain, is_cooling=False, min_r2=0.99)
+
+    assert margin == pytest.approx(0.4)
 
 
 def test_calculate_transformed_fraction_lever(curve):

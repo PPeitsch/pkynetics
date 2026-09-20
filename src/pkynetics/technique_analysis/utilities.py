@@ -171,7 +171,7 @@ def get_analysis_summary(results: Dict) -> str:
             f"  Margin used:    {fit_quality.get('margin_used', float('nan')):.2%}"
         )
         summary.append(
-            f"  Deviation thr:  {fit_quality.get('deviation_threshold', float('nan')):.2e}"
+            f"  Deviation frac: {fit_quality.get('deviation_fraction', float('nan')):.1%}"
         )
         if "warnings" in fit_quality and fit_quality["warnings"]:
             summary.append("  Warnings:")
