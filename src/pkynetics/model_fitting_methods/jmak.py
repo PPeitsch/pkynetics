@@ -5,6 +5,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.constants import R
 from scipy.optimize import curve_fit
 
 logger = logging.getLogger(__name__)
@@ -152,7 +153,6 @@ def modified_jmak_equation(
     Returns:
         np.ndarray: Transformed fraction.
     """
-    R = 8.314  # Gas constant in J/(mol·K)
     return np.array(
         1 - np.exp(-((k0 / phi * (np.exp(-E / (R * T)) * (T - T0))) ** n)),
         dtype=np.float64,
