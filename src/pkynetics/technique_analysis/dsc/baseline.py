@@ -42,6 +42,7 @@ class BaselineCorrector:
         heat_flow: NDArray[np.float64],
         method: str = "auto",
         regions: Optional[List[Tuple[float, float]]] = None,
+        step_regions: Optional[List[Tuple[float, float]]] = None,
         **kwargs: Any,
     ) -> BaselineResult:
         """
@@ -52,6 +53,10 @@ class BaselineCorrector:
             heat_flow: Heat flow array
             method: Correction method to use
             regions: Optional list of (start_temp, end_temp) for baseline regions
+            step_regions: Optional list of (start_temp, end_temp) where the heat
+                flow steps to a new level, such as a glass transition. The
+                baseline is then fitted on each side separately and joined
+                across the step, instead of one fit crossing it
             **kwargs: Additional parameters for specific correction methods
 
         Returns:
@@ -69,14 +74,20 @@ class BaselineCorrector:
         )
 
         # Apply selected correction method
-        correction_func = self.methods[method]
-        baseline, params = correction_func(
-            temperature, heat_flow_smooth, regions, **kwargs
-        )
+        if step_regions:
+            baseline, params = self._fit_stepped_baseline(
+                temperature, heat_flow_smooth, method, regions, step_regions, **kwargs
+            )
+            method = params["method"]
+        else:
+            correction_func = self.methods[method]
+            baseline, params = correction_func(
+                temperature, heat_flow_smooth, regions, **kwargs
+            )
 
-        # Report the method actually used when selected automatically
-        if method == "auto":
-            method = params.pop("method")
+            # Report the method actually used when selected automatically
+            if method == "auto":
+                method = params.pop("method")
 
         # Calculate corrected data
         corrected_data = heat_flow - baseline
@@ -366,6 +377,107 @@ class BaselineCorrector:
         baseline = np.interp(temperature, lower_points[:, 0], lower_points[:, 1])
 
         return baseline, {"n_hull_points": len(lower_points)}
+
+    def _fit_stepped_baseline(
+        self,
+        temperature: NDArray[np.float64],
+        heat_flow: NDArray[np.float64],
+        method: str,
+        regions: Optional[List[Tuple[float, float]]],
+        step_regions: List[Tuple[float, float]],
+        **kwargs: Any,
+    ) -> Tuple[NDArray[np.float64], Dict]:
+        """
+        Fit the baseline on each side of a step and join it across the step.
+
+        A glass transition is a step in the heat flow, not a transient
+        deviation: the sample stays at a new level afterwards. A single fit
+        across it passes through the middle of the step, which leaves a
+        residual bump where the transition was (detected as a spurious peak)
+        and shifts the level of the real peaks on both sides. Each segment
+        between steps is therefore fitted on its own, and inside the step the
+        baseline interpolates linearly between the neighbouring fits.
+        """
+        segments = self._segments_between(temperature, step_regions)
+        if not segments:
+            raise ValueError("Step regions leave no data to fit the baseline on")
+
+        correction_func = self.methods[method]
+        baseline = np.full(len(temperature), np.nan, dtype=np.float64)
+        segment_params: List[Dict] = []
+        methods_used = []
+
+        for low, high in segments:
+            mask = (temperature >= low) & (temperature <= high)
+            segment_regions = self._clip_regions(regions, low, high)
+            segment_baseline, params = correction_func(
+                temperature[mask], heat_flow[mask], segment_regions, **kwargs
+            )
+            baseline[mask] = segment_baseline
+            methods_used.append(params.pop("method") if method == "auto" else method)
+            segment_params.append(
+                {"range": (float(low), float(high)), "parameters": params}
+            )
+
+        self._interpolate_gaps(temperature, baseline)
+
+        used = sorted(set(methods_used))
+        return baseline, {
+            "method": f"stepped ({'+'.join(used)})",
+            "base_method": method,
+            "steps": [(float(low), float(high)) for low, high in step_regions],
+            "segments": segment_params,
+        }
+
+    @staticmethod
+    def _segments_between(
+        temperature: NDArray[np.float64], step_regions: List[Tuple[float, float]]
+    ) -> List[Tuple[float, float]]:
+        """Temperature ranges outside the steps, in order, ignoring empty ones."""
+        steps = sorted(
+            (min(float(a), float(b)), max(float(a), float(b))) for a, b in step_regions
+        )
+        segments = []
+        start = float(np.min(temperature))
+        end = float(np.max(temperature))
+        for low, high in steps:
+            if low > start:
+                segments.append((start, min(low, end)))
+            start = max(start, high)
+        if start < end:
+            segments.append((start, end))
+        # A fit needs at least a few points; drop slivers
+        return [
+            (low, high)
+            for low, high in segments
+            if np.count_nonzero((temperature >= low) & (temperature <= high)) >= 10
+        ]
+
+    @staticmethod
+    def _clip_regions(
+        regions: Optional[List[Tuple[float, float]]], low: float, high: float
+    ) -> Optional[List[Tuple[float, float]]]:
+        """Regions restricted to a segment; None to let the method pick its own."""
+        if regions is None:
+            return None
+        clipped = []
+        for start, end in regions:
+            region_low, region_high = sorted((float(start), float(end)))
+            if region_high > low and region_low < high:
+                clipped.append((max(region_low, low), min(region_high, high)))
+        return clipped or None
+
+    @staticmethod
+    def _interpolate_gaps(
+        temperature: NDArray[np.float64], baseline: NDArray[np.float64]
+    ) -> None:
+        """Fill the steps in place, interpolating between the fitted segments."""
+        fitted = ~np.isnan(baseline)
+        if not fitted.any():
+            raise ValueError("No baseline could be fitted outside the step regions")
+        baseline[~fitted] = np.interp(
+            temperature[~fitted], temperature[fitted], baseline[fitted]
+        )
 
     @staticmethod
     def _default_regions(
