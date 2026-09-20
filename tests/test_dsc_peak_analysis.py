@@ -258,6 +258,67 @@ def test_peak_deconvolution_shoulder(peak_analyzer):
     assert np.sqrt(np.mean((fitted_curve - heat_flow) ** 2)) < 0.01
 
 
+# D18: deconvolution of peaks pointing either way
+def test_peak_deconvolution_of_downward_peaks(peak_analyzer):
+    """Endothermic (downward) peaks deconvolute like upward ones.
+
+    The fit constrains amplitudes to be non-negative, so a curve whose
+    peaks point down used to come back with ~1e-11 amplitudes, an
+    arbitrary centre and a flat fitted curve — a silent failure that reads
+    as a converged result. The peaks are now oriented before fitting and
+    the amplitudes reported with the sign of the input.
+    """
+    temperature = np.linspace(300, 500, 1000)
+    heat_flow = -generate_multiple_peaks(temperature, [380, 430], [1.0, 0.7], [12, 15])
+
+    peak_params, fitted_curve = peak_analyzer.deconvolute_peaks(
+        temperature, heat_flow, 2
+    )
+
+    assert len(peak_params) == 2
+    by_centre = sorted(peak_params, key=lambda p: p["center"])
+    np.testing.assert_allclose([p["center"] for p in by_centre], [380, 430], atol=1.0)
+    np.testing.assert_allclose(
+        [p["amplitude"] for p in by_centre], [-1.0, -0.7], atol=0.02
+    )
+    # Areas carry the sign too, so they can be summed with upward peaks
+    assert all(p["area"] < 0 for p in peak_params)
+    assert np.sqrt(np.mean((fitted_curve - heat_flow) ** 2)) < 0.01
+
+
+@pytest.mark.parametrize("sign", [1.0, -1.0])
+def test_peak_deconvolution_with_an_offset_baseline(peak_analyzer, sign):
+    """A constant offset does not leak into the amplitudes.
+
+    The model is a sum of Gaussians with no constant term, so the flat
+    level of the curve has to be the zero they are measured from.
+    """
+    temperature = np.linspace(300, 500, 1000)
+    heat_flow = 5.0 + sign * generate_multiple_peaks(temperature, [400], [1.0], [15])
+
+    peak_params, fitted_curve = peak_analyzer.deconvolute_peaks(
+        temperature, heat_flow, 1
+    )
+
+    assert len(peak_params) == 1
+    assert peak_params[0]["amplitude"] == pytest.approx(sign * 1.0, abs=0.02)
+    assert peak_params[0]["center"] == pytest.approx(400.0, abs=1.0)
+    # The fitted curve comes back on the original level, not around zero
+    assert np.sqrt(np.mean((fitted_curve - heat_flow) ** 2)) < 0.01
+
+
+def test_peak_deconvolution_rejects_impossible_requests(peak_analyzer):
+    """Fewer points than parameters, or a non-positive peak count."""
+    temperature = np.linspace(300, 500, 1000)
+    heat_flow = generate_multiple_peaks(temperature, [400], [1.0], [15])
+
+    with pytest.raises(ValueError, match="at least 1"):
+        peak_analyzer.deconvolute_peaks(temperature, heat_flow, 0)
+
+    with pytest.raises(ValueError, match="at least 15 points"):
+        peak_analyzer.deconvolute_peaks(temperature[:10], heat_flow[:10], 5)
+
+
 # Tests for error handling
 def test_invalid_peak_index(peak_analyzer, simple_peak_data):
     """Test handling of invalid peak index."""
