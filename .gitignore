@@ -162,3 +162,8 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
+
+# Docs de trabajo locales (workflow wip-doc, ver ~/projects/CLAUDE.md) — no se versionan
+_wip/
+_done/
+_ref/
