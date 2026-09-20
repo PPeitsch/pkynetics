@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [v0.6.0] - 2026-09-20
+
+### Added
+- Dilatometry, its utilities and all fifteen plotting helpers now have tests; overall coverage goes from 68% to 86%.
+- Sphinx documents `technique_analysis` (DSC and dilatometry), the Friedman and OFW/KAS model-free methods, and `result_visualization`, none of which had pages before.
+- A Documentation job in CI builds the docs with `sphinx-build -W`, so a missing page or a malformed docstring fails there.
+- `BaselineCorrector.correct` accepts `step_regions` and fits the baseline on each side of a step, interpolating within it, the way ASTM and ISO draw it.
+- Setaram exports that do not name the manufacturer in their header are detected from their columns, so `dsc_importer(..., manufacturer="auto")` handles the bundled Setaram files.
+
+### Changed
+- **Breaking:** `DSCAnalyzer.analyze()` locates a glass transition on the raw curve and fits a stepped baseline around it by default, so its results change for any run containing one. Pass `detect_steps=False` for the previous single-baseline behaviour.
+- **Breaking:** `horowitz_metzger_method`, `horowitz_metzger_plot` and `plot_horowitz_metzger` take `heating_rate` (K/min) as their third positional argument. The pre-exponential factor cannot be computed without it.
+- The spline baseline's `smoothing` is now relative to the noise rather than an absolute residual budget, so the same value means the same thing on any signal and at any sampling rate. Baselines fitted with `method="spline"` change, and results reported in different heat-flow units now agree.
+- `SignalProcessor.remove_outliers` scores points with the median and MAD instead of the mean and standard deviation, so it flags outliers the previous score could not reach.
+- `PeakAnalyzer.find_peaks` raises its prominence and height floors to at least five times the noise left after smoothing, so noisy data no longer yields spurious peaks.
+- The published changelog is generated from `CHANGELOG.md` instead of a hand-maintained copy, and `docs/requirements.txt` follows `pyproject.toml` instead of pinning numpy 1.24 / pandas 2.0.
+- The remaining hard-coded gas constants use `scipy.constants.R`.
+
+### Fixed
+- Horowitz-Metzger computed the pre-exponential factor from the intercept of its plot, which carries no information about it, and without the heating rate: the same curve analysed at 5 or 20 K/min returned the same A, over two orders of magnitude off. It now follows from the rate maximum at T_s. Note that the method's own approximation still biases E_a about 11% high, and A is exponential in that error; this is documented.
+- `remove_outliers` could not detect outliers in the truncated windows at either end of a signal, or three sharing one window: the mean/std z-score is bounded by (n-1)/sqrt(n) and never reached the threshold.
+- The spline baseline gave different results for the same experiment reported in mW and in uW, and tightened as points were added.
+- With noise at 5% of the peak amplitude, about 1% of runs reported a second, spurious peak.
+- A glass transition no longer distorts the events after it: a baseline fitted across the whole curve cut through the step, and a polymer melt read 0.82 J/g against a true ~19 J/g.
+- The bundled example scripts resolve the sample data through the installed package instead of a relative path, so they run from any working directory.
+- `installation.rst` documented a `[full]` extra that does not exist.
+
+
 ## [v0.5.0] - 2026-09-19
 
 ### Added
