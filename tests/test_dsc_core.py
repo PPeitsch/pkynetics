@@ -127,3 +127,80 @@ def test_experiment_validation():
             time=np.arange(10.0),
             mass=0.0,
         )
+
+
+@pytest.fixture
+def polymer_experiment():
+    """Run with a glass transition (a step) before the two peaks."""
+    time = np.arange(0, 1800.0, 1.0)
+    temperature = 300 + HEATING_RATE / 60 * time
+    heat_flow = (
+        0.2
+        + 0.002 * (temperature - 300)
+        + 0.5 / (1 + np.exp(-(temperature - 355) / 5.0))  # glass transition
+        + gaussian(temperature, 420, -0.8, 8)  # cold crystallization
+        + gaussian(temperature, 500, 1.5, 6)  # melting
+    )
+    return DSCExperiment(
+        temperature=temperature,
+        heat_flow=heat_flow,
+        time=time,
+        mass=MASS,
+        sample_name="polymer",
+    )
+
+
+def test_glass_transition_does_not_create_a_peak(polymer_experiment):
+    """The step is fitted around, not through: no spurious peak, right areas."""
+    analyzer = DSCAnalyzer(
+        polymer_experiment, event_detector=ThermalEventDetector(exo_up=False)
+    )
+    results = analyzer.analyze(baseline_method="linear")
+
+    assert results["baseline"]["type"].startswith("stepped")
+    assert len(results["peaks"]) == 2
+
+    crystallization, melting = results["peaks"]
+    assert crystallization.type == "exothermic"
+    assert melting.type == "endothermic"
+    np.testing.assert_allclose(crystallization.peak_temperature, 420, atol=2)
+    np.testing.assert_allclose(melting.peak_temperature, 500, atol=2)
+    np.testing.assert_allclose(crystallization.enthalpy, enthalpy(0.8, 8), rtol=0.1)
+    np.testing.assert_allclose(melting.enthalpy, enthalpy(1.5, 6), rtol=0.1)
+
+
+def test_glass_transition_still_reported(polymer_experiment):
+    """The stepped baseline removes the step, so the raw-curve Tg is kept."""
+    analyzer = DSCAnalyzer(
+        polymer_experiment, event_detector=ThermalEventDetector(exo_up=False)
+    )
+    results = analyzer.analyze(baseline_method="linear")
+
+    transitions = results["events"]["glass_transitions"]
+    assert len(transitions) == 1
+    np.testing.assert_allclose(transitions[0].midpoint_temperature, 355, atol=5)
+    assert transitions[0].onset_temperature < transitions[0].endpoint_temperature
+
+
+def test_single_baseline_across_the_step_is_worse(polymer_experiment):
+    """detect_steps=False keeps the old behaviour: the step becomes a peak."""
+    analyzer = DSCAnalyzer(
+        polymer_experiment, event_detector=ThermalEventDetector(exo_up=False)
+    )
+    results = analyzer.analyze(baseline_method="linear", detect_steps=False)
+
+    assert results["baseline"]["type"] == "linear"
+    peaks = results["peaks"]
+    assert len(peaks) > 2
+    assert any(abs(peak.peak_temperature - 355) < 25 for peak in peaks)
+
+
+def test_curve_without_step_is_unchanged(experiment):
+    """No glass transition: a single baseline, as before."""
+    analyzer = DSCAnalyzer(
+        experiment, event_detector=ThermalEventDetector(exo_up=False)
+    )
+    results = analyzer.analyze(baseline_method="linear")
+
+    assert results["baseline"]["type"] == "linear"
+    assert len(results["peaks"]) == 2

@@ -298,3 +298,70 @@ def test_asymmetric_baseline_accuracy(baseline_corrector, simple_data):
     heat_flow = baseline + generate_test_peak(temperature, 400, 1.0, 20.0)
     result = baseline_corrector.correct(temperature, heat_flow, method="asymmetric")
     np.testing.assert_allclose(result.baseline, baseline, atol=0.075)
+
+
+# Stepped baselines (glass transition)
+def stepped_signal(step_center: float = 400.0, step_height: float = 0.5):
+    """Sloped baseline with a step, and a peak well after it."""
+    temperature, baseline = generate_test_data(n_points=1000, temp_range=(300, 500))
+    step = step_height / (1 + np.exp(-(temperature - step_center) / 3.0))
+    peak = generate_test_peak(temperature, 460, 1.0, 6)
+    return temperature, baseline + step + peak, baseline, step
+
+
+def test_stepped_baseline_follows_the_step(baseline_corrector):
+    """Each side is fitted on its own, so the step stays in the baseline."""
+    temperature, heat_flow, baseline, step = stepped_signal()
+
+    result = baseline_corrector.correct(
+        temperature, heat_flow, method="linear", step_regions=[(385.0, 415.0)]
+    )
+
+    assert result.method.startswith("stepped")
+    assert result.parameters["steps"] == [(385.0, 415.0)]
+    assert len(result.parameters["segments"]) == 2
+
+    # The baseline reproduces slope plus step, away from the peak
+    expected = baseline + step
+    before = temperature < 380
+    after = (temperature > 420) & (temperature < 440)
+    np.testing.assert_allclose(result.baseline[before], expected[before], atol=0.02)
+    np.testing.assert_allclose(result.baseline[after], expected[after], atol=0.02)
+
+
+def test_single_baseline_misses_the_step(baseline_corrector):
+    """Without step_regions one fit crosses the step and leaves a residue."""
+    temperature, heat_flow, baseline, step = stepped_signal()
+
+    result = baseline_corrector.correct(temperature, heat_flow, method="linear")
+
+    expected = baseline + step
+    after = (temperature > 420) & (temperature < 440)
+    residual = np.max(np.abs(result.baseline[after] - expected[after]))
+    assert residual > 0.1  # half the step height, give or take
+
+
+def test_stepped_baseline_keeps_the_peak(baseline_corrector):
+    """The corrected signal is flat outside the peak and keeps its area."""
+    temperature, heat_flow, _, _ = stepped_signal()
+
+    result = baseline_corrector.correct(
+        temperature, heat_flow, method="linear", step_regions=[(385.0, 415.0)]
+    )
+
+    quiet = (temperature > 420) & (temperature < 440)
+    assert np.max(np.abs(result.corrected_data[quiet])) < 0.02
+    peak_area = np.trapezoid(result.corrected_data, temperature)
+    np.testing.assert_allclose(peak_area, 1.0 * 6 * np.sqrt(np.pi), rtol=0.1)
+
+
+def test_step_regions_need_data_on_at_least_one_side(baseline_corrector):
+    temperature, heat_flow, _, _ = stepped_signal()
+
+    with pytest.raises(ValueError):
+        baseline_corrector.correct(
+            temperature,
+            heat_flow,
+            method="linear",
+            step_regions=[(float(temperature[0]), float(temperature[-1]))],
+        )
