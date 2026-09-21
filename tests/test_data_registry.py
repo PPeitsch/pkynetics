@@ -54,16 +54,21 @@ def test_a_local_directory_is_used_instead_of_downloading(tmp_path, monkeypatch)
     assert os.path.samefile(path, local / name)
 
 
-def test_a_corrupt_local_file_is_rejected(tmp_path, monkeypatch):
-    """The hash is what makes the cache safe: a file that does not match it is
-    re-downloaded rather than returned, so with no network the call fails."""
+def test_a_corrupt_cached_file_is_not_returned(tmp_path, monkeypatch):
+    """The hash is what makes the cache safe: a cached file that does not match it
+    is re-downloaded rather than handed back. The download is stubbed out, so what
+    this asserts is that fetch reaches for it instead of trusting the bad file."""
     name = "tga_setaram_duran.csv"
     local = tmp_path / "data" / DATA_VERSION
     local.mkdir(parents=True)
     (local / name).write_bytes(b"not the real file")
 
+    def _no_downloads(*args, **kwargs):
+        raise RuntimeError("download attempted")
+
     monkeypatch.setenv("PKYNETICS_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setattr(data_module._REGISTRY, "path", local)
+    monkeypatch.setattr(data_module.pooch.core, "stream_download", _no_downloads)
 
-    with pytest.raises(Exception):
+    with pytest.raises(RuntimeError, match="download attempted"):
         fetch(name)
