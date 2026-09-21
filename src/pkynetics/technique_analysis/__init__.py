@@ -26,6 +26,7 @@ from .dilatometry import (
     extrapolate_linear_segments,
     find_inflection_points,
     find_optimal_margin,
+    find_transformation_limits,
     lever_method,
     tangent_method,
 )
@@ -37,6 +38,7 @@ __all__ = [
     "analyze_dilatometry_curve",
     # Core analysis functions
     "find_inflection_points",
+    "find_transformation_limits",
     "extrapolate_linear_segments",
     "calculate_transformed_fraction_lever",
     "find_optimal_margin",

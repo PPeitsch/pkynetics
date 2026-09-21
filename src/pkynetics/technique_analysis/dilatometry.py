@@ -104,6 +104,10 @@ def find_optimal_margin(
     """
     Determine the optimal margin percentage for linear segment fitting based on R².
 
+    Returns the widest margin whose linear fits both reach ``min_r2``, so that
+    the baselines use as much of the linear regions as they can without
+    reaching into the transformation.
+
     Args:
         temperature: Temperature data array
         strain: Strain data array
@@ -172,8 +176,11 @@ def find_optimal_margin(
             continue
 
     if candidate_margins:
-        # If multiple margins meet the criteria, choose the one with the highest R²
-        best_candidate = max(candidate_margins, key=lambda x: x["avg_r2"])
+        # Among the margins that meet the R² criterion, take the widest: a
+        # smaller window always fits a straight line better, so picking the
+        # highest R² would systematically use the least baseline available,
+        # which is the opposite of what makes the limits robust.
+        best_candidate = max(candidate_margins, key=lambda x: x["margin"])
         return float(best_candidate["margin"])
     elif best_margin is not None:
         # If no margin met min_r2, but at least one fit was possible, return the one with highest R² found
@@ -311,10 +318,10 @@ def analyze_dilatometry_curve(
     strain: NDArray[np.float64],
     method: str = "lever",
     margin_percent: Optional[float] = None,
-    find_inflection_margin: float = 0.3,
+    find_inflection_margin: float = 0.2,
     min_points_fit: int = 10,
     min_r2_optimal_margin: float = 0.99,
-    deviation_threshold: Optional[float] = None,
+    deviation_fraction: float = 0.05,
 ) -> ReturnDict:
     """
     Analyze the dilatometry curve to extract key transformation parameters.
@@ -327,12 +334,13 @@ def analyze_dilatometry_curve(
                         (used by both methods). If None for tangent, optimal margin is found.
                         Default for lever is often implicitly 0.2 or uses find_inflection_margin.
         find_inflection_margin: Margin percentage (0.1-0.4) used specifically by the
-                                'lever' method's `find_inflection_points` function. Default is 0.3.
+                                'lever' method's `find_inflection_points` function. Default is 0.2.
         min_points_fit: Minimum number of points required for reliable linear fitting
                         in tangent/lever methods. Default is 10.
         min_r2_optimal_margin: Minimum R² required when using `find_optimal_margin`
                                in the tangent method. Default is 0.99.
-        deviation_threshold: Deviation threshold for the tangent method. If None, it's calculated.
+        deviation_fraction: Fraction of the peak excursion of ``dS/dT`` that still
+            counts as transforming, for both methods. Default is 0.05.
 
     Returns:
         Dictionary containing analysis results: start, end, mid temperatures,
@@ -375,7 +383,7 @@ def analyze_dilatometry_curve(
             strain,
             is_cooling=is_cooling,
             margin_percent=margin_percent,  # Can be None to trigger optimal search
-            deviation_threshold=deviation_threshold,
+            deviation_fraction=deviation_fraction,
             min_points_fit=min_points_fit,
             min_r2_optimal_margin=min_r2_optimal_margin,
         )
@@ -390,12 +398,13 @@ def lever_method(
     strain: NDArray[np.float64],
     is_cooling: bool,
     margin_percent_fraction: float = 0.2,
-    find_inflection_margin: float = 0.3,
+    find_inflection_margin: float = 0.2,
     min_points_fit: int = 5,  # Min points for fraction calculation fit
 ) -> ReturnDict:
     """
     Analyze dilatometry curve using the lever rule method.
-    Finds transformation points based on deviation from tangents fitted using 'find_inflection_margin'.
+    Locates the transformation limits on the derivative of the strain, using
+    'find_inflection_margin' to define the baseline segments.
     Calculates transformed fraction using tangents fitted using 'margin_percent_fraction'.
 
     Args:
@@ -455,29 +464,31 @@ def tangent_method(
     strain: NDArray[np.float64],
     is_cooling: bool,
     margin_percent: Optional[float] = None,
-    deviation_threshold: Optional[float] = None,
+    deviation_fraction: float = 0.05,
+    limits_margin: float = 0.2,
     min_points_fit: int = 10,
     min_r2_optimal_margin: float = 0.99,
 ) -> ReturnDict:
     """
     Analyze dilatometry curve using the tangent intersection method.
-    Fits tangents based on 'margin_percent' (or finds optimal).
-    Finds transformation points based on deviation from these tangents.
+    Fits tangents based on 'margin_percent' (or finds optimal), and locates the
+    transformation limits on the derivative of the strain.
 
     Args:
         temperature: Array of temperature values.
         strain: Array of strain values.
         is_cooling: Boolean indicating direction.
         margin_percent: Margin for fitting tangents. If None, finds optimal margin.
-        deviation_threshold: Threshold for detecting deviation. If None, calculated automatically.
+        deviation_fraction: Fraction of the peak excursion of ``dS/dT`` that still
+            counts as transforming, passed to :func:`find_transformation_limits`.
+        limits_margin: Fraction of the data at each end taken as baseline when
+            locating the transformation limits.
         min_points_fit: Minimum points for tangent fitting.
         min_r2_optimal_margin: Minimum R² for optimal margin search.
 
     Returns:
         Dictionary containing analysis results including fit quality.
     """
-    warnings_list = []  # Collect warnings during execution
-
     # 1. Determine margin for fitting tangents
     final_margin_percent: float
     if margin_percent is not None:
@@ -511,33 +522,17 @@ def tangent_method(
     # 3. Get extrapolated values (full range)
     pred_start, pred_end = get_extrapolated_values(temperature, p_start, p_end)
 
-    # 4. Determine deviation threshold if not provided
-    final_deviation_threshold: float
-    if deviation_threshold is not None:
-        final_deviation_threshold = float(deviation_threshold)
-    else:
-        final_deviation_threshold = calculate_deviation_threshold(
-            strain, pred_start, pred_end, start_mask, end_mask
-        )
-        if (
-            final_deviation_threshold < 1e-9
-        ):  # Handle case with almost perfect fit / no noise
-            noise_level = detect_noise_level(strain)  # Estimate noise from data
-            final_deviation_threshold = max(
-                noise_level * 3, 1e-7
-            )  # Use noise estimate or a small floor value
-            warnings_list.append(
-                f"Calculated deviation threshold was near zero. Reset to {final_deviation_threshold:.2e} based on noise estimate."
-            )
-
-    # 5. Find transformation start/end points based on deviation
-    start_idx, end_idx = find_transformation_points(
-        temperature, strain, pred_start, pred_end, final_deviation_threshold, is_cooling
+    # 4. Locate the transformation on the derivative of the strain.
+    # Deliberately not `final_margin_percent`: that margin is chosen to fit the
+    # tangents used for the transformed fraction and can be wide enough to reach
+    # into the transformation, which would bias the baseline slope.
+    start_idx, end_idx = find_transformation_limits(
+        temperature,
+        strain,
+        is_cooling=is_cooling,
+        margin=limits_margin,
+        deviation_fraction=deviation_fraction,
     )
-
-    # Ensure indices are ordered correctly for slicing etc. (start < end index)
-    if start_idx > end_idx:
-        start_idx, end_idx = end_idx, start_idx
 
     start_temp = temperature[start_idx]
     end_temp = temperature[end_idx]
@@ -552,12 +547,12 @@ def tangent_method(
             start_temp, end_temp
         )
 
-    # 6. Calculate transformed fraction using the identified points and tangents
+    # 5. Calculate transformed fraction using the identified points and tangents
     transformed_fraction = calculate_transformed_fraction(
         strain, pred_start, pred_end, start_idx, end_idx, is_cooling
     )
 
-    # 7. Find midpoint temperature (T50%)
+    # 6. Find midpoint temperature (T50%)
     mid_temp = find_midpoint_temperature(
         temperature,
         transformed_fraction,
@@ -566,7 +561,7 @@ def tangent_method(
         is_cooling,
     )
 
-    # 8. Calculate fit quality metrics
+    # 7. Calculate fit quality metrics
     fit_quality = calculate_fit_quality(
         temperature,
         strain,
@@ -575,8 +570,7 @@ def tangent_method(
         start_mask,
         end_mask,
         final_margin_percent,
-        final_deviation_threshold,
-        warnings_list,  # Pass current warnings
+        deviation_fraction,
     )
 
     return {
@@ -593,7 +587,7 @@ def tangent_method(
         "is_cooling": is_cooling,
         "parameters": {  # Store parameters used
             "margin_percent": final_margin_percent,
-            "deviation_threshold": final_deviation_threshold,
+            "deviation_fraction": deviation_fraction,
             "min_points_fit": min_points_fit,
             "min_r2_optimal_margin": min_r2_optimal_margin,
         },
@@ -603,224 +597,249 @@ def tangent_method(
 # --- Helper Functions ---
 
 
-def find_inflection_points(
+def _smoothing_window(
+    n_total: int,
+    smooth_window_fraction: float,
+    min_points_smooth: int,
+) -> int:
+    """Odd Savitzky-Golay window length for ``n_total`` points, or 0 if too short."""
+    window_length = max(min_points_smooth, int(n_total * smooth_window_fraction))
+    if window_length % 2 == 0:
+        window_length += 1
+    window_length = min(window_length, n_total - 2)
+    return window_length if window_length >= 3 else 0
+
+
+def _mad_scale(values: NDArray[np.float64]) -> float:
+    """Median absolute deviation, scaled to be comparable to a std."""
+    median = float(np.median(values))
+    return 1.4826 * float(np.median(np.abs(values - median)))
+
+
+def _longest_run(flags: NDArray[np.bool_]) -> Tuple[int, int]:
+    """First and last index of the longest run of True in ``flags``.
+
+    Falls back to the middle 70 % of the array if nothing is flagged.
+    """
+    n_total = len(flags)
+    best_start, best_end, best_length = -1, -1, 0
+    run_start = -1
+    for i in range(n_total):
+        if flags[i]:
+            if run_start < 0:
+                run_start = i
+        elif run_start >= 0:
+            if i - run_start > best_length:
+                best_start, best_end, best_length = run_start, i - 1, i - run_start
+            run_start = -1
+    if run_start >= 0 and n_total - run_start > best_length:
+        best_start, best_end = run_start, n_total - 1
+
+    if best_start < 0:
+        return int(n_total * 0.15), int(n_total * 0.85)
+    return best_start, best_end
+
+
+def find_transformation_limits(
     temperature: NDArray[np.float64],
     strain: NDArray[np.float64],
     is_cooling: bool = False,
-    margin: float = 0.3,
-    smooth_window_fraction: float = 0.05,  # Smoothing window as fraction of data length
+    margin: float = 0.2,
+    deviation_fraction: float = 0.05,
+    smooth_window_fraction: float = 0.05,
     polyorder: int = 2,
     min_points_smooth: int = 5,
-    min_points_fit: int = 5,  # Min points for the tangent fits in this function
-    residual_std_multiplier: float = 3.0,  # Multiplier for noise threshold
-) -> Tuple[float, float]:
+    baseline_min_r2: float = 0.99,
+) -> Tuple[int, int]:
     """
-    Find transformation start/end points where the curve deviates significantly
-    from linear tangents fitted to the initial and final segments defined by 'margin'.
-    Uses smoothed data, adaptive noise thresholds, and directed search logic.
+    Find the indices where the transformation starts and ends, from the
+    derivative of the strain with respect to temperature.
+
+    The transformation is located on ``dS/dT`` rather than on the deviation of
+    the strain from an extrapolated tangent. A real baseline is never exactly
+    straight, and the *integral* of a slight curvature is indistinguishable
+    from the beginning of a transformation, which is why deviation-based
+    detection drifted 80-150 K early on real data. On the derivative the two
+    separate: the curvature of the baseline is a small offset, the
+    transformation a large, localised excursion.
+
+    The limits are the points where the derivative comes back to within
+    ``deviation_fraction`` of the peak excursion, walking outwards from that
+    peak, so a single noisy point near the edge of the data cannot pull a
+    limit onto the edge of the data.
 
     Args:
         temperature: Array of temperature values.
         strain: Array of strain values.
         is_cooling: Whether this is a cooling segment.
-        margin: Fraction of temperature range (0.1-0.4) to define linear regions for fitting tangents.
-        smooth_window_fraction: Fraction of data length for Savitzky-Golay smoothing window.
+        margin: Fraction of the data at each end taken as baseline (0.1-0.4).
+        deviation_fraction: Fraction of the peak excursion of the derivative
+            that still counts as transforming. 0.05 reproduces both a
+            synthetic sigmoid and a real Zry-4 dilatometry run.
+        smooth_window_fraction: Savitzky-Golay window as a fraction of length.
         polyorder: Polynomial order for smoothing.
-        min_points_smooth: Minimum window length for smoothing.
-        min_points_fit: Minimum points required for fitting the tangents.
-        residual_std_multiplier: Multiplier for standard deviation of residuals to set noise threshold.
+        min_points_smooth: Minimum smoothing window length.
+        baseline_min_r2: R² below which a baseline window is reported as not
+            linear, i.e. as reaching into a transformation.
 
     Returns:
-        Tuple containing start and end temperatures of the transformation, ordered
-        according to heating/cooling convention (start > end for cooling).
+        Tuple ``(start_idx, end_idx)`` of indices into the input arrays, in
+        array order (``start_idx < end_idx``), whatever the ramp direction.
 
     Raises:
-        ValueError: If margin is invalid, data is insufficient, or fitting fails.
+        ValueError: If the arguments or the amount of data are invalid.
     """
-    # --- Start: Setup and Smoothing ---
-    if not (0.1 <= margin <= 0.4):
-        raise ValueError("Margin must be between 0.1 and 0.4")
     n_total = len(temperature)
-    if n_total < max(
-        min_points_fit * 4, min_points_smooth, 20
-    ):  # Ensure enough points for smoothing, fitting, and detection
+    if n_total < 20:
         raise ValueError(
-            f"Insufficient data points ({n_total}). Need more points for reliable inflection point detection."
+            f"Insufficient data points ({n_total}) to locate the transformation."
         )
+    if not (0.0 < deviation_fraction < 1.0):
+        raise ValueError("deviation_fraction must be between 0 and 1 (exclusive)")
 
-    # Smooth data for more robust analysis
-    window_length = int(n_total * smooth_window_fraction)
-    window_length = max(min_points_smooth, window_length)
-    if window_length % 2 == 0:
-        window_length += 1  # Ensure odd
-    window_length = min(
-        window_length, n_total - 2
-    )  # Ensure window is smaller than data length
-
-    try:
-        smooth_strain = smooth_data(
-            strain, window_length=window_length, polyorder=polyorder
-        )
-    except ValueError as e:
-        raise ValueError(f"Smoothing failed: {e}")
-    # --- End: Setup and Smoothing ---
-
-    # --- Start: Fit Tangents and Calculate Residuals ---
-    # Define linear regions based on margin and heating/cooling direction
-    start_fit_mask, end_fit_mask = get_linear_segment_masks(
-        temperature, margin, is_cooling
+    window_length = _smoothing_window(
+        n_total, smooth_window_fraction, min_points_smooth
     )
-
-    # Ensure enough points in each region for fitting
-    if np.sum(start_fit_mask) < min_points_fit:
-        raise ValueError(
-            f"Insufficient points ({np.sum(start_fit_mask)}) in initial segment (margin={margin:.1%}) "
-            f"for fitting tangent. Need at least {min_points_fit}."
-        )
-    if np.sum(end_fit_mask) < min_points_fit:
-        raise ValueError(
-            f"Insufficient points ({np.sum(end_fit_mask)}) in final segment (margin={margin:.1%}) "
-            f"for fitting tangent. Need at least {min_points_fit}."
-        )
-
-    # Fit tangent lines to linear regions using SMOOTHED data
-    try:
-        start_fit_coeffs = np.polyfit(
-            temperature[start_fit_mask], smooth_strain[start_fit_mask], 1
-        )
-        end_fit_coeffs = np.polyfit(
-            temperature[end_fit_mask], smooth_strain[end_fit_mask], 1
-        )
-    except (np.linalg.LinAlgError, ValueError) as e:
-        raise ValueError(f"Failed to fit tangents for inflection point detection: {e}")
-
-    # Calculate extrapolations across the full range
-    start_line = np.polyval(start_fit_coeffs, temperature)
-    end_line = np.polyval(end_fit_coeffs, temperature)
-
-    # Calculate residuals between SMOOTHED curve and extrapolations
-    start_residuals = np.abs(smooth_strain - start_line)
-    end_residuals = np.abs(smooth_strain - end_line)
-
-    # Set adaptive noise thresholds based on standard deviation of residuals in the linear fit regions
-    noise_start = np.std(start_residuals[start_fit_mask]) * residual_std_multiplier
-    noise_end = np.std(end_residuals[end_fit_mask]) * residual_std_multiplier
-    # Add a small floor value to prevent zero threshold if fit is perfect
-    noise_start = max(noise_start, 1e-9)
-    noise_end = max(noise_end, 1e-9)
-    # --- End: Fit Tangents and Calculate Residuals ---
-
-    # --- Start: Directed Search Logic ---
-    start_idx_transform: Optional[int] = None
-    end_idx_transform: Optional[int] = None
-
-    # Define search ranges - avoid fitting regions themselves
-    search_mask = ~start_fit_mask & ~end_fit_mask
-    search_indices = np.where(search_mask)[0]
-
-    if len(search_indices) < 5:  # Need some points between the fit regions
-        py_warnings.warn(
-            "Very few points between linear fit regions. Detection might be unreliable.",
-            UserWarning,
-        )
-        # Use fallback immediately if search region is too small
-        search_indices = np.arange(
-            n_total
-        )  # Fallback to searching whole range if overlap
-
-    # Determine search direction based on heating/cooling
-    if is_cooling:
-        # Cooling: Start search from high temp (index 0), End search from low temp (index n-1)
-        # Indices sorted by temperature High -> Low
-        # We search within the `search_indices` range
-
-        # Find Start Point (First deviation from high-T line when moving towards lower T)
-        # Iterate through search_indices in their natural (low index to high index) order
-        for idx in search_indices:
-            if start_residuals[idx] > noise_start:
-                start_idx_transform = idx
-                break  # Found the first point deviating from the start baseline
-
-        # Find End Point (First deviation from low-T line when moving towards higher T - searching backwards in index)
-        # Iterate through search_indices in reverse order
-        for idx in search_indices[::-1]:
-            if end_residuals[idx] > noise_end:
-                end_idx_transform = idx
-                break  # Found the first point (from the end) deviating from the end baseline
-
-    else:  # Heating
-        # Heating: Start search from low temp (index 0), End search from high temp (index n-1)
-        # Indices sorted by temperature Low -> High
-        # We search within the `search_indices` range
-
-        # Find Start Point (First deviation from low-T line when moving towards higher T)
-        # Iterate through search_indices in their natural (low index to high index) order
-        for idx in search_indices:
-            if start_residuals[idx] > noise_start:
-                start_idx_transform = idx
-                break  # Found the first point deviating from the start baseline
-
-        # Find End Point (First deviation from high-T line when moving towards lower T - searching backwards in index)
-        # Iterate through search_indices in reverse order
-        for idx in search_indices[::-1]:
-            if end_residuals[idx] > noise_end:
-                end_idx_transform = idx
-                break  # Found the first point (from the end) deviating from the end baseline
-    # --- End: Directed Search Logic ---
-
-    # --- Start: Fallback Logic ---
-    if (
-        start_idx_transform is None
-        or end_idx_transform is None
-        or start_idx_transform >= end_idx_transform
-    ):
-        py_warnings.warn(
-            f"Initial deviation search failed or yielded invalid order (Start: {start_idx_transform}, End: {end_idx_transform}) using margin {margin:.1%}. "
-            f"Attempting fallback using peak derivative.",
-            UserWarning,
-        )
-        # Fallback: Use quantiles on the *search indices*
-        if len(search_indices) >= 2:
-            fallback_start_idx = search_indices[
-                max(0, int(len(search_indices) * 0.1))
-            ]  # 10% into search region
-            fallback_end_idx = search_indices[
-                min(len(search_indices) - 1, int(len(search_indices) * 0.9))
-            ]  # 90% into search region
-        else:  # Very limited search region, use absolute quantiles
-            fallback_start_idx = int(n_total * 0.25)
-            fallback_end_idx = int(n_total * 0.75)
-
-        if start_idx_transform is None:
-            start_idx_transform = fallback_start_idx
-        if end_idx_transform is None:
-            end_idx_transform = fallback_end_idx
-        # Ensure order after fallback
-        if start_idx_transform >= end_idx_transform:
-            start_idx_transform, end_idx_transform = min(
-                fallback_start_idx, fallback_end_idx
-            ), max(fallback_start_idx, fallback_end_idx)
+    smooth_strain = strain
+    if window_length:
+        try:
+            smooth_strain = smooth_data(
+                strain, window_length=window_length, polyorder=polyorder
+            )
+        except ValueError:
             py_warnings.warn(
-                f"Fallback also yielded invalid order. Forced to indices {start_idx_transform}, {end_idx_transform}.",
+                "Smoothing the strain failed; locating the transformation on the "
+                "raw signal.",
                 UserWarning,
             )
 
-    # --- End: Fallback Logic ---
+    derivative = np.gradient(smooth_strain, temperature)
+    if window_length:
+        try:
+            derivative = smooth_data(
+                derivative, window_length=window_length, polyorder=polyorder
+            )
+        except ValueError:
+            pass  # Unsmoothed derivative; the thresholds adapt to its noise
 
-    # Convert indices to temperatures and ensure correct order for return
-    start_temp = float(temperature[start_idx_transform])
-    end_temp = float(temperature[end_idx_transform])
+    start_mask, end_mask = get_linear_segment_masks(temperature, margin, is_cooling)
+    if np.sum(start_mask) < 2 or np.sum(end_mask) < 2:
+        raise ValueError(
+            f"Margin {margin:.1%} leaves fewer than 2 points in a baseline segment."
+        )
 
-    # Ensure correct order based on direction for return value
-    # Convention: start_temp is where transformation begins, end_temp where it ends.
-    if is_cooling:
-        # Cooling starts at higher temp, ends at lower temp
-        if start_temp < end_temp:
-            start_temp, end_temp = end_temp, start_temp  # Swap if needed
-    else:
-        # Heating starts at lower temp, ends at higher temp
-        if start_temp > end_temp:
-            start_temp, end_temp = end_temp, start_temp  # Swap if needed
+    # A baseline window that is not straight has reached into the
+    # transformation (or into a second one), and every threshold below is
+    # then measured against the wrong thing
+    for mask, side in ((start_mask, "initial"), (end_mask, "final")):
+        r2 = calculate_r2(
+            temperature[mask],
+            strain[mask],
+            np.polyfit(temperature[mask], strain[mask], 1),
+        )
+        if r2 < baseline_min_r2:
+            py_warnings.warn(
+                f"The {side} baseline window is not linear (R² = {r2:.3f}). It "
+                f"probably reaches into a transformation: narrow the analysis "
+                f"range or lower `margin` (currently {margin:.1%}). The limits "
+                f"below may be unreliable.",
+                UserWarning,
+            )
+
+    # Deviation of the derivative from each baseline's own slope
+    dev_start = np.abs(derivative - float(np.median(derivative[start_mask])))
+    dev_end = np.abs(derivative - float(np.median(derivative[end_mask])))
+
+    # A limit has to clear both the scatter of its own baseline and a fixed
+    # fraction of the excursion, so neither a noisy nor a clean curve
+    # degenerates. Both are robust estimators: a single spike in the raw data
+    # survives smoothing as a large spike in the derivative, and would
+    # otherwise set the scale for everything else.
+    threshold_start = max(
+        deviation_fraction * float(np.percentile(dev_start, 99.5)),
+        3.0 * _mad_scale(derivative[start_mask]),
+    )
+    threshold_end = max(
+        deviation_fraction * float(np.percentile(dev_end, 99.5)),
+        3.0 * _mad_scale(derivative[end_mask]),
+    )
+
+    # The transformation is the longest run of points over the threshold, not
+    # the first one: an isolated spike is a run of one or two points, and
+    # walking outwards from the peak would start on it.
+    start_idx = _longest_run(dev_start > threshold_start)[0]
+    end_idx = _longest_run(dev_end > threshold_end)[1]
+
+    if start_idx >= end_idx:
+        py_warnings.warn(
+            f"The transformation limits came out in the wrong order "
+            f"(indices {start_idx}, {end_idx}). The two baselines may be picking "
+            f"up the same feature. Using them in array order.",
+            UserWarning,
+        )
+        start_idx, end_idx = min(start_idx, end_idx), max(start_idx, end_idx)
+        if start_idx == end_idx:  # Degenerate: fall back to the search interval
+            start_idx, end_idx = int(n_total * 0.15), int(n_total * 0.85)
+
+    return start_idx, end_idx
+
+
+def find_inflection_points(
+    temperature: NDArray[np.float64],
+    strain: NDArray[np.float64],
+    is_cooling: bool = False,
+    margin: float = 0.2,
+    smooth_window_fraction: float = 0.05,
+    polyorder: int = 2,
+    min_points_smooth: int = 5,
+    deviation_fraction: float = 0.05,
+) -> Tuple[float, float]:
+    """
+    Find the transformation start and end temperatures.
+
+    Thin wrapper over :func:`find_transformation_limits` that returns
+    temperatures ordered by the direction of the ramp.
+
+    Args:
+        temperature: Array of temperature values.
+        strain: Array of strain values.
+        is_cooling: Whether this is a cooling segment.
+        margin: Fraction of the data at each end taken as baseline (0.1-0.4).
+        smooth_window_fraction: Savitzky-Golay window as a fraction of length.
+        polyorder: Polynomial order for smoothing.
+        min_points_smooth: Minimum smoothing window length.
+        deviation_fraction: Fraction of the peak excursion of ``dS/dT`` that
+            still counts as transforming.
+
+    Returns:
+        Tuple of start and end temperatures, ordered according to the
+        heating/cooling convention (start > end for cooling).
+
+    Raises:
+        ValueError: If margin is invalid or the data are insufficient.
+    """
+    if not (0.1 <= margin <= 0.4):
+        raise ValueError("Margin must be between 0.1 and 0.4")
+
+    start_idx, end_idx = find_transformation_limits(
+        temperature,
+        strain,
+        is_cooling=is_cooling,
+        margin=margin,
+        deviation_fraction=deviation_fraction,
+        smooth_window_fraction=smooth_window_fraction,
+        polyorder=polyorder,
+        min_points_smooth=min_points_smooth,
+    )
+
+    start_temp = float(temperature[start_idx])
+    end_temp = float(temperature[end_idx])
+
+    # Heating starts low and ends high; cooling the other way round
+    if is_cooling and start_temp < end_temp:
+        start_temp, end_temp = end_temp, start_temp
+    elif not is_cooling and start_temp > end_temp:
+        start_temp, end_temp = end_temp, start_temp
 
     return start_temp, end_temp
 
@@ -980,162 +999,6 @@ def get_extrapolated_values(
     return pred_start, pred_end
 
 
-def find_transformation_points(
-    temperature: NDArray[np.float64],
-    strain: NDArray[np.float64],
-    pred_start: NDArray[np.float64],  # Extrapolated start baseline
-    pred_end: NDArray[np.float64],  # Extrapolated end baseline
-    deviation_threshold: float,
-    is_cooling: bool = False,
-    smooth_deviation: bool = True,  # Option to smooth deviation signal
-    smooth_window_fraction: float = 0.05,
-    polyorder: int = 2,
-    min_points_smooth: int = 5,
-) -> Tuple[int, int]:
-    """
-    Find transformation start and end point indices based on where the actual
-    strain deviates significantly from the extrapolated linear baselines, using
-    directed search logic.
-
-    Args:
-        temperature: Array of temperature values.
-        strain: Array of strain values.
-        pred_start: Extrapolated baseline from the starting linear segment.
-        pred_end: Extrapolated baseline from the ending linear segment.
-        deviation_threshold: Threshold value for significant deviation.
-        is_cooling: Boolean indicating direction.
-        smooth_deviation: Whether to smooth the deviation signal before thresholding.
-        smooth_window_fraction: Fraction for smoothing window.
-        polyorder: Order for smoothing polynomial.
-        min_points_smooth: Minimum points for smoothing window.
-
-    Returns:
-        Tuple containing the indices (start_idx, end_idx) of the transformation.
-        Indices refer to the original temperature/strain arrays.
-        The order (start_idx vs end_idx) reflects the position in the array.
-    """
-    n_total = len(temperature)
-
-    # --- Start: Calculate Deviations and Smooth ---
-    dev_start = np.abs(strain - pred_start)
-    dev_end = np.abs(strain - pred_end)
-
-    if smooth_deviation:
-        window_length = int(n_total * smooth_window_fraction)
-        window_length = max(min_points_smooth, window_length)
-        if window_length % 2 == 0:
-            window_length += 1
-        window_length = min(window_length, n_total - 2)
-        try:
-            if (
-                window_length >= 3
-            ):  # Savgol filter requires window >= polyorder + 1 (and odd)
-                dev_start = smooth_data(
-                    dev_start, window_length=window_length, polyorder=polyorder
-                )
-                dev_end = smooth_data(
-                    dev_end, window_length=window_length, polyorder=polyorder
-                )
-            # else: smoothing window too small, use raw deviations
-        except ValueError:
-            py_warnings.warn(
-                "Smoothing deviations failed, using raw deviation signals.", UserWarning
-            )
-            # Continue with raw dev_start, dev_end
-    # --- End: Calculate Deviations and Smooth ---
-
-    # --- Start: Directed Search Logic ---
-    start_idx: Optional[int] = None
-    end_idx: Optional[int] = None
-
-    # Find Start Point: Search forward from the beginning of the data array
-    for i in range(n_total):
-        # We look for the first index where the deviation from the initial state's baseline
-        # (represented by pred_start) exceeds the threshold.
-        if dev_start[i] > deviation_threshold:
-            start_idx = i
-            break  # Stop at the first occurrence
-
-    # Find End Point: Search backward from the end of the data array
-    for i in range(n_total - 1, -1, -1):
-        # We look for the first index (moving backwards) where the deviation from the
-        # final state's baseline (represented by pred_end) exceeds the threshold.
-        if dev_end[i] > deviation_threshold:
-            end_idx = i
-            break  # Stop at the first occurrence (which is the last point in forward direction)
-    # --- End: Directed Search Logic ---
-
-    # --- Start: Fallback Logic ---
-    if start_idx is None or end_idx is None or start_idx >= end_idx:
-        py_warnings.warn(
-            f"Initial deviation search failed or yielded invalid order (Start: {start_idx}, End: {end_idx}) "
-            f"using threshold {deviation_threshold:.2e}. Using quantile fallback.",
-            UserWarning,
-        )
-        # Use simple quantile fallbacks if search fails
-        start_idx_fallback = int(n_total * 0.15)  # 15% index
-        end_idx_fallback = int(n_total * 0.85)  # 85% index
-
-        # Only overwrite if the original search failed for that specific point
-        if start_idx is None:
-            start_idx = start_idx_fallback
-        if end_idx is None:
-            end_idx = end_idx_fallback
-
-        # Ensure order after fallback
-        if start_idx >= end_idx:
-            # If still invalid order, force them based on fallback values
-            start_idx, end_idx = min(start_idx_fallback, end_idx_fallback), max(
-                start_idx_fallback, end_idx_fallback
-            )
-            py_warnings.warn(
-                f"Fallback yielded invalid order. Forced to indices {start_idx}, {end_idx}.",
-                UserWarning,
-            )
-
-    # --- End: Fallback Logic ---
-
-    # Return the indices found (start_idx <= end_idx)
-    return start_idx, end_idx
-
-
-def calculate_deviation_threshold(
-    strain: NDArray[np.float64],
-    pred_start: NDArray[np.float64],
-    pred_end: NDArray[np.float64],
-    start_mask: NDArray[np.bool_],  # Mask used for fitting start line
-    end_mask: NDArray[np.bool_],  # Mask used for fitting end line
-    std_multiplier: float = 3.0,
-) -> float:
-    """
-    Calculate an adaptive threshold for deviation detection based on the standard
-    deviation of residuals in the linear fitting regions.
-
-    Args:
-        strain: Array of actual strain values.
-        pred_start: Extrapolated values from the start linear fit.
-        pred_end: Extrapolated values from the end linear fit.
-        start_mask: Boolean mask indicating the data points used for the start fit.
-        end_mask: Boolean mask indicating the data points used for the end fit.
-        std_multiplier: Factor to multiply the standard deviation by.
-
-    Returns:
-        float: Calculated deviation threshold.
-    """
-    # Calculate residuals only in the regions used for fitting
-    start_residuals = np.abs(strain[start_mask] - pred_start[start_mask])
-    end_residuals = np.abs(strain[end_mask] - pred_end[end_mask])
-
-    # Use the maximum of the standard deviations from the two regions
-    std_dev_start = np.std(start_residuals) if len(start_residuals) > 1 else 0.0
-    std_dev_end = np.std(end_residuals) if len(end_residuals) > 1 else 0.0
-
-    threshold = float(std_multiplier * max(std_dev_start, std_dev_end))
-
-    # Ensure threshold is not zero or extremely small
-    return max(threshold, 1e-9)
-
-
 def calculate_transformed_fraction(
     strain: NDArray[np.float64],
     pred_start: NDArray[np.float64],  # Extrapolated start baseline
@@ -1210,7 +1073,7 @@ def calculate_fit_quality(
     start_mask: NDArray[np.bool_],  # Mask used for start fit
     end_mask: NDArray[np.bool_],  # Mask used for end fit
     margin_percent: float,
-    deviation_threshold: float,
+    deviation_fraction: float,
     existing_warnings: Optional[List[str]] = None,
     r2_warn_threshold: float = 0.98,
 ) -> Dict[str, Union[float, List[str]]]:
@@ -1226,12 +1089,13 @@ def calculate_fit_quality(
         start_mask: Boolean mask for the start segment data points.
         end_mask: Boolean mask for the end segment data points.
         margin_percent: The margin percentage used for fitting.
-        deviation_threshold: The deviation threshold used.
+        deviation_fraction: The fraction of the peak derivative excursion used
+            to locate the transformation limits.
         existing_warnings: List of warnings generated earlier in the process.
         r2_warn_threshold: R² value below which a warning is generated.
 
     Returns:
-        Dict containing R² values, margin, threshold, and a list of warnings.
+        Dict containing R² values, margin, deviation fraction, and a list of warnings.
     """
     warnings_list = list(existing_warnings) if existing_warnings is not None else []
 
@@ -1267,7 +1131,7 @@ def calculate_fit_quality(
         "r2_start": float(r2_start),
         "r2_end": float(r2_end),
         "margin_used": float(margin_percent),
-        "deviation_threshold": float(deviation_threshold),
+        "deviation_fraction": float(deviation_fraction),
         "warnings": warnings_list,  # Include list of warnings
     }
 

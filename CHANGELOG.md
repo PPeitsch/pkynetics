@@ -9,9 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Dilatometry reported transformation limits that were not the transformation. Both methods located them by the deviation of the strain from an extrapolated tangent, with a threshold set to three standard deviations of the residuals *inside the fitting window* — a measure of how straight the baseline is, not of how large the transformation is. On a clean curve that threshold collapses to ~1e-9 and the first point examined already clears it, so `tangent` returned the first and last temperature of the data and `lever` returned the edges of its search window. The limits now come from the derivative `dS/dT`, where the curvature of a real baseline stays small and the transformation is a large localised excursion. On the Zry-4 run shipped with the package both methods now put the alpha->beta contraction at 840-929 degC, against 703-1000 and 741-889 before; on a synthetic 705-795 degC transformation both return 707-793. (#94)
+- `find_optimal_margin` returned the margin with the highest R², which is always the narrowest one, since a shorter window fits a line more easily. It now returns the widest margin whose fits both reach `min_r2`, which is what makes the baselines representative.
 - The test suite used `np.trapezoid`, which needs numpy 2.0, while `pyproject.toml` declares `numpy>=1.24.3`: four DSC tests failed on any numpy 1.x, a version the project claims to support. They now use `scipy.integrate.trapezoid`, as the rest of the package does.
 
+### Changed
+- **Breaking:** `analyze_dilatometry_curve` and `tangent_method` take `deviation_fraction` (default 0.05, the fraction of the peak derivative excursion that still counts as transforming) in place of `deviation_threshold`, which no longer has a meaning. `fit_quality` and `parameters` report `deviation_fraction` instead of `deviation_threshold` for the same reason.
+- **Breaking:** `find_inflection_points` takes `deviation_fraction` instead of `residual_std_multiplier` and `min_points_fit`, and its `margin` default drops from 0.3 to 0.2. `find_transformation_points` and `calculate_deviation_threshold` are gone, replaced by `find_transformation_limits`.
+
 ### Added
+- `find_transformation_limits` locates a transformation on the derivative of the strain and is shared by both dilatometry methods, so `lever` and `tangent` no longer disagree about where the transformation is.
 - A `minimum-versions` job in CI installs the declared dependency floors (numpy 1.24.3, pandas 2.0.3, scipy 1.10.1, matplotlib 3.7.5, statsmodels 0.14.1, chardet 5.0.0) and runs the suite against them. `pip install .` always resolves to the newest release, so nothing exercised the lower bounds and they could drift from what the code actually needs.
 
 

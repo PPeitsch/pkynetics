@@ -31,26 +31,24 @@ Methods
 ``lever``
    The lever rule. Extrapolates the linear expansion of the phases before
    and after the transformation and reads the transformed fraction as the
-   relative position of the curve between the two extrapolations. The
-   transformation limits come from where the curve departs from those
-   tangents.
+   relative position of the curve between the two extrapolations.
 
 ``tangent``
-   Fits tangents to the linear segments and locates the transformation
-   limits where the curve deviates from them by more than a threshold.
-   ``margin_percent=None`` searches for the margin that maximizes the R² of
-   the linear fits.
+   Fits tangents to the linear segments and reads the transformed fraction
+   against them. ``margin_percent=None`` searches for the widest margin
+   whose linear fits still reach the required R².
 
-.. warning::
+Both methods locate the transformation limits the same way, on the
+derivative ``dS/dT`` rather than on the deviation of the strain from the
+extrapolated tangents: a real baseline is never exactly straight, and the
+integral of a slight curvature is indistinguishable from the start of a
+transformation. ``deviation_fraction`` (default 0.05) sets how much of the
+peak excursion of the derivative still counts as transforming — raise it
+for a tighter bracket, lower it for a wider one.
 
-   The **midpoint** is accurate — on a synthetic transformation centred at
-   750 °C both methods return it to within 1 K. The **limits** are not yet
-   trustworthy: on the same curve the lever method overshoots the
-   transformation by ~15 K on each side, and the tangent method returns
-   the first and last temperature of the data, i.e. it does not locate
-   them at all. Treat ``start_temperature`` and ``end_temperature`` as
-   indicative until this is resolved, and prefer ``mid_temperature`` and
-   the transformed fraction.
+On the Zry-4 heating run shipped in ``pkynetics/data`` both methods put the
+alpha->beta contraction at 840-929 °C, and on a synthetic transformation
+running over 705-795 °C both return 707-793 °C.
 
 API
 ---
