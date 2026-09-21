@@ -249,6 +249,34 @@ def test_find_transformation_limits_rejects_an_impossible_fraction(curve):
         find_transformation_limits(temperature, strain, deviation_fraction=1.5)
 
 
+def test_find_transformation_limits_needs_enough_points():
+    temperature = np.linspace(600.0, 900.0, 10)
+
+    with pytest.raises(ValueError, match="Insufficient data points"):
+        find_transformation_limits(temperature, temperature * 1e-5)
+
+
+def test_find_transformation_limits_rejects_an_empty_baseline():
+    """A margin so small it leaves a single point cannot define a baseline."""
+    temperature, strain = dilatometry_curve(n_points=25)
+
+    with pytest.raises(ValueError, match="fewer than 2 points"):
+        find_transformation_limits(temperature, strain, margin=0.01)
+
+
+def test_limits_fall_back_to_the_raw_signal_when_smoothing_fails(curve):
+    """A polyorder wider than the data is reported, not swallowed: the
+    limits still come back, located on the unsmoothed signal."""
+    temperature, strain = curve
+
+    with pytest.warns(UserWarning, match="Smoothing the strain failed"):
+        start_idx, end_idx = find_transformation_limits(
+            temperature, strain, polyorder=len(temperature)
+        )
+
+    assert 0 < start_idx < end_idx < len(temperature) - 1
+
+
 def test_a_wider_deviation_fraction_narrows_the_limits(curve):
     """The fraction is the knob: more of the excursion counted as baseline
     means a tighter bracket."""
