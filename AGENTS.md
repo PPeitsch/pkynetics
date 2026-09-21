@@ -48,24 +48,6 @@ tests against the installed wheel, on Python 3.10–3.13.
 4. `release: version X.Y.Z`, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
 5. CI publishes to PyPI from the distributions the Package job tested.
 
-## Skills submodule
+## Docs
 
-Workflows live in the `skills/` submodule, which is a **private** repository
-and is not needed to build, test or use the library — only to cut a release
-and to drive GitHub. A plain `git clone` is the right way in; `--recursive`
-just fails for anyone without access. **Use the wrapper, not the individual
-scripts**, and prefer these over raw shell commands for GitHub and release work:
-
-```bash
-python skills/run_skill.py read_github_issues --limit <N>
-python skills/run_skill.py read_github_prs --limit <N>
-python skills/run_skill.py create_github_issue --title "..." --body "..."
-python skills/run_skill.py create_github_pr --title "..." --body "..."
-python skills/run_skill.py update_github_issue <issue_number> ...
-python skills/run_skill.py update_github_pr <pr_number> ...
-python skills/run_skill.py update_changelog ...
-python skills/run_skill.py release_tag_push ...
-```
-
-Full list in `skills/tools/`. Docs are Sphinx (`docs/`, Napoleon, NumPy docstrings),
-published to ReadTheDocs.
+Docs are Sphinx (`docs/`, Napoleon, NumPy docstrings), published to ReadTheDocs.

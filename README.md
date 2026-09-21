@@ -58,10 +58,6 @@ cd pkynetics
 pip install -e .[dev]
 ```
 
-Clone it plainly, not with `--recursive`: the `skills/` submodule holds the
-maintainers' release and GitHub workflows, it is a private repository, and
-nothing in the library, the tests or CI needs it.
-
 For detailed installation instructions and requirements, see our [Installation Guide](https://pkynetics.readthedocs.io/en/latest/installation.html).
 
 ## Documentation

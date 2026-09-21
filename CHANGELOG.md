@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** `analyze_dilatometry_curve` and `tangent_method` take `deviation_fraction` (default 0.05, the fraction of the peak derivative excursion that still counts as transforming) in place of `deviation_threshold`, which no longer has a meaning. `fit_quality` and `parameters` report `deviation_fraction` instead of `deviation_threshold` for the same reason.
 - **Breaking:** `find_inflection_points` takes `deviation_fraction` instead of `residual_std_multiplier` and `min_points_fit`, and its `margin` default drops from 0.3 to 0.2. `find_transformation_points` and `calculate_deviation_threshold` are gone, replaced by `find_transformation_limits`.
 
+### Removed
+- The `skills/` submodule, a private repository holding the maintainers' GitHub and release workflows. Nothing in the library, the tests, CI or the packaging referenced it, and it only made `git clone --recursive` fail for anyone without access.
+
 ### Added
 - `find_transformation_limits` locates a transformation on the derivative of the strain and is shared by both dilatometry methods, so `lever` and `tangent` no longer disagree about where the transformation is.
 - A `minimum-versions` job in CI installs the declared dependency floors (numpy 1.24.3, pandas 2.0.3, scipy 1.10.1, matplotlib 3.7.5, statsmodels 0.14.1, chardet 5.0.0) and runs the suite against them. `pip install .` always resolves to the newest release, so nothing exercised the lower bounds and they could drift from what the code actually needs.
