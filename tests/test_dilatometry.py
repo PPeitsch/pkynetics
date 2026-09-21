@@ -14,6 +14,7 @@ import pytest
 
 from pkynetics.data import load_dilatometry_cooling, load_dilatometry_heating
 from pkynetics.technique_analysis.dilatometry import (
+    _strain_derivative,
     analyze_dilatometry_curve,
     calculate_transformed_fraction_lever,
     find_optimal_margin,
@@ -46,9 +47,14 @@ def dilatometry_curve(n_points=1000, cooling=False):
     return temperature, strain
 
 
-# The Zry-4 alpha->beta contraction in the shipped sample, read off the
-# local slope of the curve: it flattens from ~855 degC, is frankly negative
-# between 870 and 918, and is back on a linear expansion by ~935 degC
+# The Zry-4 alpha->beta contraction in the example run, read off the local
+# slope of the curve: it flattens from ~855 degC, is frankly negative between
+# 870 and 918, and is back on a linear expansion by ~935 degC.
+#
+# 855 is where the flattening becomes visible on the plot, not where it starts:
+# the derivative leaves the baseline scatter (2-5 % of the peak excursion) at
+# ~839 degC and falls monotonically from there. The detector reports that foot,
+# which is why the tolerance below is 20 K and not tighter.
 REAL_TRANSFORMATION = (855.0, 935.0)
 
 
@@ -194,17 +200,93 @@ def test_find_transformation_limits_returns_indices_in_array_order(real_curve):
 
 
 def test_limits_on_a_real_cooling_run(real_cooling_curve):
-    """The transformation on cooling runs from ~945 down to ~760 degC; the
-    limits have to sit inside it, in cooling order, and not on the edges."""
+    """The beta->alpha transformation on cooling runs from ~945 down to ~760
+    degC. Both ends are read off the curve, so they are matched to within 20 K,
+    the same tolerance as the heating run."""
     temperature, strain = real_cooling_curve
 
     result = analyze_dilatometry_curve(temperature, strain, method="lever")
 
     assert result["is_cooling"] is True
     assert result["start_temperature"] > result["end_temperature"]
-    assert 760.0 < result["end_temperature"] < result["start_temperature"] < 945.0
+    assert result["start_temperature"] == pytest.approx(945.0, abs=20.0)
+    assert result["end_temperature"] == pytest.approx(760.0, abs=20.0)
     assert result["start_temperature"] < temperature[0]
     assert result["end_temperature"] > temperature[-1]
+
+
+def test_the_derivative_is_taken_against_temperature_not_index(curve):
+    """A ramp that slows down partway through must not look like a change in
+    dS/dT: the local fit differentiates against the index, so it has to be
+    divided by dT/di. Resampling the same curve onto an uneven grid cannot
+    move the limits."""
+    temperature, strain = curve
+    even = find_transformation_limits(temperature, strain)
+
+    # Same curve, sampled twice as densely below 750 degC as above it
+    dense = np.linspace(600.0, 750.0, 900)
+    sparse = np.linspace(750.0, 900.0, 450)[1:]
+    uneven_t = np.concatenate([dense, sparse])
+    uneven_s = np.interp(uneven_t, temperature, strain)
+
+    start_idx, end_idx = find_transformation_limits(uneven_t, uneven_s)
+
+    assert uneven_t[start_idx] == pytest.approx(temperature[even[0]], abs=5.0)
+    assert uneven_t[end_idx] == pytest.approx(temperature[even[1]], abs=5.0)
+
+
+def test_a_stalled_ramp_does_not_become_the_peak_excursion():
+    """Where the temperature holds, dT/di is zero and dS/dT is undefined. Those
+    points are interpolated over instead of becoming an infinite excursion that
+    every threshold is then measured against."""
+    ramp = np.linspace(600.0, 900.0, 600)
+    hold = np.full(120, 900.0)  # An isothermal hold at the end of the ramp
+    temperature = np.concatenate([ramp, hold])
+    strain = 1e-5 * (temperature - 600.0) - 2e-3 * (
+        1 / (1 + np.exp(-(temperature - TRANSFORMATION_CENTRE) / TRANSFORMATION_WIDTH))
+    )
+
+    start_idx, end_idx = find_transformation_limits(temperature, strain)
+
+    assert np.isfinite(temperature[start_idx])
+    assert temperature[start_idx] == pytest.approx(705.0, abs=15.0)
+    assert temperature[end_idx] == pytest.approx(795.0, abs=15.0)
+
+
+def test_a_flat_temperature_is_reported():
+    """With no ramp at all there are no baseline windows to speak of, which is
+    caught with a clearer message than anything the derivative could give."""
+    temperature = np.full(100, 800.0)
+    strain = np.linspace(0.0, 1e-3, 100)
+
+    with pytest.raises(ValueError, match="Temperature range is too small"):
+        find_transformation_limits(temperature, strain)
+
+
+def test_the_derivative_stays_finite_on_a_flat_temperature():
+    """dS/dT is undefined there, but it may not come back as inf or nan: the
+    callers measure thresholds against the peak of this array."""
+    temperature = np.full(100, 800.0)
+    strain = np.linspace(0.0, 1e-3, 100)
+
+    derivative = _strain_derivative(temperature, strain, 5, 2)
+
+    assert np.all(np.isfinite(derivative))
+
+
+def test_the_limits_are_not_dominated_by_the_sampling_rate(real_cooling_curve):
+    """Regression: with dS/dT differenced point to point, the scatter of the
+    baseline grew as the spacing shrank. On this run, recorded every 0.25 K, it
+    reached 7 % of the peak excursion and set the threshold, pulling the limits
+    ~30 and ~110 K inside the transformation (915-870 against ~945-760)."""
+    temperature, strain = real_cooling_curve
+
+    start_idx, end_idx = find_transformation_limits(
+        temperature, strain, is_cooling=True
+    )
+
+    assert temperature[start_idx] > 930.0
+    assert temperature[end_idx] < 790.0
 
 
 def test_a_spike_does_not_move_the_limits(curve):
@@ -253,12 +335,12 @@ def test_find_transformation_limits_rejects_an_empty_baseline():
         find_transformation_limits(temperature, strain, margin=0.01)
 
 
-def test_limits_fall_back_to_the_raw_signal_when_smoothing_fails(curve):
+def test_limits_fall_back_to_the_raw_signal_when_the_local_fit_fails(curve):
     """A polyorder wider than the data is reported, not swallowed: the
-    limits still come back, located on the unsmoothed signal."""
+    limits still come back, from a plain difference of the raw signal."""
     temperature, strain = curve
 
-    with pytest.warns(UserWarning, match="Smoothing the strain failed"):
+    with pytest.warns(UserWarning, match="local fit for the derivative failed"):
         start_idx, end_idx = find_transformation_limits(
             temperature, strain, polyorder=len(temperature)
         )
