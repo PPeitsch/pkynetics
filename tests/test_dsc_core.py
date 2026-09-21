@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from scipy.integrate import trapezoid
 
 from pkynetics.technique_analysis.dsc import DSCAnalyzer, DSCExperiment
 from pkynetics.technique_analysis.dsc.core import _step_region
@@ -267,7 +268,7 @@ def test_enthalpy_is_exact_on_a_peak_of_known_area(dh_true):
 
     peak = gaussian(temperature, 310.15, 1.0, np.sqrt(2.0))
     # Scale so that the integral is exactly dh_true * mass (in mJ)
-    peak *= dh_true * mass / np.trapezoid(peak, time)
+    peak *= dh_true * mass / trapezoid(peak, time)
     heat_flow = 0.02 * (temperature - temperature[0]) - 1.0 + peak
 
     experiment = DSCExperiment(

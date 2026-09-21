@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 from numpy.typing import NDArray
+from scipy.integrate import trapezoid
 
 from pkynetics.technique_analysis.dsc.baseline import BaselineCorrector, BaselineResult
 
@@ -351,7 +352,7 @@ def test_stepped_baseline_keeps_the_peak(baseline_corrector):
 
     quiet = (temperature > 420) & (temperature < 440)
     assert np.max(np.abs(result.corrected_data[quiet])) < 0.02
-    peak_area = np.trapezoid(result.corrected_data, temperature)
+    peak_area = trapezoid(result.corrected_data, temperature)
     np.testing.assert_allclose(peak_area, 1.0 * 6 * np.sqrt(np.pi), rtol=0.1)
 
 
