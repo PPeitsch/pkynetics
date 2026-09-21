@@ -263,6 +263,27 @@ def test_a_flat_temperature_is_reported():
         find_transformation_limits(temperature, strain)
 
 
+def test_the_derivative_falls_back_to_differencing_without_a_window():
+    """Too few points for a local fit: dS/dT is differenced directly."""
+    temperature = np.linspace(600.0, 900.0, 40)
+    strain = 2e-5 * (temperature - 600.0)
+
+    derivative = _strain_derivative(temperature, strain, 0, 2)
+
+    assert derivative == pytest.approx(np.full(40, 2e-5))
+
+
+def test_a_temperature_that_never_moves_gives_no_derivative():
+    """dT/di is exactly zero throughout, so there is nothing to divide by."""
+    temperature = np.zeros(50)
+    strain = np.linspace(0.0, 1e-3, 50)
+
+    with pytest.warns(UserWarning, match="temperature does not change"):
+        derivative = _strain_derivative(temperature, strain, 5, 2)
+
+    assert np.all(derivative == 0.0)
+
+
 def test_the_derivative_stays_finite_on_a_flat_temperature():
     """dS/dT is undefined there, but it may not come back as inf or nan: the
     callers measure thresholds against the peak of this array."""
