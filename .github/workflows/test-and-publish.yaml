@@ -99,6 +99,41 @@ jobs:
         fail_ci_if_error: true
         token: ${{ secrets.CODECOV_TOKEN }}
 
+  minimum-versions:
+    name: Tests - lowest supported dependencies
+    runs-on: ubuntu-latest
+
+    # pyproject declares floors (numpy>=1.24.3, pandas>=2.0.3, ...) that
+    # nothing ever exercised: `pip install .` resolves to the newest release,
+    # so code or tests using a newer API still pass. This job installs the
+    # floors, which is what makes the declared range true.
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+
+    # Pinned in the same command as the package, so pip resolves the whole
+    # set at once instead of installing the newest and downgrading after
+    - name: Install the declared minimum dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install .[dev] \
+          "numpy==1.24.3" \
+          "pandas==2.0.3" \
+          "scipy==1.10.1" \
+          "matplotlib==3.7.5" \
+          "statsmodels==0.14.1" \
+          "chardet==5.0.0"
+
+    - name: Show what got installed
+      run: pip list
+
+    - name: Run tests
+      run: python -m pytest tests/ -q
+
   package:
     name: Build and test the distributions
     runs-on: ubuntu-latest

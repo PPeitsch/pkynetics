@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Fixed
+- The test suite used `np.trapezoid`, which needs numpy 2.0, while `pyproject.toml` declares `numpy>=1.24.3`: four DSC tests failed on any numpy 1.x, a version the project claims to support. They now use `scipy.integrate.trapezoid`, as the rest of the package does.
+
+### Added
+- A `minimum-versions` job in CI installs the declared dependency floors (numpy 1.24.3, pandas 2.0.3, scipy 1.10.1, matplotlib 3.7.5, statsmodels 0.14.1, chardet 5.0.0) and runs the suite against them. `pip install .` always resolves to the newest release, so nothing exercised the lower bounds and they could drift from what the code actually needs.
+
+
 ## [v0.6.0] - 2026-09-20
 
 ### Added
