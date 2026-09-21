@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- **Breaking:** the example data no longer ships with the package. Code building a path into `pkynetics/data` will not find the files: use `pkynetics.data.fetch(name)` for a path, or one of the named loaders (`load_dilatometry_heating`, `load_dsc_setaram`, `load_cp_three_step`, …) for the data already imported. The wheel goes from 2.05 MB to under 200 KB.
+
+### Added
+- `pkynetics.data` fetches the example runs on demand from [pkynetics-data](https://github.com/PPeitsch/pkynetics-data), verifies them by SHA256 and caches them on disk, using [pooch](https://www.fatiando.org/pooch/) (a new runtime dependency). The data set has its own version, `DATA_VERSION`, independent of the library's. Point `PKYNETICS_DATA_DIR` at a directory holding the files to work offline.
+- Tests that need an example run carry a `network` marker; `pytest -m "not network"` runs the rest, and a CI job does exactly that so the suite stays usable without a network.
+
 ### Fixed
 - Dilatometry reported transformation limits that were not the transformation. Both methods located them by the deviation of the strain from an extrapolated tangent, with a threshold set to three standard deviations of the residuals *inside the fitting window* — a measure of how straight the baseline is, not of how large the transformation is. On a clean curve that threshold collapses to ~1e-9 and the first point examined already clears it, so `tangent` returned the first and last temperature of the data and `lever` returned the edges of its search window. The limits now come from the derivative `dS/dT`, where the curvature of a real baseline stays small and the transformation is a large localised excursion. On the Zry-4 run shipped with the package both methods now put the alpha->beta contraction at 840-929 degC, against 703-1000 and 741-889 before; on a synthetic 705-795 degC transformation both return 707-793. (#94)
 - `find_optimal_margin` returned the margin with the highest R², which is always the narrowest one, since a shorter window fits a line more easily. It now returns the widest margin whose fits both reach `min_r2`, which is what makes the baselines representative.

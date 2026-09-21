@@ -1,19 +1,14 @@
 """Examples for using tga_importer, dsc_importer, and dilatometry_importer functions."""
 
-import os
 import time
 
-import pkynetics
+from pkynetics.data import fetch
 from pkynetics.data_import import dilatometry_importer, dsc_importer, tga_importer
-
-# Get the absolute path of the project root directory
-# Bundled data of the installed package, wherever it lives
-PKG_DATA_DIR = os.path.join(os.path.dirname(pkynetics.__file__), "data")
 
 
 def tga_import_example():
     """Example of using tga_importer function."""
-    tga_file_path = os.path.join(PKG_DATA_DIR, "sample_tga_data.csv")
+    tga_file_path = fetch("tga_setaram_duran.csv")
     try:
         tga_data = tga_importer(file_path=tga_file_path, manufacturer="Setaram")
         print("TGA data imported successfully.")
@@ -28,7 +23,7 @@ def tga_import_example():
 
 def dsc_import_example():
     """Example of using dsc_importer function."""
-    dsc_file_path = os.path.join(PKG_DATA_DIR, "dsc", "sample_dsc_setaram.txt")
+    dsc_file_path = fetch("dsc_setaram_duran.txt")
     try:
         # The manufacturer is detected from the header
         dsc_data = dsc_importer(file_path=dsc_file_path)
@@ -47,7 +42,7 @@ def dsc_import_example():
 
 def dilatometry_import_example():
     """Example of using dilatometry_importer function."""
-    dilatometry_file_path = os.path.join(PKG_DATA_DIR, "sample_dilatometry_data.asc")
+    dilatometry_file_path = fetch("dilatometry_zry4_heating.asc")
     try:
         dilatometry_data = dilatometry_importer(dilatometry_file_path)
         print("Dilatometry data imported successfully.")

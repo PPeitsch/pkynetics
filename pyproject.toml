@@ -37,6 +37,7 @@ dependencies = [
     "scipy>=1.10.1,<2",
     "statsmodels>=0.14.1,<0.16",
     "chardet>=5.0.0,<8",
+    "pooch>=1.7.0,<2",
 ]
 requires-python = ">=3.10"
 
@@ -102,13 +103,16 @@ namespace_packages = true
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["scipy.*", "matplotlib.*", "statsmodels.*", "pandas.*", "chardet"]
+module = ["scipy.*", "matplotlib.*", "statsmodels.*", "pandas.*", "chardet", "pooch"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 addopts = "--cov=pkynetics --cov-report=term --cov-report=xml"
 testpaths = ["tests"]
 python_files = "test_*.py"
+markers = [
+    "network: needs the example data, which is downloaded on first use (deselect with -m 'not network')",
+]
 
 [tool.sphinx]
 source-dir = "docs"

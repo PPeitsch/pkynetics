@@ -13,7 +13,7 @@ import numpy as np
 warnings.simplefilter("always", UserWarning)
 
 
-import pkynetics
+from pkynetics.data import fetch
 from pkynetics.data_import import dilatometry_importer
 from pkynetics.data_preprocessing import smooth_data
 from pkynetics.result_visualization import plot_dilatometry_analysis
@@ -31,8 +31,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Bundled data of the installed package, wherever it lives
-PKG_DATA_DIR = os.path.join(os.path.dirname(pkynetics.__file__), "data")
+# The example runs, downloaded on first use and cached afterwards
+DEFAULT_FILES = ["dilatometry_zry4_heating.asc", "dilatometry_zry4_cooling.asc"]
 
 
 def get_analysis_range(
@@ -241,7 +241,8 @@ def dilatometry_analysis_example(
     Example workflow for importing and analyzing dilatometry data.
 
     Args:
-        filenames: List of filenames within PKG_DATA_DIR to analyze. If None, uses default files.
+        filenames: Example file names to analyze (see ``pkynetics.data.available()``).
+            If None, uses both dilatometry runs.
         auto_detect_range: If True, automatically determine analysis range.
         save_plots: If True, save plots to files in output_dir instead of displaying them.
         apply_smoothing: If True, smooth strain data before analysis.
@@ -250,21 +251,8 @@ def dilatometry_analysis_example(
     """
     # Default files if none specified
     if filenames is None:
-        # Look for common dilatometry files in the data directory
-        default_files = [
-            f
-            for f in os.listdir(PKG_DATA_DIR)
-            if f.endswith((".asc", ".txt", ".csv"))
-            and "dilatometry" in f.lower()
-            or "enfriamiento" in f.lower()
-        ]
-        if not default_files:
-            default_files = [
-                "sample_dilatometry_data.asc",
-                "ejemplo_enfriamiento.asc",
-            ]  # Fallback defaults
-        filenames = default_files
-        print(f"No specific files provided. Using default/found files: {filenames}")
+        filenames = DEFAULT_FILES
+        print(f"No specific files provided. Using: {filenames}")
 
     # If a single string is passed, convert to list
     if isinstance(filenames, str):
@@ -295,16 +283,10 @@ def dilatometry_analysis_example(
 
     # --- Process each file ---
     for filename in filenames:
-        dilatometry_file_path = os.path.join(PKG_DATA_DIR, filename)
-
-        if not os.path.exists(dilatometry_file_path):
-            logger.error(f"File not found: {dilatometry_file_path}")
-            print(f"\nAvailable files in {PKG_DATA_DIR}:")
-            try:
-                for file in os.listdir(PKG_DATA_DIR):
-                    print(f"  - {file}")
-            except FileNotFoundError:
-                print(f"  Error: Could not list files in {PKG_DATA_DIR}")
+        try:
+            dilatometry_file_path = fetch(filename)
+        except ValueError as e:
+            logger.error(str(e))
             continue  # Skip to next file
 
         try:
@@ -474,18 +456,13 @@ if __name__ == "__main__":
         "--file",
         type=str,
         nargs="+",  # Accept one or more filenames
-        help="Specific data file(s) located in the pkynetics/data directory to analyze (e.g., sample_dilatometry_data.asc). If omitted, tries to find default files.",
+        help="Example file(s) to analyze (e.g. dilatometry_zry4_heating.asc); see pkynetics.data.available(). If omitted, both dilatometry runs are used.",
     )
     parser.add_argument(
         "--auto-range",
         action="store_true",
         help="Automatically determine the temperature range for analysis.",
     )
-    # parser.add_argument( # Removed --all, default behavior is now to process found files if --file omitted
-    #     "--all",
-    #     action="store_true",
-    #     help="Process all example files found in the data directory.",
-    # )
     parser.add_argument(
         "--save",
         action="store_true",
