@@ -3,19 +3,16 @@
 Two curves are used. The synthetic one is two linear thermal-expansion
 segments joined by a sigmoidal transformation of known centre and width,
 which lets the results be asserted tightly. The real one is the Zry-4
-heating run shipped in ``pkynetics/data``, which has the curved baselines
+heating run fetched by ``pkynetics.data``, which has the curved baselines
 and the noise the synthetic curve lacks — it is what showed that locating
 the limits by deviation from an extrapolated tangent could not work
 (issue #94).
 """
 
-import os
-
 import numpy as np
 import pytest
 
-import pkynetics
-from pkynetics.data_import import dilatometry_importer
+from pkynetics.data import load_dilatometry_cooling, load_dilatometry_heating
 from pkynetics.technique_analysis.dilatometry import (
     analyze_dilatometry_curve,
     calculate_transformed_fraction_lever,
@@ -64,10 +61,7 @@ def curve():
 def real_cooling_curve():
     """A cooling run, windowed onto the region with a linear baseline on
     either side of the transformation."""
-    path = os.path.join(
-        os.path.dirname(pkynetics.__file__), "data", "ejemplo_enfriamiento.asc"
-    )
-    data = dilatometry_importer(path)
+    data = load_dilatometry_cooling()
     return analyze_range(
         np.asarray(data["temperature"]),
         np.asarray(data["relative_change"]),
@@ -78,11 +72,8 @@ def real_cooling_curve():
 
 @pytest.fixture
 def real_curve():
-    """The Zry-4 dilatometry run shipped with the package."""
-    path = os.path.join(
-        os.path.dirname(pkynetics.__file__), "data", "sample_dilatometry_data.asc"
-    )
-    data = dilatometry_importer(path)
+    """The Zry-4 dilatometry run, fetched on demand."""
+    data = load_dilatometry_heating()
     return np.asarray(data["temperature"]), np.asarray(data["relative_change"])
 
 
@@ -228,13 +219,11 @@ def test_a_spike_does_not_move_the_limits(curve):
     assert find_transformation_limits(temperature, spiked) == clean
 
 
+@pytest.mark.network
 def test_a_curved_baseline_is_reported():
     """The full cooling run has a transformation inside its own baseline
     window, which the analysis cannot see past but does report."""
-    path = os.path.join(
-        os.path.dirname(pkynetics.__file__), "data", "ejemplo_enfriamiento.asc"
-    )
-    data = dilatometry_importer(path)
+    data = load_dilatometry_cooling()
     temperature = np.asarray(data["temperature"])
     strain = np.asarray(data["relative_change"])
 

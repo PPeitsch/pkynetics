@@ -77,6 +77,14 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
+    # The example data is downloaded on first use; cached on the registry so a
+    # new data version invalidates the cache on its own
+    - name: Cache the example data
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pkynetics
+        key: pkynetics-data-${{ hashFiles('src/pkynetics/data/__init__.py') }}
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -115,6 +123,14 @@ jobs:
       with:
         python-version: "3.10"
 
+    # The example data is downloaded on first use; cached on the registry so a
+    # new data version invalidates the cache on its own
+    - name: Cache the example data
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pkynetics
+        key: pkynetics-data-${{ hashFiles('src/pkynetics/data/__init__.py') }}
+
     # Pinned in the same command as the package, so pip resolves the whole
     # set at once instead of installing the newest and downgrading after
     - name: Install the declared minimum dependencies
@@ -126,13 +142,38 @@ jobs:
           "scipy==1.10.1" \
           "matplotlib==3.7.5" \
           "statsmodels==0.14.1" \
-          "chardet==5.0.0"
+          "chardet==5.0.0" \
+          "pooch==1.7.0"
 
     - name: Show what got installed
       run: pip list
 
     - name: Run tests
       run: python -m pytest tests/ -q
+
+  offline:
+    name: Tests - without the example data
+    runs-on: ubuntu-latest
+
+    # The example runs are downloaded, so any test needing one carries the
+    # `network` marker. This job runs everything else and would fail if a test
+    # reached for the data without declaring it: the suite has to stay usable
+    # on a machine with no network.
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install .[dev]
+
+    - name: Run the tests that need no data
+      run: python -m pytest tests/ -q -m "not network" -o addopts=""
 
   package:
     name: Build and test the distributions
@@ -150,6 +191,13 @@ jobs:
 
       # python -m build makes the sdist and then the wheel *from the sdist*,
       # so a sdist without the code yields an empty wheel and the tests fail
+      # The example data is fetched by the tests the wheel runs below
+      - name: Cache the example data
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pkynetics
+          key: pkynetics-data-${{ hashFiles('src/pkynetics/data/__init__.py') }}
+
       - name: Build sdist and wheel
         run: |
           python -m pip install --upgrade pip build
@@ -160,6 +208,15 @@ jobs:
           n=$(tar tzf dist/*.tar.gz | grep -c '/src/pkynetics/.*\.py$')
           echo "sdist has $n modules"
           test "$n" -gt 10
+
+      # The example runs used to be bundled: 2 MB in every release, kept by PyPI
+      # forever. They are fetched on demand now, and this is what keeps them out.
+      - name: Check the distributions carry no example data
+        run: |
+          ls -l dist/
+          ! tar tzf dist/*.tar.gz | grep -E '\.(asc|csv)$|/data/.*\.txt$'
+          ! unzip -l dist/*.whl | grep -E '\.(asc|csv)$|/data/.*\.txt$'
+          test "$(stat -c%s dist/*.whl)" -lt 500000
 
       - name: Test the built wheel in a clean environment
         run: |

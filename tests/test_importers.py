@@ -6,8 +6,9 @@ import unittest
 
 import numpy as np
 import pandas as pd
+import pytest
 
-import pkynetics
+from pkynetics.data import fetch
 from pkynetics.data_import import dilatometry_importer, dsc_importer, tga_importer
 from pkynetics.data_import._manufacturer import detect_manufacturer
 
@@ -144,12 +145,6 @@ if __name__ == "__main__":
     unittest.main()
 
 
-# Bundled data from the imported package, so the tests also check that the
-# data files ship in the built distribution
-PKG_DATA_DIR = os.path.join(os.path.dirname(pkynetics.__file__), "data")
-DATA_DIR = os.path.join(PKG_DATA_DIR, "dsc")
-
-
 class TestEncodingDetection(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -184,9 +179,10 @@ class TestEncodingDetection(unittest.TestCase):
                 self.assertEqual(f.read(), self.text)
 
 
+@pytest.mark.network
 class TestTAUniversalAnalysis(unittest.TestCase):
     def test_bundled_eicosane_file(self):
-        path = os.path.join(DATA_DIR, "sample_dsc_tainstruments.txt")
+        path = fetch("dsc_tainstruments_eicosane.txt")
         data = dsc_importer(path)  # manufacturer detected from the header
 
         self.assertEqual(len(data["time"]), 19000)
@@ -234,16 +230,17 @@ class TestSetaramHeader(unittest.TestCase):
         )
 
 
+@pytest.mark.network
 class TestDilatometryImporter(unittest.TestCase):
     def test_bundled_files_with_decimal_comma(self):
-        """Both bundled .asc exports use a decimal comma (pandas 3: dtype "str")."""
+        """Both .asc exports use a decimal comma (pandas 3: dtype "str")."""
         cases = {
-            "sample_dilatometry_data.asc": (73.03217316, 630.20642090),
-            "ejemplo_enfriamiento.asc": (2410.00341797, 1049.95727539),
+            "dilatometry_zry4_heating.asc": (73.03217316, 630.20642090),
+            "dilatometry_zry4_cooling.asc": (2410.00341797, 1049.95727539),
         }
         for name, (time0, temp0) in cases.items():
             with self.subTest(file=name):
-                data = dilatometry_importer(os.path.join(PKG_DATA_DIR, name))
+                data = dilatometry_importer(fetch(name))
                 self.assertEqual(
                     set(data),
                     {"time", "temperature", "relative_change", "differential_change"},
@@ -255,29 +252,33 @@ class TestDilatometryImporter(unittest.TestCase):
                 self.assertAlmostEqual(data["temperature"][0], temp0)
 
 
+@pytest.mark.network
 class TestManufacturerDetection(unittest.TestCase):
-    """Every bundled file must import without naming the manufacturer."""
+    """Every example file must import without naming the manufacturer."""
 
     def test_bundled_dsc_files(self):
         for name in [
-            "sample_dsc_setaram.csv",
-            "sample_dsc_setaram.txt",
-            "sample_dsc_tainstruments.txt",
+            "dsc_setaram_duran.csv",
+            "dsc_setaram_duran.txt",
+            "dsc_tainstruments_eicosane.txt",
         ]:
             with self.subTest(file=name):
-                data = dsc_importer(os.path.join(DATA_DIR, name))
+                data = dsc_importer(fetch(name))
                 self.assertIsNotNone(data["time"])
                 self.assertGreater(len(data["time"]), 0)
 
     def test_bundled_heat_capacity_files(self):
-        for name in ["sample.txt", "sapphire.txt", "zero.txt"]:
+        for name in [
+            "cp_setaram_sample.txt",
+            "cp_setaram_sapphire.txt",
+            "cp_setaram_zero.txt",
+        ]:
             with self.subTest(file=name):
-                path = os.path.join(PKG_DATA_DIR, "heat_capacity", name)
-                data = dsc_importer(path)
+                data = dsc_importer(fetch(name))
                 self.assertIsNotNone(data["heat_flow"])
 
     def test_bundled_tga_file(self):
-        data = tga_importer(os.path.join(PKG_DATA_DIR, "sample_tga_data.csv"))
+        data = tga_importer(fetch("tga_setaram_duran.csv"))
         self.assertIsNotNone(data["weight"])
 
     def test_setaram_export_without_the_name(self):

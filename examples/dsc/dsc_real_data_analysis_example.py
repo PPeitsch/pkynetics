@@ -13,6 +13,7 @@ from typing import Any, Dict, List
 import matplotlib.pyplot as plt
 import numpy as np
 
+from pkynetics.data import fetch
 from pkynetics.data_import import dsc_importer
 from pkynetics.technique_analysis.dsc import (
     BaselineCorrector,
@@ -29,36 +30,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_data_file_path() -> Path:
-    """Constructs a robust path to the data file."""
-    try:
-        current_dir = Path(__file__).resolve().parent
-        project_root = current_dir
-        while (
-            not (project_root / "src").exists() and project_root.parent != project_root
-        ):
-            project_root = project_root.parent
-
-        if not (project_root / "src").exists():
-            raise FileNotFoundError("Could not determine project root.")
-
-        file_path = (
-            project_root
-            / "src"
-            / "pkynetics"
-            / "data"
-            / "dsc"
-            / "sample_dsc_setaram.txt"
-        )
-
-        if not file_path.exists():
-            raise FileNotFoundError(
-                f"Data file not found at expected path: {file_path}"
-            )
-
-        return file_path
-    except Exception as e:
-        logger.error(f"Error determining data file path: {e}")
-        raise
+    """Path to the example run, downloaded on first use and cached afterwards."""
+    return Path(fetch("dsc_setaram_duran.txt"))
 
 
 def segment_dsc_data(experiment: DSCExperiment) -> List[DSCExperiment]:

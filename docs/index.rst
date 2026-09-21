@@ -21,6 +21,7 @@ Contents
 
    installation
    usage
+   example_data
    troubleshooting
 
 .. toctree::

@@ -7,6 +7,7 @@ visualization for thermal analysis data.
 """
 
 from . import (
+    data,
     data_import,
     data_preprocessing,
     model_fitting_methods,
@@ -18,6 +19,7 @@ from . import (
 from .__about__ import __version__
 
 __all__ = [
+    "data",
     "data_import",
     "data_preprocessing",
     "model_fitting_methods",
