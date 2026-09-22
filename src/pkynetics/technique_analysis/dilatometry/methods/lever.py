@@ -14,6 +14,7 @@ from ..transformation_points import find_inflection_points, find_midpoint_temper
 from ..transformed_fraction import (
     calculate_transformed_fraction,
     calculate_transformed_fraction_lever,
+    max_backward_step,
 )
 from ..types import ReturnDict
 
@@ -71,6 +72,9 @@ def lever_method(
         "end_temperature": float(end_temp),
         "mid_temperature": float(mid_temp),
         "transformed_fraction": transformed_fraction,
+        # The fraction is a raw reading of the curve; this says how far noise
+        # pushes it backwards. See `max_backward_step`.
+        "max_backward_step": max_backward_step(transformed_fraction),
         "temperature": temperature,  # Include temperature for context
         "strain": strain,  # Include strain for context
         "before_extrapolation": before_extrap,

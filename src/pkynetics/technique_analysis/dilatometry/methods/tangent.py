@@ -19,7 +19,7 @@ from ..transformation_points import (
     find_midpoint_temperature,
     find_transformation_limits,
 )
-from ..transformed_fraction import calculate_transformed_fraction
+from ..transformed_fraction import calculate_transformed_fraction, max_backward_step
 from ..types import ReturnDict
 
 
@@ -32,6 +32,7 @@ def tangent_method(
     limits_margin: float = 0.2,
     min_points_fit: int = 10,
     min_r2_optimal_margin: float = 0.99,
+    max_backward_step_warn: float = 0.05,
 ) -> ReturnDict:
     """
     Analyze dilatometry curve using the tangent intersection method.
@@ -49,6 +50,11 @@ def tangent_method(
             locating the transformation limits.
         min_points_fit: Minimum points for tangent fitting.
         min_r2_optimal_margin: Minimum R² for optimal margin search.
+        max_backward_step_warn: Backward step of the transformed fraction, as a
+            fraction of full scale, above which a warning is recorded. The
+            default of 5 % sits above both shipped runs -- 1.03 % on the
+            heating run, 0.28 % on the cooling one -- so it flags a curve that
+            is noisy for its transformation, not ordinary scatter.
 
     Returns:
         Dictionary containing analysis results including fit quality.
@@ -125,7 +131,11 @@ def tangent_method(
         is_cooling,
     )
 
-    # 7. Calculate fit quality metrics
+    # 7. How far noise pushes the fraction backwards. Reported, not corrected:
+    # the fraction is a reading of the curve and is left as one.
+    backward_step = max_backward_step(transformed_fraction)
+
+    # 8. Calculate fit quality metrics
     fit_quality = calculate_fit_quality(
         temperature,
         strain,
@@ -136,6 +146,13 @@ def tangent_method(
         final_margin_percent,
         deviation_fraction,
     )
+    if backward_step > max_backward_step_warn:
+        fit_quality.warnings.append(
+            f"The transformed fraction steps backwards by "
+            f"{backward_step:.2%} of full scale, above the "
+            f"{max_backward_step_warn:.2%} threshold. The strain is noisy "
+            f"relative to the transformation."
+        )
 
     return {
         "method": "tangent",
@@ -143,11 +160,14 @@ def tangent_method(
         "end_temperature": float(report_end_temp),
         "mid_temperature": float(mid_temp),
         "transformed_fraction": transformed_fraction,
+        # The fraction is a raw reading of the curve; this says how far noise
+        # pushes it backwards. See `max_backward_step`.
+        "max_backward_step": backward_step,
         "temperature": temperature,  # Include temperature for context
         "strain": strain,  # Include strain for context
         "before_extrapolation": pred_start,
         "after_extrapolation": pred_end,
-        "fit_quality": fit_quality,
+        "fit_quality": fit_quality.as_dict(),
         "is_cooling": is_cooling,
         "parameters": {  # Store parameters used
             "margin_percent": final_margin_percent,

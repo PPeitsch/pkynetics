@@ -9,7 +9,7 @@ from numpy.typing import NDArray
 
 from pkynetics.technique_analysis.utilities import detect_segment_direction
 
-from .types import ReturnDict
+from .types import FitQuality, ReturnDict
 from .utilities import calculate_r2
 
 
@@ -290,7 +290,7 @@ def calculate_fit_quality(
     deviation_fraction: float,
     existing_warnings: Optional[List[str]] = None,
     r2_warn_threshold: float = 0.98,
-) -> Dict[str, Union[float, List[str]]]:
+) -> FitQuality:
     """
     Calculate quality metrics for the tangent method analysis, including R² values
     and checks for potential issues.
@@ -309,7 +309,8 @@ def calculate_fit_quality(
         r2_warn_threshold: R² value below which a warning is generated.
 
     Returns:
-        Dict containing R² values, margin, deviation fraction, and a list of warnings.
+        :class:`FitQuality` with the R² values, the margin, the deviation
+        fraction and the warnings raised along the way.
     """
     warnings_list = list(existing_warnings) if existing_warnings is not None else []
 
@@ -341,10 +342,10 @@ def calculate_fit_quality(
         except ValueError:  # Handle potential issues in calculate_r2
             warnings_list.append("Could not calculate R² for the end segment fit.")
 
-    return {
-        "r2_start": float(r2_start),
-        "r2_end": float(r2_end),
-        "margin_used": float(margin_percent),
-        "deviation_fraction": float(deviation_fraction),
-        "warnings": warnings_list,  # Include list of warnings
-    }
+    return FitQuality(
+        r2_start=float(r2_start),
+        r2_end=float(r2_end),
+        margin_used=float(margin_percent),
+        deviation_fraction=float(deviation_fraction),
+        warnings=warnings_list,
+    )

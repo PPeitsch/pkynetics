@@ -34,8 +34,9 @@ from .transformation_points import (
 from .transformed_fraction import (
     calculate_transformed_fraction,
     calculate_transformed_fraction_lever,
+    max_backward_step,
 )
-from .types import ReturnDict
+from .types import FitQuality, ReturnDict, TransformationLimits
 from .utilities import calculate_r2
 
 __all__ = [
@@ -56,6 +57,7 @@ __all__ = [
     # Transformed fraction
     "calculate_transformed_fraction",
     "calculate_transformed_fraction_lever",
+    "max_backward_step",
     # Methods
     "lever_method",
     "tangent_method",
@@ -64,4 +66,6 @@ __all__ = [
     "calculate_r2",
     # Types
     "ReturnDict",
+    "TransformationLimits",
+    "FitQuality",
 ]
