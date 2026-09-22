@@ -6,6 +6,7 @@ This module provides comprehensive analysis tools for various thermal analysis t
 1. Dilatometry Analysis:
    - Transformation point detection
    - Lever rule and tangent method implementations
+   - Complete workflow with DilatometryAnalyzer
    - Transformed fraction calculation
 
 2. DSC Analysis (``technique_analysis.dsc``):
@@ -19,6 +20,7 @@ This module provides comprehensive analysis tools for various thermal analysis t
 
 from . import dsc
 from .dilatometry import (
+    DilatometryAnalyzer,
     analyze_dilatometry_curve,
     calculate_fit_quality,
     calculate_r2,
@@ -34,8 +36,9 @@ from .dilatometry import (
 __all__ = [
     # Technique subpackages
     "dsc",
-    # Main analysis function
+    # Main analysis entry points
     "analyze_dilatometry_curve",
+    "DilatometryAnalyzer",
     # Core analysis functions
     "find_inflection_points",
     "find_transformation_limits",
