@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** the example data no longer ships with the package. Code building a path into `pkynetics/data` will not find the files: use `pkynetics.data.fetch(name)` for a path, or one of the named loaders (`load_dilatometry_heating`, `load_dsc_setaram`, `load_cp_three_step`, …) for the data already imported. The wheel goes from 2.05 MB to under 200 KB.
 
 ### Added
+- `DilatometryAnalyzer` holds the analysis settings once instead of taking them again on every call, and keeps the inputs, the ramp direction and the transformation limits reachable after `analyze()`. It returns the same mapping `analyze_dilatometry_curve` returns and calls the same code; the free functions are unchanged and are not deprecated.
 - `pkynetics.data` fetches the example runs on demand from [pkynetics-data](https://github.com/PPeitsch/pkynetics-data), verifies them by SHA256 and caches them on disk, using [pooch](https://www.fatiando.org/pooch/) (a new runtime dependency). The data set has its own version, `DATA_VERSION`, independent of the library's. Point `PKYNETICS_DATA_DIR` at a directory holding the files to work offline.
 - Tests that need an example run carry a `network` marker; `pytest -m "not network"` runs the rest, and a CI job does exactly that so the suite stays usable without a network.
 
@@ -22,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The test suite used `np.trapezoid`, which needs numpy 2.0, while `pyproject.toml` declares `numpy>=1.24.3`: four DSC tests failed on any numpy 1.x, a version the project claims to support. They now use `scipy.integrate.trapezoid`, as the rest of the package does.
 
 ### Changed
+- `technique_analysis/dilatometry.py` is now a package: `core`, `transformation_points`, `linear_segments`, `transformed_fraction`, `methods/{lever,tangent}`, `curve_features`, `utilities` and `types`, following the layout of `technique_analysis/dsc`. Nothing moved out of reach — every public name is importable from `pkynetics.technique_analysis.dilatometry` and from `pkynetics.technique_analysis` exactly as before, and the test suite that covers them was not touched.
 - **Breaking:** `analyze_dilatometry_curve` and `tangent_method` take `deviation_fraction` (default 0.05, the fraction of the peak derivative excursion that still counts as transforming) in place of `deviation_threshold`, which no longer has a meaning. `fit_quality` and `parameters` report `deviation_fraction` instead of `deviation_threshold` for the same reason.
 - **Breaking:** `find_inflection_points` takes `deviation_fraction` instead of `residual_std_multiplier` and `min_points_fit`, and its `margin` default drops from 0.3 to 0.2. `find_transformation_points` and `calculate_deviation_threshold` are gone, replaced by `find_transformation_limits`.
 
