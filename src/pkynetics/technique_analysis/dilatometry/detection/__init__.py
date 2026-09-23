@@ -12,10 +12,14 @@ from typing import Dict, List
 
 from .base import DetectionContext, Detector
 from .derivative import derivative_limits
+from .offset import offset_limits
+from .second_derivative import second_derivative_limits
 
 #: Every detector, by the name ``detection=`` takes.
 DETECTORS: Dict[str, Detector] = {
     "derivative": derivative_limits,
+    "offset": offset_limits,
+    "second_derivative": second_derivative_limits,
 }
 
 #: What ``detection=`` defaults to: the behaviour the module has had since #97.
@@ -57,4 +61,6 @@ __all__ = [
     "available_detectors",
     "get_detector",
     "derivative_limits",
+    "offset_limits",
+    "second_derivative_limits",
 ]
