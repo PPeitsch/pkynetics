@@ -16,11 +16,16 @@ import pytest
 
 from pkynetics.data import load_dilatometry_cooling, load_dilatometry_heating
 from pkynetics.technique_analysis.dilatometry import (
+    DetectionContext,
+    DilatometryAnalyzer,
     _strain_derivative,
     analyze_dilatometry_curve,
+    available_detectors,
     calculate_transformed_fraction_lever,
+    derivative_limits,
     find_optimal_margin,
     find_transformation_limits,
+    get_detector,
     max_backward_step,
     tangent_method,
 )
@@ -663,3 +668,80 @@ def test_tangent_stays_quiet_when_the_backward_step_is_under_the_threshold():
 
     assert result["max_backward_step"] > 0.0
     assert not [w for w in result["fit_quality"]["warnings"] if "backwards" in w]
+
+
+# --- Detection is its own axis (#26) --------------------------------------
+
+
+def test_the_default_detector_is_what_the_module_already_did(curve):
+    """`detection` defaults to the behaviour that predates the parameter."""
+    temperature, strain = curve
+
+    default = find_transformation_limits(temperature, strain)
+    explicit = find_transformation_limits(temperature, strain, detection="derivative")
+
+    assert default == explicit
+
+
+def test_available_detectors_lists_what_detection_accepts():
+    assert "derivative" in available_detectors()
+    assert available_detectors() == sorted(available_detectors())
+
+
+def test_an_unknown_detector_says_which_ones_exist(curve):
+    temperature, strain = curve
+
+    with pytest.raises(ValueError, match="Unknown detection method"):
+        find_transformation_limits(temperature, strain, detection="offset_typo")
+
+    with pytest.raises(ValueError, match="derivative"):
+        find_transformation_limits(temperature, strain, detection="offset_typo")
+
+
+def test_the_detector_name_is_case_insensitive(curve):
+    temperature, strain = curve
+
+    assert find_transformation_limits(
+        temperature, strain, detection="DERIVATIVE"
+    ) == find_transformation_limits(temperature, strain)
+
+
+@pytest.mark.parametrize("method", ["lever", "tangent"])
+def test_detection_and_method_are_chosen_independently(curve, method):
+    """The two axes cross: any detector goes with either method."""
+    temperature, strain = curve
+
+    result = analyze_dilatometry_curve(
+        temperature, strain, method=method, detection="derivative"
+    )
+
+    assert result["method"] == method
+    assert result["parameters"]["detection"] == "derivative"
+
+
+def test_the_analyzer_carries_the_detector_too(curve):
+    temperature, strain = curve
+
+    analyzer = DilatometryAnalyzer(detection="derivative")
+    result = analyzer.analyze(temperature, strain)
+
+    assert analyzer.detection == "derivative"
+    assert result["parameters"]["detection"] == "derivative"
+
+
+def test_a_detector_can_be_called_on_its_own(curve):
+    """The registry hands back something usable directly."""
+    temperature, strain = curve
+    context = DetectionContext(
+        temperature=temperature,
+        strain=strain,
+        is_cooling=False,
+        margin=0.2,
+        window_length=25,
+        polyorder=2,
+        baseline_min_r2=0.99,
+    )
+
+    detector = get_detector("derivative")
+
+    assert detector(context) == derivative_limits(context)

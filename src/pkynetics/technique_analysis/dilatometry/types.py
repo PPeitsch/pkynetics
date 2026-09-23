@@ -10,7 +10,13 @@ from numpy.typing import NDArray
 #: scalars, flags, arrays, or the nested quality-metrics mapping.
 ReturnDict = Dict[
     str,
-    Union[float, bool, str, NDArray[np.float64], Dict[str, Union[float, List[str]]]],
+    Union[
+        float,
+        bool,
+        str,
+        NDArray[np.float64],
+        Dict[str, Union[float, str, List[str]]],
+    ],
 ]
 
 
@@ -41,7 +47,7 @@ class FitQuality:
     deviation_fraction: float
     warnings: List[str] = field(default_factory=list)
 
-    def as_dict(self) -> Dict[str, Union[float, List[str]]]:
+    def as_dict(self) -> Dict[str, Union[float, str, List[str]]]:
         """The mapping form that goes into the analysis result."""
         return asdict(self)
 

@@ -1,11 +1,12 @@
 """The tangent method."""
 
 import warnings as py_warnings
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 
+from ..detection import DEFAULT_DETECTION
 from ..linear_segments import (
     calculate_fit_quality,
     extrapolate_linear_segments,
@@ -33,6 +34,8 @@ def tangent_method(
     min_points_fit: int = 10,
     min_r2_optimal_margin: float = 0.99,
     max_backward_step_warn: float = 0.05,
+    detection: str = DEFAULT_DETECTION,
+    **detection_options: Any,
 ) -> ReturnDict:
     """
     Analyze dilatometry curve using the tangent intersection method.
@@ -55,6 +58,8 @@ def tangent_method(
             default of 5 % sits above both shipped runs -- 1.03 % on the
             heating run, 0.28 % on the cooling one -- so it flags a curve that
             is noisy for its transformation, not ordinary scatter.
+        detection: Which detector locates the transformation limits.
+        **detection_options: Passed through to the chosen detector.
 
     Returns:
         Dictionary containing analysis results including fit quality.
@@ -102,6 +107,8 @@ def tangent_method(
         is_cooling=is_cooling,
         margin=limits_margin,
         deviation_fraction=deviation_fraction,
+        detection=detection,
+        **detection_options,
     )
 
     start_temp = temperature[start_idx]
@@ -174,6 +181,7 @@ def tangent_method(
             "deviation_fraction": deviation_fraction,
             "min_points_fit": min_points_fit,
             "min_r2_optimal_margin": min_r2_optimal_margin,
+            "detection": detection,
         },
     }
 
