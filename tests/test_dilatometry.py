@@ -29,6 +29,9 @@ from pkynetics.technique_analysis.dilatometry import (
     max_backward_step,
     tangent_method,
 )
+from pkynetics.technique_analysis.dilatometry.detection.statistical import (
+    _residual_structure,
+)
 from pkynetics.technique_analysis.utilities import (
     analyze_range,
     detect_segment_direction,
@@ -1043,3 +1046,144 @@ def test_double_tangent_needs_enough_points_in_each_baseline(curve):
         find_transformation_limits(
             temperature, strain, detection="double_tangent", margin=0.0005
         )
+
+
+# --- The statistical detector (#26) ---------------------------------------
+
+
+def noisy_sigmoid(scale=2e-5, n_points=1000):
+    """The synthetic transformation with real noise on it, so that the
+    residuals of a baseline are scatter rather than structure."""
+    temperature = np.linspace(600.0, 900.0, n_points)
+    sigmoid = 1 / (
+        1 + np.exp(-(temperature - TRANSFORMATION_CENTRE) / TRANSFORMATION_WIDTH)
+    )
+    strain = 1e-5 * (temperature - 600.0) - 2e-3 * sigmoid
+    return temperature, strain + np.random.normal(0.0, scale, n_points)
+
+
+def test_statistical_is_registered_and_selectable():
+    temperature, strain = noisy_sigmoid()
+
+    assert "statistical" in available_detectors()
+    limits = find_transformation_limits(temperature, strain, detection="statistical")
+
+    assert 0 < limits.start_idx < limits.end_idx < len(temperature) - 1
+
+
+def test_statistical_works_on_the_data_it_is_for():
+    """A noisy run is where "is this more than noise" is the right question."""
+    temperature, strain = noisy_sigmoid()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)  # nothing to warn about
+        limits = find_transformation_limits(
+            temperature, strain, detection="statistical"
+        )
+
+    assert temperature[limits.start_idx] == pytest.approx(720.0, abs=10.0)
+    assert temperature[limits.end_idx] == pytest.approx(782.0, abs=10.0)
+
+
+def test_statistical_detects_a_transformation_tail_on_a_clean_curve(curve):
+    """Sensitive is not accurate, and the detector says which it is being.
+
+    With no noise the baseline residual scatter is ~3e-8 while the tail of the
+    sigmoid is already 2e-7 at 658 degC. That is a real six-sigma departure
+    and 0.017 % of the excursion: correctly flagged, physically irrelevant.
+    """
+    temperature, strain = curve
+
+    with pytest.warns(UserWarning, match="bowed, not scattered"):
+        limits = find_transformation_limits(
+            temperature, strain, detection="statistical"
+        )
+
+    # Far outside the 705-795 the other detectors bracket.
+    assert temperature[limits.start_idx] < 700.0
+    assert temperature[limits.end_idx] > 800.0
+
+
+def test_statistical_reports_a_bowed_baseline(real_curve):
+    """The assumption the method rests on, tested rather than assumed.
+
+    It does not fix the drift that limits `offset`, which was the obvious
+    reason to expect something of it: on this run it reports 717 degC where
+    `offset` reports 739 and the foot is at 839.
+    """
+    temperature, strain = real_curve
+
+    with pytest.warns(UserWarning, match="bowed, not scattered"):
+        limits = find_transformation_limits(
+            temperature, strain, detection="statistical"
+        )
+
+    assert temperature[limits.start_idx] < 800.0
+
+
+def test_the_runs_test_separates_scatter_from_structure():
+    """Near zero for noise, far below it for a bow."""
+    temperature = np.linspace(600.0, 900.0, 400)
+    mask = np.ones_like(temperature, dtype=bool)
+    straight = 1e-5 * (temperature - 600.0)
+
+    noisy = straight + np.random.normal(0.0, 1e-6, len(temperature))
+    bowed = straight + 1e-9 * (temperature - 750.0) ** 2
+
+    assert abs(_residual_structure(temperature, noisy, mask)) < 3.0
+    assert _residual_structure(temperature, bowed, mask) < -3.0
+
+
+def test_statistical_needs_three_points_for_a_variance():
+    temperature, strain = noisy_sigmoid()
+
+    with pytest.raises(ValueError, match="fewer than 3 points"):
+        find_transformation_limits(
+            temperature, strain, detection="statistical", margin=0.002
+        )
+
+
+def test_statistical_rejects_an_impossible_confidence():
+    temperature, strain = noisy_sigmoid()
+
+    for bad in (0.0, 1.0, 1.5):
+        with pytest.raises(ValueError, match="confidence"):
+            find_transformation_limits(
+                temperature, strain, detection="statistical", confidence=bad
+            )
+
+
+def test_statistical_rejects_a_non_positive_structure_limit():
+    temperature, strain = noisy_sigmoid()
+
+    with pytest.raises(ValueError, match="max_residual_structure"):
+        find_transformation_limits(
+            temperature,
+            strain,
+            detection="statistical",
+            max_residual_structure=0.0,
+        )
+
+
+def test_the_runs_test_stays_quiet_when_it_cannot_be_applied():
+    """A perfect fit leaves no residual signs to count, and an inapplicable
+    test must not raise a false alarm."""
+    temperature = np.linspace(600.0, 900.0, 400)
+    mask = np.ones_like(temperature, dtype=bool)
+
+    assert _residual_structure(temperature, 1e-5 * (temperature - 600.0), mask) == 0.0
+
+
+def test_statistical_says_so_when_nothing_clears_the_interval():
+    """At a confidence that wide, no departure is surprising any more."""
+    temperature, strain = noisy_sigmoid()
+
+    with pytest.warns(UserWarning, match="never leaves"):
+        limits = find_transformation_limits(
+            temperature,
+            strain,
+            detection="statistical",
+            confidence=0.9999999999999999,
+        )
+
+    assert limits == (150, 850)  # the search interval it falls back to

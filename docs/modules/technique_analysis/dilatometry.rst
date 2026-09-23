@@ -98,7 +98,8 @@ Parameter     Question                       Values
 ``method``    How far has it transformed?    ``lever``, ``tangent``
 ``detection`` Where is the transformation?   ``derivative``, ``offset``,
                                              ``second_derivative``,
-                                             ``double_tangent``
+                                             ``double_tangent``,
+                                             ``statistical``
 ============= ============================== =================================
 
 They cross freely — any detector combines with either method:
@@ -167,11 +168,58 @@ Detectors
    the data instead of from someone's eye. See :func:`find_transformation_limits`
    for why that differs from the 839 °C the derivative detector reports.
 
+``statistical``
+   A departure beyond the prediction interval of the baseline regression.
+   Its threshold is the only one here with a stated meaning — a
+   false-positive rate — rather than a fraction someone picked.
+
+   It is the most *sensitive* of the five, which is not the same as the most
+   accurate. It answers "where does the curve stop being explainable by the
+   scatter of the baseline", and on a clean run that is far from where the
+   transformation begins: on the synthetic sigmoid the baseline scatter is
+   3·10⁻⁸ while the tail of the transformation already reaches 2·10⁻⁷ at
+   658 °C — a genuine six-sigma departure, and 0.017 % of the excursion.
+
+   It does **not** fix the drift that limits ``offset``, which is the obvious
+   thing to expect of it. The interval widens with the square of the distance
+   from the fitting window, but a baseline bow grows faster: on the Zry-4
+   heating run it reports 717 °C where ``offset`` reports 739 and the foot is
+   at 839.
+
+   Since the method rests on the residuals being scatter rather than
+   structure, that is tested rather than assumed, with a Wald-Wolfowitz runs
+   test on each baseline. On real dilatometry data the assumption is usually
+   violated, and the detector says so. A violation does not by itself mean
+   the answer is wrong — the cooling run scores −12.2 on its final baseline
+   and still brackets well — it means the stated confidence is no longer the
+   false-positive rate it claims to be.
+
+   Use it on a noisy run, where "is this more than noise" is the question
+   worth asking.
+
 Choosing between them: ``derivative`` unless there is a reason, ``offset``
 when reproducibility between runs matters more than hitting the feet, and
 ``second_derivative`` when the transition is sharp and clean and what is
 wanted is its steepest part, and ``double_tangent`` when the number has to
-match what a metallurgist would read off the chart by hand.
+match what a metallurgist would read off the chart by hand, and
+``statistical`` when the data are noisy and the question is whether a
+departure is real at all.
+
+What they give on the same three runs:
+
+======================= ================= ================= =================
+Detector                Synthetic         Zry-4 heating     Zry-4 cooling
+                        (705-795)         (foot at 839-936) (938-757)
+======================= ================= ================= =================
+``derivative``          706-794           839-936           938-757
+``offset``              721-779           739-923           921-783
+``second_derivative``   735-765           878-926           931-837
+``double_tangent``      728-772           860-926           919-818
+``statistical``         658-842           717-927           931-766
+======================= ================= ================= =================
+
+They do not agree, and they are not meant to: each is bracketing a
+different definition of where a transformation is.
 
 Methods
 -------
