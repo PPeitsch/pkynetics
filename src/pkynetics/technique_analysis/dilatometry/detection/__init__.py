@@ -12,12 +12,14 @@ from typing import Dict, List
 
 from .base import DetectionContext, Detector
 from .derivative import derivative_limits
+from .double_tangent import double_tangent_limits
 from .offset import offset_limits
 from .second_derivative import second_derivative_limits
 
 #: Every detector, by the name ``detection=`` takes.
 DETECTORS: Dict[str, Detector] = {
     "derivative": derivative_limits,
+    "double_tangent": double_tangent_limits,
     "offset": offset_limits,
     "second_derivative": second_derivative_limits,
 }
@@ -61,6 +63,7 @@ __all__ = [
     "available_detectors",
     "get_detector",
     "derivative_limits",
+    "double_tangent_limits",
     "offset_limits",
     "second_derivative_limits",
 ]
