@@ -67,6 +67,7 @@ Module                           What it holds
 ``transformation_points``        Where a transformation starts and ends
 ``linear_segments``              The baselines on either side, and their fits
 ``transformed_fraction``         How far the transformation has gone
+``detection``                    The rules for *where* a transformation is
 ``methods.lever``,               The two analysis methods
 ``methods.tangent``
 ``curve_features``               The derivative and the noise of the curve
@@ -84,6 +85,32 @@ and ``limits_margin``; the margin used to *fit the baselines* appears as
 ``margin_percent`` and ``margin_percent_fraction``. They are two settings, and
 :class:`DilatometryAnalyzer` names them once, as ``limits_margin`` and
 ``baseline_margin``.
+
+Two questions, two parameters
+-----------------------------
+
+An analysis answers two independent questions, and each has its own
+parameter:
+
+============= ============================== =================================
+Parameter     Question                       Values
+============= ============================== =================================
+``method``    How far has it transformed?    ``lever``, ``tangent``
+``detection`` Where is the transformation?   ``derivative`` (see
+                                             :func:`available_detectors`)
+============= ============================== =================================
+
+They cross freely — any detector combines with either method:
+
+.. code-block:: python
+
+   analyze_dilatometry_curve(temperature, strain,
+                             method="lever", detection="derivative")
+
+``detection="derivative"`` is the default and is what the module has done
+since the limits were unified, so nothing changes for callers who leave it
+alone. A detector can also be used on its own through
+:func:`get_detector`, which takes a :class:`DetectionContext`.
 
 Methods
 -------

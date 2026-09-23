@@ -1,12 +1,13 @@
 """The analysis entry point."""
 
-from typing import Optional, Tuple, cast
+from typing import Any, Optional, Tuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
 
 from pkynetics.technique_analysis.utilities import detect_segment_direction
 
+from .detection import DEFAULT_DETECTION
 from .methods.lever import lever_method
 from .methods.tangent import tangent_method
 from .transformation_points import find_transformation_limits
@@ -22,6 +23,8 @@ def analyze_dilatometry_curve(
     min_points_fit: int = 10,
     min_r2_optimal_margin: float = 0.99,
     deviation_fraction: float = 0.05,
+    detection: str = DEFAULT_DETECTION,
+    **detection_options: Any,
 ) -> ReturnDict:
     """
     Analyze the dilatometry curve to extract key transformation parameters.
@@ -41,6 +44,11 @@ def analyze_dilatometry_curve(
                                in the tangent method. Default is 0.99.
         deviation_fraction: Fraction of the peak excursion of ``dS/dT`` that still
             counts as transforming, for both methods. Default is 0.05.
+        detection: Which rule locates the transformation limits
+            ('derivative' by default). This is a different question from
+            `method`: `detection` is *where* the transformation is, `method`
+            is *how far it has gone*, and the two are chosen independently.
+        **detection_options: Passed through to the chosen detector.
 
     Returns:
         Dictionary containing analysis results: start, end, mid temperatures,
@@ -76,6 +84,8 @@ def analyze_dilatometry_curve(
             margin_percent_fraction=lever_margin,
             find_inflection_margin=find_inflection_margin,
             min_points_fit=min_points_fit,
+            detection=detection,
+            **detection_options,
         )
     elif method.lower() == "tangent":
         return tangent_method(
@@ -86,6 +96,8 @@ def analyze_dilatometry_curve(
             deviation_fraction=deviation_fraction,
             min_points_fit=min_points_fit,
             min_r2_optimal_margin=min_r2_optimal_margin,
+            detection=detection,
+            **detection_options,
         )
     else:
         raise ValueError(
@@ -117,6 +129,10 @@ class DilatometryAnalyzer:
     ``min_r2``                     R² a searched-for baseline margin must reach.
     ``baseline_min_r2``            R² below which a baseline window is reported as
                                    reaching into a transformation.
+    ``detection``                  Which rule locates the transformation. Separate
+                                   from the ``method`` of :meth:`analyze`: this is
+                                   *where* the transformation is, that is *how far
+                                   it has gone*.
     ============================== ==================================================
 
     The free functions keep their own parameter names and go on working
@@ -140,6 +156,7 @@ class DilatometryAnalyzer:
         smooth_window_fraction: float = 0.05,
         polyorder: int = 2,
         min_points_smooth: int = 5,
+        detection: str = DEFAULT_DETECTION,
     ) -> None:
         self.limits_margin = limits_margin
         self.baseline_margin = baseline_margin
@@ -150,6 +167,7 @@ class DilatometryAnalyzer:
         self.smooth_window_fraction = smooth_window_fraction
         self.polyorder = polyorder
         self.min_points_smooth = min_points_smooth
+        self.detection = detection
 
         # Filled in by analyze(); None until then
         self.temperature: Optional[NDArray[np.float64]] = None
@@ -193,6 +211,7 @@ class DilatometryAnalyzer:
             polyorder=self.polyorder,
             min_points_smooth=self.min_points_smooth,
             baseline_min_r2=self.baseline_min_r2,
+            detection=self.detection,
         )
 
     def analyze(
@@ -232,6 +251,7 @@ class DilatometryAnalyzer:
             min_points_fit=self.min_points_fit,
             min_r2_optimal_margin=self.min_r2,
             deviation_fraction=self.deviation_fraction,
+            detection=self.detection,
         )
 
         self.temperature = temperature
