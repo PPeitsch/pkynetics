@@ -15,6 +15,7 @@ from .derivative import derivative_limits
 from .double_tangent import double_tangent_limits
 from .offset import offset_limits
 from .second_derivative import second_derivative_limits
+from .statistical import statistical_limits
 
 #: Every detector, by the name ``detection=`` takes.
 DETECTORS: Dict[str, Detector] = {
@@ -22,6 +23,7 @@ DETECTORS: Dict[str, Detector] = {
     "double_tangent": double_tangent_limits,
     "offset": offset_limits,
     "second_derivative": second_derivative_limits,
+    "statistical": statistical_limits,
 }
 
 #: What ``detection=`` defaults to: the behaviour the module has had since #97.
@@ -66,4 +68,5 @@ __all__ = [
     "double_tangent_limits",
     "offset_limits",
     "second_derivative_limits",
+    "statistical_limits",
 ]
