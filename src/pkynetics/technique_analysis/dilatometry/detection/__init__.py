@@ -10,6 +10,7 @@ Adding a detector is adding a function with the signature in
 
 from typing import Dict, List
 
+from .adaptive import DEFAULT_CANDIDATES, stable_margin
 from .base import DetectionContext, Detector
 from .derivative import derivative_limits
 from .double_tangent import double_tangent_limits
@@ -64,6 +65,8 @@ __all__ = [
     "Detector",
     "available_detectors",
     "get_detector",
+    "stable_margin",
+    "DEFAULT_CANDIDATES",
     "derivative_limits",
     "double_tangent_limits",
     "offset_limits",

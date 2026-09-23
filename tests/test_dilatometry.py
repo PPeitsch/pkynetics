@@ -18,6 +18,7 @@ from pkynetics.data import load_dilatometry_cooling, load_dilatometry_heating
 from pkynetics.technique_analysis.dilatometry import (
     DetectionContext,
     DilatometryAnalyzer,
+    TransformationLimits,
     _strain_derivative,
     analyze_dilatometry_curve,
     available_detectors,
@@ -29,6 +30,7 @@ from pkynetics.technique_analysis.dilatometry import (
     max_backward_step,
     tangent_method,
 )
+from pkynetics.technique_analysis.dilatometry.detection.adaptive import stable_margin
 from pkynetics.technique_analysis.dilatometry.detection.statistical import (
     _residual_structure,
 )
@@ -1187,3 +1189,132 @@ def test_statistical_says_so_when_nothing_clears_the_interval():
         )
 
     assert limits == (150, 850)  # the search interval it falls back to
+
+
+# --- Choosing the margin from the curve (#103.4, via #26) -----------------
+
+
+def test_the_margin_has_a_dead_zone_this_is_not_hypothetical(real_curve):
+    """The reason `margin="auto"` exists, asserted so it stays true.
+
+    On the heating run the derivative detector gives 839-936 degC for margins
+    from 0.18 to 0.25 and collapses to a 15 K bracket for 0.15 to 0.17. Both
+    look equally reasonable from outside, and the baselines fit a line just as
+    well inside the dead zone as outside it.
+    """
+    temperature, strain = real_curve
+
+    with pytest.warns(UserWarning, match="wrong order"):
+        collapsed = find_transformation_limits(temperature, strain, margin=0.16)
+    healthy = find_transformation_limits(temperature, strain, margin=0.20)
+
+    collapsed_width = abs(
+        temperature[collapsed.end_idx] - temperature[collapsed.start_idx]
+    )
+    healthy_width = abs(temperature[healthy.end_idx] - temperature[healthy.start_idx])
+
+    assert collapsed_width < 25.0
+    assert healthy_width > 90.0
+
+
+def test_auto_margin_steps_over_the_dead_zone(real_curve):
+    temperature, strain = real_curve
+
+    limits = find_transformation_limits(temperature, strain, margin="auto")
+
+    assert temperature[limits.start_idx] == pytest.approx(839.0, abs=3.0)
+    assert temperature[limits.end_idx] == pytest.approx(936.0, abs=3.0)
+
+
+@pytest.mark.parametrize(
+    "detection", ["derivative", "offset", "second_derivative", "double_tangent"]
+)
+def test_auto_margin_works_for_every_detector(curve, detection):
+    temperature, strain = curve
+
+    limits = find_transformation_limits(
+        temperature, strain, margin="auto", detection=detection
+    )
+
+    assert 0 < limits.start_idx < limits.end_idx < len(temperature) - 1
+
+
+def test_auto_margin_is_case_insensitive_and_rejects_anything_else(curve):
+    temperature, strain = curve
+
+    assert find_transformation_limits(
+        temperature, strain, margin="AUTO"
+    ) == find_transformation_limits(temperature, strain, margin="auto")
+
+    with pytest.raises(ValueError, match="margin must be a fraction or 'auto'"):
+        find_transformation_limits(temperature, strain, margin="widest")
+
+
+def test_the_widest_plateau_wins_not_the_first():
+    """Two plateaus, and the choice is the wider one."""
+    limits_a = TransformationLimits(10, 90)
+    limits_b = TransformationLimits(30, 70)
+    answers = {
+        0.10: limits_a,
+        0.11: limits_a,
+        0.12: limits_b,
+        0.13: limits_b,
+        0.14: limits_b,
+    }
+
+    margin, limits = stable_margin(
+        lambda m: answers[round(m, 2)], n_total=100, candidates=sorted(answers)
+    )
+
+    assert limits == limits_b
+    assert margin == pytest.approx(0.13)
+
+
+def test_a_margin_that_does_not_fit_is_skipped_not_fatal():
+    """A candidate that leaves too little data is one fewer candidate."""
+    good = TransformationLimits(10, 90)
+
+    def run(margin):
+        if margin < 0.12:
+            raise ValueError("too little data")
+        return good
+
+    margin, limits = stable_margin(
+        run, n_total=100, candidates=[0.10, 0.11, 0.12, 0.13, 0.14]
+    )
+
+    assert limits == good
+    assert margin >= 0.12
+
+
+def test_no_usable_margin_at_all_is_an_error():
+    def run(margin):
+        raise ValueError("too little data")
+
+    with pytest.raises(ValueError, match="No margin between"):
+        stable_margin(run, n_total=100, candidates=[0.10, 0.20, 0.30])
+
+
+def test_auto_margin_says_so_when_nothing_is_stable():
+    """Every margin its own answer means there is no stable choice."""
+    answers = {
+        margin: TransformationLimits(10 + i * 20, 90 + i * 20)
+        for i, margin in enumerate((0.10, 0.11, 0.12))
+    }
+
+    with pytest.warns(UserWarning, match="no stable choice"):
+        stable_margin(
+            lambda m: answers[round(m, 2)], n_total=100, candidates=sorted(answers)
+        )
+
+
+def test_exploring_does_not_leak_the_warnings_of_margins_it_discarded(real_curve):
+    """The dead zone warns loudly, and `auto` tries it. The caller should only
+    hear about the margin actually chosen."""
+    temperature, strain = real_curve
+
+    with warnings.catch_warnings(record=True) as raised:
+        warnings.simplefilter("always")
+        find_transformation_limits(temperature, strain, margin="auto")
+
+    assert not [w for w in raised if "wrong order" in str(w.message)]

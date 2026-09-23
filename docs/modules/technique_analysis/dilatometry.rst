@@ -252,22 +252,53 @@ On the Zry-4 heating run both methods put the alpha->beta contraction at
 706-794 °C; and on a cooling run windowed to 1040-700 °C, against a
 transformation from ~945 to ~760 °C, they return 938-757 °C.
 
-The baseline margin stays an explicit parameter
------------------------------------------------
+The baseline margin, and its dead zones
+---------------------------------------
 
 ``limits_margin`` (default 0.2) is the fraction of the data at each end taken
-as baseline. It is deliberately a number the caller sets, not one inferred from
-the curve, and that has a consequence worth stating: a curve whose
+as baseline. It carries one consequence that is easy to state: a curve whose
 transformation falls inside the first or last 20 % of its range cannot be
 analysed in one pass. The full 1050 → 71 °C cooling run is such a case — the
 first 20 % of that range is 1050-854 °C, which already contains the
-transformation. Since then that is reported as an explicit ``UserWarning``
-rather than a quietly wrong answer, and the fix is to window the data to a
-range with a linear baseline on either side.
+transformation. That is reported as an explicit ``UserWarning``, and the fix
+is to window the data to a range with a linear baseline on either side.
 
-Adapting the margin to the curve — growing it inward from each end while the
-local fit stays linear — is a change to how the transformation is *detected*,
-so it belongs with the detection methods rather than here.
+It carries a second one that is not obvious at all. The margin has **narrow
+dead zones**, and nothing about a curve says where they are. On the Zry-4
+heating run the derivative detector returns:
+
+========================= ==========================
+Margin                    Limits
+========================= ==========================
+0.10 - 0.13               702-936 °C
+0.14                      835-936 °C
+**0.15 - 0.17**           **822-837 °C** (a 15 K
+                          bracket on a 97 K
+                          transformation)
+0.18 - 0.25               839-936 °C
+0.26 and up               narrowing progressively
+========================= ==========================
+
+Nothing distinguishes 0.16 from 0.20 from the outside, and linearity does not
+separate them either: the baselines inside the dead zone fit a line at
+R² = 0.9989 against 0.9991 outside it. The cooling run, by contrast, is stable
+across 0.10-0.31 — so the width of the safe range is itself a property of the
+curve.
+
+What does separate them is stability, which is what ``margin="auto"`` uses:
+
+.. code-block:: python
+
+   find_transformation_limits(temperature, strain, margin="auto")
+
+It runs the detector across the whole range of margins, groups the ones giving
+the same answer, and takes the middle of the widest group — the margin whose
+answer does not depend on the margin. A dead zone is narrow by nature, which
+is what makes it a trap rather than a region, so the answer holding over the
+widest stretch is the one to take. Warnings from margins that were tried and
+discarded are suppressed; the ones belonging to the chosen margin are raised
+normally. It costs about 25 runs of the detector, which is milliseconds, and
+it is worth it on data whose safe range is not already known.
 
 The transformed fraction is a reading, not a model
 --------------------------------------------------

@@ -10,7 +10,7 @@ unchanged: every function below is importable from here and from
 - :mod:`~pkynetics.technique_analysis.dilatometry.linear_segments` -- the baselines on either side of it
 - :mod:`~pkynetics.technique_analysis.dilatometry.transformed_fraction` -- how far it has gone
 - :mod:`~pkynetics.technique_analysis.dilatometry.methods` -- the lever and tangent methods
-- :mod:`~pkynetics.technique_analysis.dilatometry.detection` -- the rules for where a transformation is
+- :mod:`~pkynetics.technique_analysis.dilatometry.detection` -- the rules for where a transformation is, and how to pick a margin for them
 - :mod:`~pkynetics.technique_analysis.dilatometry.curve_features` -- the derivative and the noise of the curve
 - :mod:`~pkynetics.technique_analysis.dilatometry.utilities` -- small numerical helpers
 - :mod:`~pkynetics.technique_analysis.dilatometry.types` -- type definitions
@@ -19,12 +19,14 @@ unchanged: every function below is importable from here and from
 from .core import DilatometryAnalyzer, analyze_dilatometry_curve
 from .curve_features import _strain_derivative, detect_noise_level
 from .detection import (
+    DEFAULT_CANDIDATES,
     DEFAULT_DETECTION,
     DETECTORS,
     DetectionContext,
     available_detectors,
     derivative_limits,
     get_detector,
+    stable_margin,
 )
 from .linear_segments import (
     calculate_fit_quality,
@@ -73,6 +75,8 @@ __all__ = [
     # Detection: where the transformation is, chosen apart from the method
     "available_detectors",
     "get_detector",
+    "stable_margin",
+    "DEFAULT_CANDIDATES",
     "derivative_limits",
     "DETECTORS",
     "DEFAULT_DETECTION",
