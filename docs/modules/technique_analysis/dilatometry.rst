@@ -97,7 +97,8 @@ Parameter     Question                       Values
 ============= ============================== =================================
 ``method``    How far has it transformed?    ``lever``, ``tangent``
 ``detection`` Where is the transformation?   ``derivative``, ``offset``,
-                                             ``second_derivative``
+                                             ``second_derivative``,
+                                             ``double_tangent``
 ============= ============================== =================================
 
 They cross freely — any detector combines with either method:
@@ -147,10 +148,30 @@ Detectors
    curvature amplifies noise twice over — so ``prominence_fraction`` warns
    when the two extrema are too uneven to be the two ends of one feature.
 
+``double_tangent``
+   Three lines: the two baselines, extrapolated, and a tangent through the
+   steepest part of the transformation. The limits are the two crossings —
+   the extrapolated onset of the thermal-analysis literature, and the
+   construction ASTM E228 describes for reading a transformation off a chart.
+
+   It needs no threshold, which is its advantage over ``offset``: nothing to
+   tune per run, and its one parameter barely matters — doubling
+   ``tangent_window_fraction`` moves the limits by about a kelvin, where a
+   comparable change to ``offset_fraction`` moves them by tens. What it
+   assumes instead is that the transformation has a *single* steepest part a
+   straight line describes; on one that proceeds in two stages the tangent is
+   fitted across both and belongs to neither.
+
+   On the Zry-4 heating run it returns 860-926 °C, which is the 855-935 that
+   used to be the reference value — the reading off the plot, recovered from
+   the data instead of from someone's eye. See :func:`find_transformation_limits`
+   for why that differs from the 839 °C the derivative detector reports.
+
 Choosing between them: ``derivative`` unless there is a reason, ``offset``
 when reproducibility between runs matters more than hitting the feet, and
 ``second_derivative`` when the transition is sharp and clean and what is
-wanted is its steepest part.
+wanted is its steepest part, and ``double_tangent`` when the number has to
+match what a metallurgist would read off the chart by hand.
 
 Methods
 -------

@@ -883,7 +883,9 @@ def test_second_derivative_rejects_a_prominence_outside_the_unit_interval(curve)
         )
 
 
-@pytest.mark.parametrize("detection", ["derivative", "offset", "second_derivative"])
+@pytest.mark.parametrize(
+    "detection", ["derivative", "offset", "second_derivative", "double_tangent"]
+)
 @pytest.mark.parametrize("method", ["lever", "tangent"])
 def test_every_detector_crosses_with_every_method(curve, detection, method):
     temperature, strain = curve
@@ -922,7 +924,9 @@ def test_a_curve_without_a_transformation_is_reported_as_such(detection, shape):
     assert limits == (75, 425)  # the search interval it falls back to
 
 
-@pytest.mark.parametrize("detection", ["derivative", "offset", "second_derivative"])
+@pytest.mark.parametrize(
+    "detection", ["derivative", "offset", "second_derivative", "double_tangent"]
+)
 def test_no_detector_cries_wolf_on_a_real_transformation(real_curve, detection):
     """The guard above must not fire on a curve that does transform."""
     temperature, strain = real_curve
@@ -953,4 +957,89 @@ def test_second_derivative_needs_interior_points_to_look_at(curve):
     with pytest.raises(ValueError, match="too few interior points"):
         find_transformation_limits(
             temperature, strain, detection="second_derivative", margin=1.0
+        )
+
+
+# --- The double-tangent detector (#26) ------------------------------------
+
+
+def test_double_tangent_is_registered_and_selectable(curve):
+    temperature, strain = curve
+
+    assert "double_tangent" in available_detectors()
+    limits = find_transformation_limits(temperature, strain, detection="double_tangent")
+
+    assert 0 < limits.start_idx < limits.end_idx < len(temperature) - 1
+
+
+def test_double_tangent_reproduces_the_reading_off_the_plot(real_curve):
+    """It recovers the number the reference value used to be.
+
+    #103 settled that the 855-935 degC the tests used to assert was where the
+    flattening becomes *visible* on a chart, not where the transformation
+    begins -- the derivative detector puts the foot at 839. The double-tangent
+    construction is that chart reading formalised: extend both baselines,
+    draw the tangent through the steepest part, take the crossings. It lands
+    on 860-926, which is the visual reading recovered from the data rather
+    than from someone's eye.
+    """
+    temperature, strain = real_curve
+
+    limits = find_transformation_limits(temperature, strain, detection="double_tangent")
+
+    assert temperature[limits.start_idx] == pytest.approx(860.0, abs=5.0)
+    assert temperature[limits.end_idx] == pytest.approx(926.0, abs=5.0)
+
+
+def test_double_tangent_barely_moves_with_its_window(curve):
+    """Its one parameter is not a threshold, and it shows.
+
+    Doubling the tangent window moves the limits by a couple of kelvin; the
+    offset detector moves by tens over a comparable change.
+    """
+    temperature, strain = curve
+
+    narrow = find_transformation_limits(
+        temperature, strain, detection="double_tangent", tangent_window_fraction=0.05
+    )
+    wide = find_transformation_limits(
+        temperature, strain, detection="double_tangent", tangent_window_fraction=0.10
+    )
+
+    assert abs(temperature[narrow.start_idx] - temperature[wide.start_idx]) < 3.0
+    assert abs(temperature[narrow.end_idx] - temperature[wide.end_idx]) < 3.0
+
+
+def test_double_tangent_says_so_when_the_lines_never_cross():
+    """A straight run has no steepest part, so the three lines are parallel."""
+    temperature = np.linspace(600.0, 900.0, 500)
+    strain = 1e-5 * (temperature - 600.0)
+
+    with pytest.warns(UserWarning, match="parallel"):
+        limits = find_transformation_limits(
+            temperature, strain, detection="double_tangent"
+        )
+
+    assert limits == (75, 425)
+
+
+def test_double_tangent_rejects_a_window_outside_the_unit_interval(curve):
+    temperature, strain = curve
+
+    for bad in (0.0, 1.0, 2.0):
+        with pytest.raises(ValueError, match="tangent_window_fraction"):
+            find_transformation_limits(
+                temperature,
+                strain,
+                detection="double_tangent",
+                tangent_window_fraction=bad,
+            )
+
+
+def test_double_tangent_needs_enough_points_in_each_baseline(curve):
+    temperature, strain = curve
+
+    with pytest.raises(ValueError, match="fewer than 2 points"):
+        find_transformation_limits(
+            temperature, strain, detection="double_tangent", margin=0.0005
         )
