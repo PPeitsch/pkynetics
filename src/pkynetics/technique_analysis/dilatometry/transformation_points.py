@@ -9,6 +9,7 @@ from numpy.typing import NDArray
 
 from .curve_features import _strain_derivative
 from .linear_segments import get_linear_segment_masks
+from .types import TransformationLimits
 from .utilities import _longest_run, _mad_scale, _smoothing_window, calculate_r2
 
 
@@ -22,7 +23,7 @@ def find_transformation_limits(
     polyorder: int = 2,
     min_points_smooth: int = 5,
     baseline_min_r2: float = 0.99,
-) -> Tuple[int, int]:
+) -> TransformationLimits:
     """
     Find the indices where the transformation starts and ends, from the
     derivative of the strain with respect to temperature.
@@ -139,7 +140,7 @@ def find_transformation_limits(
         if start_idx == end_idx:  # Degenerate: fall back to the search interval
             start_idx, end_idx = int(n_total * 0.15), int(n_total * 0.85)
 
-    return start_idx, end_idx
+    return TransformationLimits(int(start_idx), int(end_idx))
 
 
 def find_inflection_points(

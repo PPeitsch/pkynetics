@@ -9,6 +9,8 @@ the limits by deviation from an extrapolated tangent could not work
 (issue #94).
 """
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -19,6 +21,8 @@ from pkynetics.technique_analysis.dilatometry import (
     calculate_transformed_fraction_lever,
     find_optimal_margin,
     find_transformation_limits,
+    max_backward_step,
+    tangent_method,
 )
 from pkynetics.technique_analysis.utilities import (
     analyze_range,
@@ -47,15 +51,26 @@ def dilatometry_curve(n_points=1000, cooling=False):
     return temperature, strain
 
 
-# The Zry-4 alpha->beta contraction in the example run, read off the local
-# slope of the curve: it flattens from ~855 degC, is frankly negative between
-# 870 and 918, and is back on a linear expansion by ~935 degC.
+# The Zry-4 alpha->beta transformation in the shipped heating run, which the
+# instrument file records as a DIL805 quenching dilatometer ramp at 10 K/s.
 #
-# 855 is where the flattening becomes visible on the plot, not where it starts:
-# the derivative leaves the baseline scatter (2-5 % of the peak excursion) at
-# ~839 degC and falls monotonically from there. The detector reports that foot,
-# which is why the tolerance below is 20 K and not tighter.
-REAL_TRANSFORMATION = (855.0, 935.0)
+# Two different things were being asked of one number here, so they are now two.
+#
+# PHYSICAL_TRANSFORMATION is the published range. At 10 K/s the transformation
+# is not at equilibrium: the start shifts upwards with heating rate up to about
+# 500 K/s, and the end stays near 960 degC. Reported measurement uncertainty on
+# these temperatures is about +/-10 K, and the range itself moves with oxygen
+# content and heat treatment, so it is wide on purpose -- it says the detector
+# is finding the alpha->beta transformation and not some other feature.
+#
+# MEASURED_ONSET is what this detector reports on this file, to 0.5 K. It is a
+# regression guard, not a physical claim: 839 degC is the foot of the
+# contraction, where the derivative leaves the baseline scatter (2-5 % of the
+# peak excursion) and falls monotonically from there. The ~855 degC that earlier
+# versions of this test used is where the flattening becomes *visible* on a
+# plot, which is an eyeball reading of the same event, not a better one.
+PHYSICAL_TRANSFORMATION = (810.0, 980.0)
+MEASURED_ONSET = (839.0, 936.4)
 
 
 @pytest.fixture
@@ -166,17 +181,30 @@ def test_limits_stay_inside_the_data(curve, method):
 
 
 @pytest.mark.parametrize("method", ["lever", "tangent"])
-def test_limits_bracket_the_real_transformation(real_curve, method):
-    """The limits find the alpha->beta contraction in the shipped Zry-4 run."""
+def test_limits_fall_in_the_published_transformation_range(real_curve, method):
+    """The limits land on the alpha->beta transformation, not another feature."""
     temperature, strain = real_curve
-    expected_start, expected_end = REAL_TRANSFORMATION
+    low, high = PHYSICAL_TRANSFORMATION
 
     result = analyze_dilatometry_curve(temperature, strain, method=method)
 
-    assert result["start_temperature"] == pytest.approx(expected_start, abs=20.0)
-    assert result["end_temperature"] == pytest.approx(expected_end, abs=20.0)
+    assert low <= result["start_temperature"] <= high
+    assert low <= result["end_temperature"] <= high
+    assert result["start_temperature"] < result["end_temperature"]
     assert result["start_temperature"] > temperature[0]
     assert result["end_temperature"] < temperature[-1]
+
+
+@pytest.mark.parametrize("method", ["lever", "tangent"])
+def test_limits_match_the_measured_onset(real_curve, method):
+    """Regression guard: this detector on this file, to half a kelvin."""
+    temperature, strain = real_curve
+    expected_start, expected_end = MEASURED_ONSET
+
+    result = analyze_dilatometry_curve(temperature, strain, method=method)
+
+    assert result["start_temperature"] == pytest.approx(expected_start, abs=0.5)
+    assert result["end_temperature"] == pytest.approx(expected_end, abs=0.5)
 
 
 def test_both_methods_agree_on_the_limits(real_curve):
@@ -526,3 +554,112 @@ def test_get_analysis_summary_mentions_the_temperatures(curve):
 
     assert isinstance(summary, str)
     assert f"{result['mid_temperature']:.1f}" in summary
+
+
+# --- The types the pieces come back as (#103.1) ---------------------------
+
+
+def test_transformation_limits_still_unpack_as_a_pair(real_curve):
+    """The named tuple is what makes the new type non-breaking."""
+    temperature, strain = real_curve
+
+    limits = find_transformation_limits(temperature, strain)
+    start_idx, end_idx = limits
+
+    assert (limits.start_idx, limits.end_idx) == (start_idx, end_idx)
+    assert limits == (start_idx, end_idx)
+
+
+def test_fit_quality_is_a_dataclass_but_the_result_carries_a_mapping(real_curve):
+    """The dataclass is internal; callers index the same keys as before."""
+    temperature, strain = real_curve
+
+    result = analyze_dilatometry_curve(temperature, strain, method="tangent")
+    fit_quality = result["fit_quality"]
+
+    assert isinstance(fit_quality, dict)
+    assert set(fit_quality) == {
+        "r2_start",
+        "r2_end",
+        "margin_used",
+        "deviation_fraction",
+        "warnings",
+    }
+
+
+# --- The transformed fraction is left raw and measured (#103.3) -----------
+
+
+@pytest.mark.parametrize("method", ["lever", "tangent"])
+def test_result_reports_how_far_the_fraction_goes_backwards(real_curve, method):
+    temperature, strain = real_curve
+
+    result = analyze_dilatometry_curve(temperature, strain, method=method)
+
+    # Measured on the shipped heating run; reported, not smoothed away.
+    assert result["max_backward_step"] == pytest.approx(0.0103, abs=5e-4)
+
+
+def test_max_backward_step_is_zero_for_a_rising_fraction():
+    assert max_backward_step(np.linspace(0.0, 1.0, 50)) == 0.0
+
+
+def test_max_backward_step_measures_the_worst_single_step():
+    fraction = np.array([0.0, 0.5, 0.3, 0.9, 0.85, 1.0])
+
+    assert max_backward_step(fraction) == pytest.approx(0.2)
+
+
+def test_max_backward_step_handles_a_degenerate_fraction():
+    assert max_backward_step(np.array([0.5])) == 0.0
+
+
+def noisy_curve(scale=2e-5, n_points=1000):
+    """The synthetic transformation with enough noise to push the fraction
+    backwards. No example run needed, so this covers the warning without a
+    network marker."""
+    temperature = np.linspace(600.0, 900.0, n_points)
+    sigmoid = 1 / (
+        1 + np.exp(-(temperature - TRANSFORMATION_CENTRE) / TRANSFORMATION_WIDTH)
+    )
+    strain = 1e-5 * (temperature - 600.0) - 2e-3 * sigmoid
+    return temperature, strain + np.random.normal(0.0, scale, n_points)
+
+
+def test_tangent_warns_when_the_fraction_steps_too_far_backwards():
+    """The threshold is what turns a measured backward step into a warning."""
+    temperature, strain = noisy_curve()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        result = tangent_method(
+            temperature,
+            strain,
+            is_cooling=False,
+            margin_percent=0.2,
+            max_backward_step_warn=0.01,
+        )
+
+    backward_step = result["max_backward_step"]
+    assert backward_step > 0.01
+    messages = [w for w in result["fit_quality"]["warnings"] if "backwards" in w]
+    assert len(messages) == 1
+    assert f"{backward_step:.2%}" in messages[0]
+
+
+def test_tangent_stays_quiet_when_the_backward_step_is_under_the_threshold():
+    """Same curve, same backward step: only the threshold changes."""
+    temperature, strain = noisy_curve()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        result = tangent_method(
+            temperature,
+            strain,
+            is_cooling=False,
+            margin_percent=0.2,
+            max_backward_step_warn=0.5,
+        )
+
+    assert result["max_backward_step"] > 0.0
+    assert not [w for w in result["fit_quality"]["warnings"] if "backwards" in w]
