@@ -2,13 +2,14 @@
 the strain with respect to temperature."""
 
 import warnings as py_warnings
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
 
 from .curve_features import _strain_derivative
 from .detection import DEFAULT_DETECTION, DetectionContext, get_detector
+from .detection.adaptive import stable_margin
 from .linear_segments import get_linear_segment_masks
 from .types import TransformationLimits
 from .utilities import _longest_run, _mad_scale, _smoothing_window, calculate_r2
@@ -18,7 +19,7 @@ def find_transformation_limits(
     temperature: NDArray[np.float64],
     strain: NDArray[np.float64],
     is_cooling: bool = False,
-    margin: float = 0.2,
+    margin: Union[float, str] = 0.2,
     deviation_fraction: float = 0.05,
     smooth_window_fraction: float = 0.05,
     polyorder: int = 2,
@@ -44,7 +45,14 @@ def find_transformation_limits(
         temperature: Array of temperature values.
         strain: Array of strain values.
         is_cooling: Whether this is a cooling segment.
-        margin: Fraction of the data at each end taken as baseline (0.1-0.4).
+        margin: Fraction of the data at each end taken as baseline (0.1-0.4),
+            or ``"auto"`` to choose the one whose answer holds over the widest
+            range of margins. The margin has narrow dead zones -- on the Zry-4
+            heating run 0.15 to 0.17 collapse the bracket to 15 K where 0.18
+            to 0.25 give 97 -- and nothing about a curve says where they are,
+            so ``"auto"`` is worth its ~25 runs of the detector when the data
+            are unfamiliar. See
+            :mod:`~pkynetics.technique_analysis.dilatometry.detection.adaptive`.
         deviation_fraction: Fraction of the peak excursion that still counts
             as transforming. An option of the ``"derivative"`` detector, named
             here because it was a parameter of this function before there were
@@ -73,20 +81,35 @@ def find_transformation_limits(
         )
 
     detector = get_detector(detection)
-    context = DetectionContext(
-        temperature=temperature,
-        strain=strain,
-        is_cooling=is_cooling,
-        margin=margin,
-        window_length=_smoothing_window(
-            n_total, smooth_window_fraction, min_points_smooth
-        ),
-        polyorder=polyorder,
-        baseline_min_r2=baseline_min_r2,
-    )
     if detection.lower() == DEFAULT_DETECTION:
         detection_options.setdefault("deviation_fraction", deviation_fraction)
-    return detector(context, **detection_options)
+
+    window_length = _smoothing_window(
+        n_total, smooth_window_fraction, min_points_smooth
+    )
+
+    def run(chosen_margin: float) -> TransformationLimits:
+        context = DetectionContext(
+            temperature=temperature,
+            strain=strain,
+            is_cooling=is_cooling,
+            margin=chosen_margin,
+            window_length=window_length,
+            polyorder=polyorder,
+            baseline_min_r2=baseline_min_r2,
+        )
+        return detector(context, **detection_options)
+
+    if isinstance(margin, str):
+        if margin.lower() != "auto":
+            raise ValueError(f"margin must be a fraction or 'auto', not '{margin}'.")
+        chosen, _ = stable_margin(run, n_total)
+        # Re-run at the chosen margin rather than reuse the explored result,
+        # so the warnings that apply to it are raised where the caller sees
+        # them; the ones from margins that were tried and dropped are not.
+        return run(chosen)
+
+    return run(float(margin))
 
 
 def find_inflection_points(
