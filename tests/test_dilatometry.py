@@ -9,6 +9,8 @@ the limits by deviation from an extrapolated tangent could not work
 (issue #94).
 """
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -20,6 +22,7 @@ from pkynetics.technique_analysis.dilatometry import (
     find_optimal_margin,
     find_transformation_limits,
     max_backward_step,
+    tangent_method,
 )
 from pkynetics.technique_analysis.utilities import (
     analyze_range,
@@ -609,3 +612,54 @@ def test_max_backward_step_measures_the_worst_single_step():
 
 def test_max_backward_step_handles_a_degenerate_fraction():
     assert max_backward_step(np.array([0.5])) == 0.0
+
+
+def noisy_curve(scale=2e-5, n_points=1000):
+    """The synthetic transformation with enough noise to push the fraction
+    backwards. No example run needed, so this covers the warning without a
+    network marker."""
+    temperature = np.linspace(600.0, 900.0, n_points)
+    sigmoid = 1 / (
+        1 + np.exp(-(temperature - TRANSFORMATION_CENTRE) / TRANSFORMATION_WIDTH)
+    )
+    strain = 1e-5 * (temperature - 600.0) - 2e-3 * sigmoid
+    return temperature, strain + np.random.normal(0.0, scale, n_points)
+
+
+def test_tangent_warns_when_the_fraction_steps_too_far_backwards():
+    """The threshold is what turns a measured backward step into a warning."""
+    temperature, strain = noisy_curve()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        result = tangent_method(
+            temperature,
+            strain,
+            is_cooling=False,
+            margin_percent=0.2,
+            max_backward_step_warn=0.01,
+        )
+
+    backward_step = result["max_backward_step"]
+    assert backward_step > 0.01
+    messages = [w for w in result["fit_quality"]["warnings"] if "backwards" in w]
+    assert len(messages) == 1
+    assert f"{backward_step:.2%}" in messages[0]
+
+
+def test_tangent_stays_quiet_when_the_backward_step_is_under_the_threshold():
+    """Same curve, same backward step: only the threshold changes."""
+    temperature, strain = noisy_curve()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        result = tangent_method(
+            temperature,
+            strain,
+            is_cooling=False,
+            margin_percent=0.2,
+            max_backward_step_warn=0.5,
+        )
+
+    assert result["max_backward_step"] > 0.0
+    assert not [w for w in result["fit_quality"]["warnings"] if "backwards" in w]
