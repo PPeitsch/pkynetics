@@ -745,3 +745,148 @@ def test_a_detector_can_be_called_on_its_own(curve):
     detector = get_detector("derivative")
 
     assert detector(context) == derivative_limits(context)
+
+
+# --- The offset detector (#26) --------------------------------------------
+
+
+def test_offset_is_registered_and_selectable(curve):
+    temperature, strain = curve
+
+    assert "offset" in available_detectors()
+    limits = find_transformation_limits(temperature, strain, detection="offset")
+
+    assert 0 < limits.start_idx < limits.end_idx < len(temperature) - 1
+
+
+def test_offset_brackets_conservatively_on_a_straight_baseline(curve):
+    """On a synthetic curve the offset sits inside the derivative's bracket.
+
+    That is the method, not an error: it answers where the curve has departed
+    measurably, not where the departure begins.
+    """
+    temperature, strain = curve
+
+    derivative = find_transformation_limits(temperature, strain)
+    offset = find_transformation_limits(temperature, strain, detection="offset")
+
+    assert offset.start_idx > derivative.start_idx
+    assert offset.end_idx < derivative.end_idx
+
+
+def test_a_larger_offset_tightens_the_bracket(curve):
+    temperature, strain = curve
+
+    wide = find_transformation_limits(
+        temperature, strain, detection="offset", offset_fraction=0.02
+    )
+    narrow = find_transformation_limits(
+        temperature, strain, detection="offset", offset_fraction=0.20
+    )
+
+    assert narrow.start_idx > wide.start_idx
+    assert narrow.end_idx < wide.end_idx
+
+
+def test_offset_warns_when_it_cannot_clear_the_baseline_curvature(real_curve):
+    """The known failure of the method, measured and reported.
+
+    The heating run's initial baseline fits a line at R2 = 0.999 and still
+    departs from it by 1.3 % of the transformation excursion, so a 2 % offset
+    is measuring the bow of the baseline. Left unwarned it reports the start
+    at ~722 degC against a real ~839.
+    """
+    temperature, strain = real_curve
+
+    with pytest.warns(UserWarning, match="not clear of the baseline"):
+        limits = find_transformation_limits(
+            temperature, strain, detection="offset", offset_fraction=0.02
+        )
+
+    assert temperature[limits.start_idx] < 800.0  # the drift the warning is about
+
+
+def test_offset_rejects_a_fraction_outside_the_unit_interval(curve):
+    temperature, strain = curve
+
+    for bad in (0.0, 1.0, 1.5, -0.1):
+        with pytest.raises(ValueError, match="offset_fraction"):
+            find_transformation_limits(
+                temperature, strain, detection="offset", offset_fraction=bad
+            )
+
+
+# --- The second-derivative detector (#26) ---------------------------------
+
+
+def test_second_derivative_finds_the_curvature_extrema(curve):
+    """Checked against the closed form, not against an eyeballed number.
+
+    For a logistic sigmoid of width w centred on T0, d2S/dT2 is extremal at
+    T0 +/- w*ln(2 + sqrt(3)). With the fixture's 750 degC and w = 10 that is
+    736.8 and 763.2.
+    """
+    temperature, strain = curve
+    offset = TRANSFORMATION_WIDTH * np.log(2 + np.sqrt(3))
+
+    limits = find_transformation_limits(
+        temperature, strain, detection="second_derivative"
+    )
+
+    assert temperature[limits.start_idx] == pytest.approx(
+        TRANSFORMATION_CENTRE - offset, abs=2.0
+    )
+    assert temperature[limits.end_idx] == pytest.approx(
+        TRANSFORMATION_CENTRE + offset, abs=2.0
+    )
+
+
+def test_second_derivative_brackets_inside_the_derivative_detector(curve):
+    """It marks maximum curvature, which is inside the feet of the
+    transformation, not at them."""
+    temperature, strain = curve
+
+    derivative = find_transformation_limits(temperature, strain)
+    curvature = find_transformation_limits(
+        temperature, strain, detection="second_derivative"
+    )
+
+    assert derivative.start_idx < curvature.start_idx
+    assert curvature.end_idx < derivative.end_idx
+
+
+def test_second_derivative_warns_on_lopsided_curvature():
+    """One extremum much smaller than the other is not a transformation."""
+    temperature = np.linspace(600.0, 900.0, 1000)
+    # A ramp that bends once and never comes back: one extremum, no pair.
+    strain = (
+        1e-5 * (temperature - 600.0) + 1e-8 * np.maximum(temperature - 750.0, 0.0) ** 2
+    )
+
+    with pytest.warns(UserWarning):
+        find_transformation_limits(temperature, strain, detection="second_derivative")
+
+
+def test_second_derivative_rejects_a_prominence_outside_the_unit_interval(curve):
+    temperature, strain = curve
+
+    with pytest.raises(ValueError, match="prominence_fraction"):
+        find_transformation_limits(
+            temperature,
+            strain,
+            detection="second_derivative",
+            prominence_fraction=1.5,
+        )
+
+
+@pytest.mark.parametrize("detection", ["derivative", "offset", "second_derivative"])
+@pytest.mark.parametrize("method", ["lever", "tangent"])
+def test_every_detector_crosses_with_every_method(curve, detection, method):
+    temperature, strain = curve
+
+    result = analyze_dilatometry_curve(
+        temperature, strain, method=method, detection=detection
+    )
+
+    assert result["parameters"]["detection"] == detection
+    assert result["start_temperature"] < result["end_temperature"]

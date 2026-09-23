@@ -96,8 +96,8 @@ parameter:
 Parameter     Question                       Values
 ============= ============================== =================================
 ``method``    How far has it transformed?    ``lever``, ``tangent``
-``detection`` Where is the transformation?   ``derivative`` (see
-                                             :func:`available_detectors`)
+``detection`` Where is the transformation?   ``derivative``, ``offset``,
+                                             ``second_derivative``
 ============= ============================== =================================
 
 They cross freely — any detector combines with either method:
@@ -111,6 +111,46 @@ They cross freely — any detector combines with either method:
 since the limits were unified, so nothing changes for callers who leave it
 alone. A detector can also be used on its own through
 :func:`get_detector`, which takes a :class:`DetectionContext`.
+
+Detectors
+---------
+
+``derivative`` (default)
+   The transformation on ``dS/dT``: the limits are where the derivative comes
+   back to within ``deviation_fraction`` of its peak excursion. Reproduces
+   both shipped runs and the synthetic curve, and is the one to compare
+   against.
+
+``offset``
+   A fixed departure from the extrapolated baseline, the analogue of the
+   0.2 % offset of a tensile test, set by ``offset_fraction`` as a fraction
+   of the transformation excursion. Reproducible between runs, and
+   **systematically conservative**: it reports where the curve has departed
+   measurably, not where the departure begins.
+
+   It also drifts. The departure from an extrapolated line is an integral,
+   and the integral of a baseline that is only slightly bowed grows with no
+   transformation happening. The Zry-4 heating run fits its initial baseline
+   at R² = 0.999 and still departs from it by 1.3 % of the transformation
+   excursion *inside the fitting window*, so a 2 % offset puts the start at
+   722 °C against a real ~839. The detector measures that floor and warns
+   when the offset does not clear it; a result worth trusting is one that
+   agrees with ``derivative``.
+
+``second_derivative``
+   The extrema of ``d²S/dT²``, where the curve bends away from one baseline
+   and onto the other. It answers a genuinely different question: those
+   extrema are the points of **maximum curvature**, which lie inside the feet
+   of the transformation rather than at them. On a logistic transformation of
+   width *w* centred on *T₀* they are at *T₀ ± w·ln(2+√3)*, which is what the
+   tests check. Sharp on a clean transition, and noisy on anything else —
+   curvature amplifies noise twice over — so ``prominence_fraction`` warns
+   when the two extrema are too uneven to be the two ends of one feature.
+
+Choosing between them: ``derivative`` unless there is a reason, ``offset``
+when reproducibility between runs matters more than hitting the feet, and
+``second_derivative`` when the transition is sharp and clean and what is
+wanted is its steepest part.
 
 Methods
 -------
