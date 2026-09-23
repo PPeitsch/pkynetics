@@ -73,6 +73,28 @@ def second_derivative_limits(
             f"({curvature.size}) to find the curvature extrema."
         )
 
+    # A curve with no curvature has no transformation to bracket. What is
+    # left on a perfectly linear run is floating-point residue, and its
+    # argmax is an arbitrary index, so the scale to compare against is the
+    # curvature a transformation spanning the whole run would have.
+    strain_scale = float(np.ptp(context.strain))
+    temperature_span = float(np.ptp(temperature))
+    if strain_scale <= 0.0 or temperature_span <= 0.0:
+        py_warnings.warn(
+            "The strain does not curve anywhere in the run, so there is no "
+            "transformation to bracket. Falling back to the search interval.",
+            UserWarning,
+        )
+        return TransformationLimits(int(n_total * 0.15), int(n_total * 0.85))
+    if float(np.max(np.abs(curvature))) <= 1e-6 * strain_scale / temperature_span**2:
+        py_warnings.warn(
+            "The curvature of the strain is at the level of numerical noise, "
+            "so there is no transformation to bracket. Falling back to the "
+            "search interval.",
+            UserWarning,
+        )
+        return TransformationLimits(int(n_total * 0.15), int(n_total * 0.85))
+
     peak = int(np.argmax(curvature)) + edge
     trough = int(np.argmin(curvature)) + edge
 

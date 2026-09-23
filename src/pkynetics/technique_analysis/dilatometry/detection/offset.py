@@ -106,9 +106,18 @@ def offset_limits(
 
     # The excursion is read robustly: a single spike in the raw strain would
     # otherwise set the scale the offset is a fraction of.
-    threshold_start = offset_fraction * float(np.percentile(dev_start, 99.5))
-    threshold_end = offset_fraction * float(np.percentile(dev_end, 99.5))
-    if threshold_start <= 0.0 or threshold_end <= 0.0:
+    excursion_start = float(np.percentile(dev_start, 99.5))
+    excursion_end = float(np.percentile(dev_end, 99.5))
+    threshold_start = offset_fraction * excursion_start
+    threshold_end = offset_fraction * excursion_end
+
+    # A curve that never leaves its own baseline has no transformation to
+    # bracket. The comparison is against the scale of the strain rather than
+    # against zero: on a perfectly linear run the departure is floating-point
+    # residue, which is not zero and would otherwise be treated as a feature.
+    strain_scale = float(np.ptp(strain))
+    negligible = 1e-9 * strain_scale
+    if strain_scale <= 0.0 or min(excursion_start, excursion_end) <= negligible:
         py_warnings.warn(
             "The strain does not depart from its baseline anywhere in the "
             "run, so there is no transformation to bracket. Falling back to "

@@ -775,6 +775,10 @@ def test_offset_brackets_conservatively_on_a_straight_baseline(curve):
 
 
 def test_a_larger_offset_tightens_the_bracket(curve):
+    """Over the useful range. Past roughly half the excursion the relation
+    breaks down -- the threshold approaches the peak of the departure and the
+    longest run over it stops being the transformation -- which is well past
+    any offset worth using."""
     temperature, strain = curve
 
     wide = find_transformation_limits(
@@ -890,3 +894,63 @@ def test_every_detector_crosses_with_every_method(curve, detection, method):
 
     assert result["parameters"]["detection"] == detection
     assert result["start_temperature"] < result["end_temperature"]
+
+
+# --- What the detectors do when there is nothing to find ------------------
+
+
+@pytest.mark.parametrize("detection", ["offset", "second_derivative"])
+@pytest.mark.parametrize("shape", ["constant", "straight"])
+def test_a_curve_without_a_transformation_is_reported_as_such(detection, shape):
+    """A run that never leaves its baseline has nothing to bracket.
+
+    The comparison inside is against the scale of the strain, not against
+    zero: on a perfectly straight run the departure and the curvature are
+    floating-point residue, which is not zero, and without the scale both
+    detectors returned invented limits without a word.
+    """
+    temperature = np.linspace(600.0, 900.0, 500)
+    strain = (
+        np.full_like(temperature, 0.5)
+        if shape == "constant"
+        else 1e-5 * (temperature - 600.0)
+    )
+
+    with pytest.warns(UserWarning, match="no transformation|numerical noise"):
+        limits = find_transformation_limits(temperature, strain, detection=detection)
+
+    assert limits == (75, 425)  # the search interval it falls back to
+
+
+@pytest.mark.parametrize("detection", ["derivative", "offset", "second_derivative"])
+def test_no_detector_cries_wolf_on_a_real_transformation(real_curve, detection):
+    """The guard above must not fire on a curve that does transform."""
+    temperature, strain = real_curve
+
+    with warnings.catch_warnings(record=True) as raised:
+        warnings.simplefilter("always")
+        find_transformation_limits(temperature, strain, detection=detection)
+
+    assert not [
+        w
+        for w in raised
+        if "no transformation" in str(w.message) or "numerical noise" in str(w.message)
+    ]
+
+
+def test_offset_needs_enough_points_in_each_baseline(curve):
+    temperature, strain = curve
+
+    with pytest.raises(ValueError, match="fewer than 2 points"):
+        find_transformation_limits(
+            temperature, strain, detection="offset", margin=0.0005
+        )
+
+
+def test_second_derivative_needs_interior_points_to_look_at(curve):
+    temperature, strain = curve
+
+    with pytest.raises(ValueError, match="too few interior points"):
+        find_transformation_limits(
+            temperature, strain, detection="second_derivative", margin=1.0
+        )
