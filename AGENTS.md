@@ -1,7 +1,7 @@
 # AGENTS.md — Pkynetics
 
 > **CRITICAL RULE**: never run `git commit` or `git push` without first running the full
-> quality pipeline — `black`, `isort`, `mypy`, `pytest` — successfully.
+> quality pipeline — `black`, `isort`, `mypy`, `pytest`, `sphinx-build` — successfully.
 
 Python library for thermal analysis kinetic methods: data import from thermal analysis
 instruments (TGA, DSC, dilatometry), model-free and model-fitting kinetic analysis, and
@@ -19,15 +19,26 @@ pip install -e .[dev]
 
 ## The quality pipeline
 
-Run all four before every commit. This is what CI runs.
+Run all five before every commit. This is what CI runs.
 
 ```bash
-black --check . && isort --check-only . && mypy src && pytest --cov
+black --check . && isort --check-only . && mypy src && pytest --cov \
+  && sphinx-build -b html -W docs docs/_build/html
 ```
 
 `black` and `isort` apply with `black .` and `isort .` (line length 88, isort profile
-`black`). `mypy` is in **strict** mode. CI additionally builds the sdist and runs the
-tests against the installed wheel, on Python 3.10–3.13.
+`black`). `mypy` is in **strict** mode.
+
+**The docs build is part of the pipeline, not an afterthought.** `-W` turns Sphinx
+warnings into errors, so a malformed docstring, a duplicate object description or a
+broken reference fails the Documentation job — and those come from ordinary source
+changes, not from touching `docs/`. Leaving it out means finding out from CI: it is the
+one step here that has actually caught a push. The toolchain comes with `pip install
+-e .[dev]`, the output goes to `docs/_build/`, which is gitignored, and it takes a few
+seconds.
+
+CI additionally builds the sdist and runs the tests against the installed wheel, on
+Python 3.10–3.13.
 
 ## Conventions
 
