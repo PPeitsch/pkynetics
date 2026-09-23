@@ -20,26 +20,23 @@ from ..types import TransformationLimits
 
 
 class DetectionContext(NamedTuple):
-    """The curve and the settings every detector needs.
+    """The curve and the settings every detector needs."""
 
-    Attributes:
-        temperature: Array of temperature values (°C).
-        strain: Array of strain or relative length change values.
-        is_cooling: Whether this is a cooling segment.
-        margin: Fraction of the data at each end taken as baseline.
-        window_length: Savitzky-Golay window, already resolved to a point
-            count, for detectors that smooth or differentiate.
-        polyorder: Polynomial order for that smoothing.
-        baseline_min_r2: R² below which a baseline window is reported as
-            reaching into a transformation.
-    """
-
+    #: Array of temperature values (°C).
     temperature: NDArray[np.float64]
+    #: Array of strain or relative length change values.
     strain: NDArray[np.float64]
+    #: Whether this is a cooling segment.
     is_cooling: bool
+    #: Fraction of the data at each end taken as baseline.
     margin: float
+    #: Savitzky-Golay window, already resolved to a point count, for
+    #: detectors that smooth or differentiate.
     window_length: int
+    #: Polynomial order for that smoothing.
     polyorder: int
+    #: R² below which a baseline window is reported as reaching into a
+    #: transformation.
     baseline_min_r2: float
 
 
