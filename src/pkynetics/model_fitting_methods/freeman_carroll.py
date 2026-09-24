@@ -4,8 +4,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
 from scipy.constants import R
-from scipy.signal import savgol_filter
 from scipy.stats import linregress
+
+from ..data_preprocessing.smoothing import smooth_data
+
+# The window this method has always smoothed with. Passed explicitly because the
+# shared smooth_data would otherwise choose one from the data length.
+_SMOOTHING_WINDOW = 21
 
 
 def freeman_carroll_equation(
@@ -23,13 +28,6 @@ def freeman_carroll_equation(
         np.ndarray: y values for the Freeman-Carroll plot.
     """
     return np.array(-e_a / R * x + n, dtype=np.float64)
-
-
-def smooth_data(
-    data: NDArray[np.float64], window_length: int = 21, polyorder: int = 3
-) -> NDArray[np.float64]:
-    """Apply Savitzky-Golay filter to smooth data."""
-    return np.array(savgol_filter(data, window_length, polyorder), dtype=np.float64)
 
 
 def safe_log(x: NDArray[np.float64], min_value: float = 1e-10) -> NDArray[np.float64]:
@@ -87,8 +85,8 @@ def freeman_carroll_method(
         raise ValueError("Conversion values cannot be all zeros or ones")
 
     # Smooth the data
-    alpha_smooth = smooth_data(alpha)
-    temp_smooth = smooth_data(temperature)
+    alpha_smooth = smooth_data(alpha, window_length=_SMOOTHING_WINDOW)
+    temp_smooth = smooth_data(temperature, window_length=_SMOOTHING_WINDOW)
 
     # Calculate differentials
     d_alpha_dt = np.gradient(alpha_smooth, time)

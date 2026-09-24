@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.typing import NDArray
 
-from .common_preprocessing import smooth_data
+from .smoothing import smooth_data
 
 
 def calculate_tga_transformed_fraction(

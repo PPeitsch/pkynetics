@@ -29,6 +29,7 @@ Contents
    :caption: Modules:
 
    modules/data_import/index
+   modules/data_preprocessing/index
    modules/technique_analysis/index
    modules/model_fitting_methods/index
    modules/model_free_methods/index

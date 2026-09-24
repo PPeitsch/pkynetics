@@ -3,7 +3,8 @@ from typing import Dict, Optional, Tuple, Union
 import numpy as np
 from numpy.typing import NDArray
 
-from .common_preprocessing import calculate_derivatives, smooth_data
+from .common_preprocessing import calculate_derivatives
+from .smoothing import smooth_data
 
 
 def preprocess_dilatometry_data(
