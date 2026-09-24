@@ -7,6 +7,8 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import signal
 
+from ...data_preprocessing.smoothing import smooth_data
+
 
 def validate_window_size(
     data_length: int, window_length: int, min_size: int = 3
@@ -163,41 +165,28 @@ class SignalProcessor:
         window_length: Optional[int] = None,
         polyorder: Optional[int] = None,
         method: str = "savgol",
+        x: Optional[NDArray[np.float64]] = None,
     ) -> NDArray[np.float64]:
         """
         Apply smoothing to signal data.
+
+        A thin wrapper over
+        :func:`~pkynetics.data_preprocessing.smoothing.smooth_data` that fills
+        in this processor's default window and polynomial order.
 
         Args:
             data: Input signal array
             window_length: Window size for smoothing
             polyorder: Polynomial order for Savitzky-Golay filter
             method: Smoothing method ('savgol', 'moving_average', 'lowess')
+            x: Abscissa of the signal (temperature, time), for 'lowess' only
 
         Returns:
             Smoothed signal array
         """
-        import statsmodels.api as sm
-
         window = window_length if window_length is not None else self.default_window
         polyorder = polyorder if polyorder is not None else self.default_polyorder
-
-        if window % 2 == 0:
-            window += 1  # Ensure odd window length
-
-        if method == "savgol":
-            return np.asarray(
-                signal.savgol_filter(data, window, polyorder), dtype=np.float64
-            )
-        elif method == "moving_average":
-            kernel = np.ones(window) / window
-            return np.convolve(data, kernel, mode="same")
-        elif method == "lowess":
-            x = np.arange(len(data))
-            frac = min(1.0, max(0.01, window / len(data)))
-            lowess = sm.nonparametric.lowess(data, x, frac=frac, return_sorted=False)
-            return np.asarray(lowess, dtype=np.float64)
-        else:
-            raise ValueError(f"Unknown smoothing method: {method}")
+        return smooth_data(data, window, polyorder, method=method, x=x)
 
     def remove_outliers(
         self,
