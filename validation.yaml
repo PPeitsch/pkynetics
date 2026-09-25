@@ -65,15 +65,21 @@
   files: [src/pkynetics/technique_analysis/dilatometry/utilities.py]
   status: issues
   date: 2026-09-25
-  commit: d8a2809
+  commit: 9d3de94
   data: [zry4 heating, zry4 cooling]
-  how: Limits against the window, three derivative estimators; plots reviewed.
-  evidence: ["issue #112", "issue #115"]
+  how: >
+    Limits against the margin (0.08-0.35, step 0.01) and the window (6-60 K), before
+    and after the run-selection fix, on both runs; a plot of the mechanism at margin
+    0.16. Plots reviewed by the maintainer on 2026-09-25 (issue #115, step 1).
+  evidence: ["issue #112", "issue #115", "PR #117"]
   notes: >
-    Takes the longest run over the threshold instead of the one holding the peak, and
-    can land on the pre-transformation stretch (collapses to ~820-839 degC). The
-    3*MAD noise term puts the threshold at 8-12 % of the peak instead of 5 %, moving
-    both limits inward. Fixes proposed and partly tested in issue #115.
+    Validated: the transformation is the run over the threshold carrying the most
+    deviation. The longest run could be the pre-transformation stretch (the two
+    baselines differ in slope), which caused the margin "dead zones" of issue #26;
+    margins 0.10-0.24 now all give 833-840 / 935-937 degC on the heating run.
+    Still open (issue #115, steps 2-3): the 3*MAD noise term puts the threshold at
+    8-12 % of the peak instead of 5 %, moving both limits inward; past a margin of
+    ~0.25 the baselines reach into the transformation.
 
 # --- Dilatometry: pending ---------------------------------------------------------
 
