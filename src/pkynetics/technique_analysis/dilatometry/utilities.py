@@ -49,6 +49,31 @@ def _longest_run(flags: NDArray[np.bool_]) -> Tuple[int, int]:
     return best_start, best_end
 
 
+def _dominant_run(
+    flags: NDArray[np.bool_], weight: NDArray[np.float64]
+) -> Tuple[int, int]:
+    """First and last index of the run of True in ``flags`` with the most ``weight``.
+
+    The weight of a run is the sum of ``weight`` over it. Against a deviation,
+    that picks the run carrying the most of the excursion: an isolated spike is
+    tall but one or two points long, and a stretch that only just clears the
+    threshold is long but shallow, so neither outweighs the transformation.
+
+    Falls back to the middle 70 % of the array if nothing is flagged.
+    """
+    n_total = len(flags)
+    edges = np.diff(np.concatenate(([0], flags.astype(np.int8), [0])))
+    starts = np.flatnonzero(edges == 1)
+    ends = np.flatnonzero(edges == -1) - 1
+    if starts.size == 0:
+        return int(n_total * 0.15), int(n_total * 0.85)
+
+    cumulative = np.concatenate(([0.0], np.cumsum(weight)))
+    totals = cumulative[ends + 1] - cumulative[starts]
+    best = int(np.argmax(totals))
+    return int(starts[best]), int(ends[best])
+
+
 def calculate_r2(
     x: NDArray[np.float64], y: NDArray[np.float64], p: NDArray[np.float64]
 ) -> float:
