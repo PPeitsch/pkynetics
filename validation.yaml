@@ -27,19 +27,22 @@
 - id: smoothing
   target: pkynetics.data_preprocessing.smooth_data
   status: validated
-  date: 2026-09-24
+  date: 2026-09-25
   commit: 40958fc
   data: [dsc_setaram heating ramp, zry4 cooling, synthetic sine with a step in sampling density]
   how: >
     Script plotting savgol, moving_average and lowess on real data, the moving-average
-    edges before/after PR #113, and lowess against x vs against the index. Plots reviewed
-    by the maintainer.
+    edges before/after PR #113, and lowess against x vs against the index. Plots 1-3
+    reviewed by the maintainer on 2026-09-25.
   evidence: ["issue #47", "PR #113"]
   notes: >
     Moving-average edges no longer pulled toward zero. Lowess against x beats the index
     by 10-30 % only next to a change in sampling density. Any smoother flattens peaks
     when the window is not small relative to the curvature of the feature (lowess, 21
     points spanning 1/3 of a period: error 0.16 at the peaks, 0.004 with 7 points).
+    Review: the new moving average sits on the raw DSC signal, edges included; on the
+    Zry-4 cooling minimum, moving_average and savgol show a small bias in the zoom,
+    judged acceptable.
 
 - id: dilatometry.strain_derivative
   target: pkynetics.technique_analysis.dilatometry.curve_features._strain_derivative
