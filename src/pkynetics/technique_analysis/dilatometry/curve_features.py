@@ -28,6 +28,13 @@ def _strain_derivative(
     derivatives are therefore taken against the index and divided:
     ``dS/dT = (dS/di) / (dT/di)``.
 
+    The division is exact for a ramp whose rate changes smoothly. Where the rate
+    changes abruptly -- a program that switches heating rate mid-run -- the
+    local fit of ``T(i)`` cannot follow the kink, and ``dT/di`` is wrong for
+    about half a window on either side of it: on a synthetic ramp stepping from
+    0.6 to 0.2 K per point it doubled the error of the derivative there (#112).
+    Analyse each constant-rate segment separately in that case.
+
     Args:
         temperature: Array of temperature values.
         strain: Array of strain values.
