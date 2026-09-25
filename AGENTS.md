@@ -50,6 +50,41 @@ Python 3.10–3.13.
   ([Keep a Changelog](https://keepachangelog.com/en/1.0.0/)).
 - **88-character lines** (black default).
 
+## Validating a numerical method
+
+Any change that alters the numbers the package produces goes through this loop before it
+is merged. That covers a new or changed smoother, derivative, detector, fit or threshold.
+Tests prove the code does what it was written to do; they do not prove it gives the right
+answer on real data, and several past fixes (#94, #101, #26) only surfaced when someone
+looked at a plot.
+
+1. **Script.** Run the method on the shipped example data, all relevant runs (e.g. both
+   Zry-4 dilatometry runs, heating and cooling), and on synthetic data with a known
+   answer. Compare against the current behaviour, not just in isolation. Sweep every
+   parameter the result depends on over a **fine grid**: a coarse one (#112 sampled the
+   window at 30 and 40 K) can miss a collapse sitting in between.
+2. **Plots.** Draw the result so it can be judged by eye: the curve with the limits or
+   fit overlaid, and the result against each swept parameter. Decisions are made on the
+   plots, not on the tables alone.
+3. **Review.** The maintainer reads the plots and says what looks wrong from domain
+   knowledge ("the start should be ~830", "why does it fail at 7-9"). Wait for that
+   review; do not merge a method change on your own reading of the plots.
+4. **Answer the review with evidence.** Check each point against the numbers, find the
+   cause, and say whether it is the method, a parameter, or something else. In #112 the
+   collapses blamed on the derivative estimator turned out to be the detector (#115).
+   Then propose a correction or an improvement, or explain why it cannot be improved.
+   Measure the proposal the same way (back to 1) until the plots are agreed.
+5. **Code.** Only then write the change. Turn the cases the loop found into regression
+   tests, and record the numbers in the issue or PR.
+
+The judging criteria are error against a known answer on synthetic data, and **stability
+against the parameters** on real data: a result that holds across a range of settings,
+not one that is right at the default. Linearity or goodness of fit alone has been
+misleading (#26).
+
+Keep the scripts and plots out of the repository; they are working material. Promote
+one to `examples/` only if it teaches something a user needs.
+
 ## Release
 
 1. Tests green locally.
