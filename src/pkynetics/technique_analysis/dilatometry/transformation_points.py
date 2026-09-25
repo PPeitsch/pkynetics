@@ -47,11 +47,11 @@ def find_transformation_limits(
         is_cooling: Whether this is a cooling segment.
         margin: Fraction of the data at each end taken as baseline (0.1-0.4),
             or ``"auto"`` to choose the one whose answer holds over the widest
-            range of margins. The margin has narrow dead zones -- on the Zry-4
-            heating run 0.15 to 0.17 collapse the bracket to 15 K where 0.18
-            to 0.25 give 97 -- and nothing about a curve says where they are,
-            so ``"auto"`` is worth its ~25 runs of the detector when the data
-            are unfamiliar. See
+            range of margins. Too wide a margin reaches into the
+            transformation -- on the Zry-4 heating run the limits hold from
+            0.10 to 0.24 and drift past 0.25 -- and nothing about a curve says
+            where that starts, so ``"auto"`` is worth its ~25 runs of the
+            detector when the data are unfamiliar. See
             :mod:`~pkynetics.technique_analysis.dilatometry.detection.adaptive`.
         deviation_fraction: Fraction of the peak excursion that still counts
             as transforming. An option of the ``"derivative"`` detector, named

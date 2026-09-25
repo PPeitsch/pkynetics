@@ -12,7 +12,7 @@ import numpy as np
 from ..curve_features import _strain_derivative
 from ..linear_segments import get_linear_segment_masks
 from ..types import TransformationLimits
-from ..utilities import _longest_run, _mad_scale, calculate_r2
+from ..utilities import _dominant_run, _mad_scale, calculate_r2
 from .base import DetectionContext
 
 
@@ -30,10 +30,11 @@ def derivative_limits(
     separate: the curvature of the baseline is a small offset, the
     transformation a large, localised excursion.
 
-    The limits are the points where the derivative comes back to within
-    ``deviation_fraction`` of the peak excursion, walking outwards from that
-    peak, so a single noisy point near the edge of the data cannot pull a
-    limit onto the edge of the data.
+    The limits are the ends of the stretch where the derivative stays further
+    than ``deviation_fraction`` of the peak excursion from each baseline. Of
+    the stretches that do, the one carrying the most deviation is taken, so
+    neither a single noisy point nor a long, shallow departure -- the two
+    baselines have different slopes -- can stand in for the transformation.
 
     The derivative itself comes from a local polynomial fit
     (:func:`_strain_derivative`) rather than from differencing a smoothed
@@ -111,11 +112,16 @@ def derivative_limits(
         3.0 * _mad_scale(derivative[end_mask]),
     )
 
-    # The transformation is the longest run of points over the threshold, not
-    # the first one: an isolated spike is a run of one or two points, and
-    # walking outwards from the peak would start on it.
-    start_idx = _longest_run(dev_start > threshold_start)[0]
-    end_idx = _longest_run(dev_end > threshold_end)[1]
+    # The transformation is the run of points over the threshold that carries
+    # the most deviation. Not the first one, and not the one holding the
+    # highest point: an isolated spike is a run of one or two points. Not the
+    # longest one either: the two baselines have different slopes, so against
+    # the final baseline the whole stretch before the transformation deviates
+    # by that difference, and once the threshold dips below it that stretch
+    # can outlast the transformation (issue #115: 820-839 degC instead of
+    # 839-938 on the Zry-4 heating run).
+    start_idx = _dominant_run(dev_start > threshold_start, dev_start)[0]
+    end_idx = _dominant_run(dev_end > threshold_end, dev_end)[1]
 
     if start_idx >= end_idx:
         py_warnings.warn(

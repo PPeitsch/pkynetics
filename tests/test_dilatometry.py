@@ -34,6 +34,7 @@ from pkynetics.technique_analysis.dilatometry.detection.adaptive import stable_m
 from pkynetics.technique_analysis.dilatometry.detection.statistical import (
     _residual_structure,
 )
+from pkynetics.technique_analysis.dilatometry.utilities import _dominant_run
 from pkynetics.technique_analysis.utilities import (
     analyze_range,
     detect_segment_direction,
@@ -1194,27 +1195,22 @@ def test_statistical_says_so_when_nothing_clears_the_interval():
 # --- Choosing the margin from the curve (#103.4, via #26) -----------------
 
 
-def test_the_margin_has_a_dead_zone_this_is_not_hypothetical(real_curve):
-    """The reason `margin="auto"` exists, asserted so it stays true.
+def test_the_margin_has_no_dead_zone(real_curve):
+    """Regression for issue #115.
 
-    On the heating run the derivative detector gives 839-936 degC for margins
-    from 0.18 to 0.25 and collapses to a 15 K bracket for 0.15 to 0.17. Both
-    look equally reasonable from outside, and the baselines fit a line just as
-    well inside the dead zone as outside it.
+    Margins of 0.15-0.17 used to collapse the heating run to a 15 K bracket
+    (823-839 degC), and 0.10-0.13 put the start at 702: the detector took the
+    longest run over its threshold, and against the final baseline the whole
+    stretch before the transformation deviates by the difference in slope
+    between the two baselines. Every margin up to 0.24 now gives the same
+    transformation.
     """
     temperature, strain = real_curve
 
-    with pytest.warns(UserWarning, match="wrong order"):
-        collapsed = find_transformation_limits(temperature, strain, margin=0.16)
-    healthy = find_transformation_limits(temperature, strain, margin=0.20)
-
-    collapsed_width = abs(
-        temperature[collapsed.end_idx] - temperature[collapsed.start_idx]
-    )
-    healthy_width = abs(temperature[healthy.end_idx] - temperature[healthy.start_idx])
-
-    assert collapsed_width < 25.0
-    assert healthy_width > 90.0
+    for margin in (0.10, 0.12, 0.15, 0.16, 0.17, 0.20, 0.24):
+        limits = find_transformation_limits(temperature, strain, margin=margin)
+        assert 830.0 < temperature[limits.start_idx] < 842.0, margin
+        assert 933.0 < temperature[limits.end_idx] < 939.0, margin
 
 
 def test_auto_margin_steps_over_the_dead_zone(real_curve):
@@ -1309,8 +1305,8 @@ def test_auto_margin_says_so_when_nothing_is_stable():
 
 
 def test_exploring_does_not_leak_the_warnings_of_margins_it_discarded(real_curve):
-    """The dead zone warns loudly, and `auto` tries it. The caller should only
-    hear about the margin actually chosen."""
+    """`auto` tries margins that warn (too wide a margin reaches into the
+    transformation). The caller should only hear about the margin chosen."""
     temperature, strain = real_curve
 
     with warnings.catch_warnings(record=True) as raised:
@@ -1318,3 +1314,36 @@ def test_exploring_does_not_leak_the_warnings_of_margins_it_discarded(real_curve
         find_transformation_limits(temperature, strain, margin="auto")
 
     assert not [w for w in raised if "wrong order" in str(w.message)]
+
+
+# --- Which stretch is the transformation (issue #115) -------------------------
+
+HUMP = np.hanning(80)
+# Where the excursion placed at 180 clears a 0.05 threshold
+HUMP_RUN = (
+    180 + int(np.flatnonzero(HUMP > 0.05)[0]),
+    180 + int(np.flatnonzero(HUMP > 0.05)[-1]),
+)
+
+
+def test_a_long_shallow_run_does_not_beat_the_transformation():
+    """The case that broke the longest run: a stretch that barely clears the
+    threshold, longer than the transformation itself."""
+    deviation = np.zeros(300)
+    deviation[20:150] = 0.06  # 130 points, just over a 0.05 threshold
+    deviation[180:260] = HUMP  # 80 points, the real excursion
+
+    assert _dominant_run(deviation > 0.05, deviation) == HUMP_RUN
+
+
+def test_a_spike_does_not_beat_the_transformation():
+    """What the longest run was protecting against."""
+    deviation = np.zeros(300)
+    deviation[180:260] = HUMP
+    deviation[40] = 5.0  # five times the peak of the transformation
+
+    assert _dominant_run(deviation > 0.05, deviation) == HUMP_RUN
+
+
+def test_nothing_flagged_falls_back_to_the_middle():
+    assert _dominant_run(np.zeros(100, dtype=bool), np.zeros(100)) == (15, 85)

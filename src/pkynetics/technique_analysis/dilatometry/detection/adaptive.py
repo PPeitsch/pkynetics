@@ -2,21 +2,23 @@
 
 ``margin`` is the fraction of the run taken as baseline at each end. It has
 always been a number the caller sets, with a default of 0.2 that works on the
-runs this package ships -- and the reason to replace that with something
-measured is not convenience. It is that the margin has narrow dead zones, and
-nothing about a curve tells you where they are.
+runs this package ships. The answer depends on it, and nothing about a curve
+says in advance which margins are safe.
 
-On the Zry-4 heating run the derivative detector returns 839-936 degC for any
-margin from 0.18 to 0.25, and 822-837 -- a 15 K bracket on a 97 K
-transformation -- for 0.15, 0.16 and 0.17. Both ends of that range look
-equally reasonable, and the baselines fit a line just as well inside the dead
-zone (R2 = 0.9989) as outside it (R2 = 0.9991), so linearity cannot tell them
-apart either.
+On the Zry-4 heating run the derivative detector returns 833-840 degC for the
+start and 935-937 for the end at any margin from 0.10 to 0.24. Past that, the
+baseline windows reach into the transformation: 0.30 gives 855-926 and 0.34
+gives 859-916. The cooling run holds up to 0.25, drifts slowly to 0.31 and
+sharply past it. Where
+that edge lies is a property of the curve -- how much flat baseline the run
+has on each side -- not of the method.
 
-What does tell them apart is stability: the right margin is one whose answer
-does not depend on the margin. A dead zone is narrow by nature -- that is what
-makes it a trap rather than a region -- so the answer that holds across the
-widest stretch of margins is the one to take.
+This module was written when the margin also had narrow dead zones, 0.15 to
+0.17 collapsing the heating run to a 15 K bracket. Those turned out to be the
+detector taking the wrong stretch of the curve (issue #115), and are gone. The
+principle stands: the right margin is one whose answer does not depend on the
+margin, so the answer that holds across the widest stretch of margins is the
+one to take.
 """
 
 import warnings as py_warnings
