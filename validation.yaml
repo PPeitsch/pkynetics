@@ -1,0 +1,182 @@
+# Validation registry: which numerical methods have been checked against real data,
+# how, and with what result. See "Validating a numerical method" in AGENTS.md.
+#
+# One entry per method. The registry is the source of truth; nothing is repeated in
+# docstrings, where it would drift.
+#
+#   id        short stable name
+#   target    import path of the public function or class
+#   files     extra source files the result depends on (the target's own file is
+#             always included); used to tell whether the code changed since `commit`
+#   status    validated | issues | failed | pending
+#               validated  checked with script + plots + maintainer review; correct
+#               issues     works, with known problems (linked in `evidence`)
+#               failed     gives wrong results; do not rely on it
+#               pending    not validated yet
+#   date      date of the last validation
+#   commit    commit the validation ran against
+#   data      data sets used
+#   how       what was run and looked at
+#   evidence  issues / PRs where the numbers and plots are recorded
+#   notes     what was found, limits of validity
+#
+# `python tests/test_validation_registry.py` prints the status of every entry and flags
+# the validated ones whose files changed since their commit: those, and only those,
+# need validating again.
+
+- id: smoothing
+  target: pkynetics.data_preprocessing.smooth_data
+  status: validated
+  date: 2026-09-24
+  commit: 40958fc
+  data: [dsc_setaram heating ramp, zry4 cooling, synthetic sine with a step in sampling density]
+  how: >
+    Script plotting savgol, moving_average and lowess on real data, the moving-average
+    edges before/after PR #113, and lowess against x vs against the index. Plots reviewed
+    by the maintainer.
+  evidence: ["issue #47", "PR #113"]
+  notes: >
+    Moving-average edges no longer pulled toward zero. Lowess against x beats the index
+    by 10-30 % only next to a change in sampling density. Any smoother flattens peaks
+    when the window is not small relative to the curvature of the feature (lowess, 21
+    points spanning 1/3 of a period: error 0.16 at the peaks, 0.004 with 7 points).
+
+- id: dilatometry.strain_derivative
+  target: pkynetics.technique_analysis.dilatometry.curve_features._strain_derivative
+  status: validated
+  date: 2026-09-25
+  commit: d8a2809
+  data: [zry4 heating, zry4 cooling, "synthetic sigmoid: 20 seeds, 5 sampling scenarios"]
+  how: >
+    Compared against local polynomial regression against T (uniform, tricube, robust),
+    windows swept 6-60 K; derivative RMSE against the known answer; detected limits
+    against the window. Plots reviewed by the maintainer.
+  evidence: ["issue #112", "PR #114"]
+  notes: >
+    No alternative estimator does better; tricube is this with a ~1.3x wider window.
+    Weak spot: an abrupt change of ramp rate (doubles the error around the step);
+    analyse constant-rate segments separately.
+
+- id: dilatometry.detection.derivative
+  target: pkynetics.technique_analysis.dilatometry.derivative_limits
+  files: [src/pkynetics/technique_analysis/dilatometry/utilities.py]
+  status: issues
+  date: 2026-09-25
+  commit: d8a2809
+  data: [zry4 heating, zry4 cooling]
+  how: Limits against the window, three derivative estimators; plots reviewed.
+  evidence: ["issue #112", "issue #115"]
+  notes: >
+    Takes the longest run over the threshold instead of the one holding the peak, and
+    can land on the pre-transformation stretch (collapses to ~820-839 degC). The
+    3*MAD noise term puts the threshold at 8-12 % of the peak instead of 5 %, moving
+    both limits inward. Fixes proposed and partly tested in issue #115.
+
+# --- Dilatometry: pending ---------------------------------------------------------
+
+- id: dilatometry.detection.offset
+  target: pkynetics.technique_analysis.dilatometry.detection.offset.offset_limits
+  status: pending
+
+- id: dilatometry.detection.second_derivative
+  target: pkynetics.technique_analysis.dilatometry.detection.second_derivative.second_derivative_limits
+  status: pending
+
+- id: dilatometry.detection.double_tangent
+  target: pkynetics.technique_analysis.dilatometry.detection.double_tangent.double_tangent_limits
+  status: pending
+
+- id: dilatometry.detection.statistical
+  target: pkynetics.technique_analysis.dilatometry.detection.statistical.statistical_limits
+  status: pending
+
+- id: dilatometry.margin_auto
+  target: pkynetics.technique_analysis.dilatometry.stable_margin
+  status: pending
+
+- id: dilatometry.method.lever
+  target: pkynetics.technique_analysis.dilatometry.lever_method
+  status: pending
+
+- id: dilatometry.method.tangent
+  target: pkynetics.technique_analysis.dilatometry.tangent_method
+  status: pending
+
+# --- DSC: pending -------------------------------------------------------------------
+
+- id: dsc.baseline
+  target: pkynetics.technique_analysis.dsc.BaselineCorrector
+  status: pending
+
+- id: dsc.peaks
+  target: pkynetics.technique_analysis.dsc.PeakAnalyzer
+  status: pending
+
+- id: dsc.thermal_events
+  target: pkynetics.technique_analysis.dsc.ThermalEventDetector
+  status: pending
+
+- id: dsc.heat_capacity
+  target: pkynetics.technique_analysis.dsc.CpCalculator
+  status: pending
+
+- id: dsc.signal_stability
+  target: pkynetics.technique_analysis.dsc.SignalStabilityDetector
+  status: pending
+
+- id: dsc.signal_processor
+  target: pkynetics.technique_analysis.dsc.SignalProcessor
+  status: pending
+  notes: calculate_derivatives smooths and then differences, the pattern PR #101 removed from dilatometry.
+
+# --- Preprocessing: pending ---------------------------------------------------------
+
+- id: preprocessing.dsc_transformed_fraction
+  target: pkynetics.data_preprocessing.calculate_dsc_transformed_fraction
+  status: pending
+
+- id: preprocessing.tga_transformed_fraction
+  target: pkynetics.data_preprocessing.calculate_tga_transformed_fraction
+  status: pending
+
+- id: preprocessing.dilatometry
+  target: pkynetics.data_preprocessing.preprocess_dilatometry_data
+  status: pending
+
+# --- Kinetics: pending --------------------------------------------------------------
+
+- id: kinetics.coats_redfern
+  target: pkynetics.model_fitting_methods.coats_redfern_method
+  status: pending
+
+- id: kinetics.freeman_carroll
+  target: pkynetics.model_fitting_methods.freeman_carroll_method
+  status: pending
+
+- id: kinetics.horowitz_metzger
+  target: pkynetics.model_fitting_methods.horowitz_metzger_method
+  status: pending
+
+- id: kinetics.jmak
+  target: pkynetics.model_fitting_methods.jmak_method
+  status: pending
+
+- id: kinetics.modified_jmak
+  target: pkynetics.model_fitting_methods.fit_modified_jmak
+  status: pending
+
+- id: kinetics.kissinger
+  target: pkynetics.model_fitting_methods.kissinger_method
+  status: pending
+
+- id: kinetics.friedman
+  target: pkynetics.model_free_methods.friedman_method
+  status: pending
+
+- id: kinetics.ofw
+  target: pkynetics.model_free_methods.ofw_method
+  status: pending
+
+- id: kinetics.kas
+  target: pkynetics.model_free_methods.kas_method
+  status: pending
