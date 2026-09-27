@@ -1252,6 +1252,19 @@ def test_the_margin_does_not_move_a_cooling_run(real_cooling_curve):
         assert temperature[limits.end_idx] == pytest.approx(757.4, abs=0.5)
 
 
+def test_too_little_baseline_left_is_reported():
+    """Cut the run at 969 degC and, once the transformation (to 945) is taken
+    out, the final window keeps fewer points than a smoothing window. The
+    detector says so and keeps the last limits that had enough baseline."""
+    temperature, strain = late_transformation_curve()
+    kept = temperature <= 969.0
+
+    with pytest.warns(UserWarning, match="fewer than .* points left"):
+        limits = find_transformation_limits(temperature[kept], strain[kept])
+
+    assert temperature[limits.end_idx] == pytest.approx(942.9, abs=3.0)
+
+
 def test_the_derivative_noise_ignores_a_drifting_slope():
     """The noise the threshold clears is the measurement's. A baseline whose
     slope drifts spreads its derivative far more than its noise does, and the

@@ -72,65 +72,6 @@ def _derivative_noise(
     return _mad_scale(derivative[mask])
 
 
-def detect_noise_level(
-    strain: NDArray[np.float64],
-    window_size_fraction: float = 0.05,
-    min_window: int = 10,
-) -> float:
-    """
-    Estimate noise level in strain data using median of local standard deviations.
-
-    Args:
-        strain: Strain data array.
-        window_size_fraction: Fraction of data length for window size.
-        min_window: Minimum window size.
-
-    Returns:
-        Estimated noise level (median standard deviation).
-    """
-    n_total = len(strain)
-    window_size = int(n_total * window_size_fraction)
-    window_size = max(min_window, window_size)
-    window_size = min(window_size, n_total // 2)  # Ensure window is not too large
-
-    if window_size < 2:
-        return float(np.std(strain) if n_total > 1 else 0.0)  # Explicit cast to float
-
-    try:
-        # Calculate standard deviation in sliding windows
-        # Using pandas for efficient rolling calculation
-        import pandas as pd
-
-        rolling_std = (
-            pd.Series(strain)
-            .rolling(
-                window=window_size, center=True, min_periods=max(2, window_size // 2)
-            )
-            .std()
-        )
-        # Use median of the calculated rolling standard deviations (ignoring NaNs at edges)
-        median_std = np.nanmedian(rolling_std)
-        return (
-            float(median_std)
-            if not np.isnan(median_std)
-            else float(np.std(strain) if n_total > 1 else 0.0)
-        )
-
-    except ImportError:
-        # Fallback if pandas is not available (less efficient)
-        local_std = []
-        step = max(1, window_size // 2)  # Use overlapping windows
-        for i in range(0, n_total - window_size + 1, step):
-            segment = strain[i : i + window_size]
-            if len(segment) > 1:
-                local_std.append(np.std(segment))
-        return float(
-            np.median(local_std)
-            if local_std
-            else (np.std(strain) if n_total > 1 else 0.0)
-        )
-
-
 def derivative_limits(
     context: DetectionContext,
     deviation_fraction: float = 0.05,
