@@ -64,22 +64,34 @@
   target: pkynetics.technique_analysis.dilatometry.derivative_limits
   files: [src/pkynetics/technique_analysis/dilatometry/utilities.py]
   status: issues
-  date: 2026-09-25
-  commit: 9d3de94
-  data: [zry4 heating, zry4 cooling]
+  date: 2026-09-27
+  commit: 7cbbf2d
+  data:
+    - zry4 heating
+    - zry4 cooling
+    - "synthetic, Zry-4 outline: straight baselines, transformation 830-945 degC"
+    - "synthetic, same with the alpha slope drifting 0.41 -> 0.30 (x1e-3/K)"
   how: >
-    Limits against the margin (0.08-0.35, step 0.01) and the window (6-60 K), before
-    and after the run-selection fix, on both runs; a plot of the mechanism at margin
-    0.16. Plots reviewed by the maintainer on 2026-09-25 (issue #115, step 1).
+    Limits and threshold (as % of the peak excursion) against the margin (0.08-0.35,
+    step 0.01) on all four curves, comparing main with three variants (baselines
+    re-estimated without the transformation; noise as MAD of the derivative, as MAD
+    after removing a line, as measurement noise propagated through the filter);
+    guard of 0-2 smoothing windows; plots of the mechanism at margins 0.20 and 0.30.
+    Plots reviewed by the maintainer on 2026-09-25 (step 1) and 2026-09-27 (steps
+    2-3).
   evidence: ["issue #112", "issue #115", "PR #117"]
   notes: >
     Validated: the transformation is the run over the threshold carrying the most
-    deviation. The longest run could be the pre-transformation stretch (the two
-    baselines differ in slope), which caused the margin "dead zones" of issue #26;
-    margins 0.10-0.24 now all give 833-840 / 935-937 degC on the heating run.
-    Still open (issue #115, steps 2-3): the 3*MAD noise term puts the threshold at
-    8-12 % of the peak instead of 5 %, moving both limits inward; past a margin of
-    ~0.25 the baselines reach into the transformation.
+    deviation (step 1); each baseline is its margin window with the transformation
+    taken out, re-estimated until the limits settle (step 2); the noise the
+    threshold must clear is the measurement's, not the spread of the derivative
+    (step 3). Zry-4 heating: 833-838 / 939-940 degC at every margin 0.10-0.35;
+    cooling: 938 / 757 at every margin; straight synthetic within 3 K of the exact
+    answer at every margin. Known problem: a baseline whose slope drifts
+    monotonically is taken as one constant slope, so the curve leaves the band
+    before the transformation; on the drifting synthetic the start comes out at
+    735-822 degC against 831.8, with any noise estimate. The limits are where the
+    departure crosses 5 % of the excursion, not where it begins (see issue #118).
 
 # --- Dilatometry: pending ---------------------------------------------------------
 
