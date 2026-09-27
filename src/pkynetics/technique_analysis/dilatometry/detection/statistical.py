@@ -142,7 +142,7 @@ def statistical_limits(
         which was the obvious reason to expect something from it. The prediction
         interval does widen with the square of the distance from the fitting
         window, but a baseline bow grows faster: on the Zry-4 heating run this
-        reports 717 degC where ``offset`` reports 739 and the foot is at 839.
+        reports 717 degC where ``offset`` reports 739 and the foot is at 836.
 
         So its threshold is the only one here with a stated meaning -- a
         false-positive rate rather than a fraction someone picked -- and that
