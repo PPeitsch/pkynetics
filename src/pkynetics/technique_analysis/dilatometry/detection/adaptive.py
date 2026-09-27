@@ -5,13 +5,14 @@ always been a number the caller sets, with a default of 0.2 that works on the
 runs this package ships. The answer depends on it, and nothing about a curve
 says in advance which margins are safe.
 
-On the Zry-4 heating run the derivative detector returns 833-840 degC for the
-start and 935-937 for the end at any margin from 0.10 to 0.24. Past that, the
-baseline windows reach into the transformation: 0.30 gives 855-926 and 0.34
-gives 859-916. The cooling run holds up to 0.25, drifts slowly to 0.31 and
-sharply past it. Where
-that edge lies is a property of the curve -- how much flat baseline the run
-has on each side -- not of the method.
+Too wide a margin reaches into the transformation, and the baseline fitted
+there is partly transformation. Where that edge lies is a property of the
+curve -- how much flat baseline the run has on each side -- not of the method.
+The ``derivative`` detector has since learnt to take the transformation back
+out of its windows (issue #115): on the Zry-4 heating run it used to hold at
+833-840 / 935-937 degC for margins of 0.10-0.24 and drift to 859-916 by 0.34,
+and it now holds at 833-838 / 939-940 up to 0.35. The other detectors fit the
+windows as they are.
 
 This module was written when the margin also had narrow dead zones, 0.15 to
 0.17 collapsing the heating run to a 15 K bracket. Those turned out to be the

@@ -31,10 +31,13 @@ from pkynetics.technique_analysis.dilatometry import (
     tangent_method,
 )
 from pkynetics.technique_analysis.dilatometry.detection.adaptive import stable_margin
+from pkynetics.technique_analysis.dilatometry.detection.derivative import (
+    _derivative_noise,
+)
 from pkynetics.technique_analysis.dilatometry.detection.statistical import (
     _residual_structure,
 )
-from pkynetics.technique_analysis.dilatometry.utilities import _dominant_run
+from pkynetics.technique_analysis.dilatometry.utilities import _dominant_run, _mad_scale
 from pkynetics.technique_analysis.utilities import (
     analyze_range,
     detect_segment_direction,
@@ -75,13 +78,15 @@ def dilatometry_curve(n_points=1000, cooling=False):
 # is finding the alpha->beta transformation and not some other feature.
 #
 # MEASURED_ONSET is what this detector reports on this file, to 0.5 K. It is a
-# regression guard, not a physical claim: 839 degC is the foot of the
-# contraction, where the derivative leaves the baseline scatter (2-5 % of the
-# peak excursion) and falls monotonically from there. The ~855 degC that earlier
+# regression guard, not a physical claim: 835.6 degC is the foot of the
+# contraction, where the derivative leaves the baseline by 5 % of the peak
+# excursion and falls monotonically from there. (It was 839 until issue #115:
+# the drift of the alpha slope was being counted as noise, and held the
+# threshold at 9 % of the excursion.) The ~855 degC that earlier
 # versions of this test used is where the flattening becomes *visible* on a
 # plot, which is an eyeball reading of the same event, not a better one.
 PHYSICAL_TRANSFORMATION = (810.0, 980.0)
-MEASURED_ONSET = (839.0, 936.4)
+MEASURED_ONSET = (835.6, 938.7)
 
 
 @pytest.fixture
@@ -362,15 +367,31 @@ def test_a_spike_does_not_move_the_limits(curve):
 
 
 @pytest.mark.network
-def test_a_curved_baseline_is_reported():
-    """The full cooling run has a transformation inside its own baseline
-    window, which the analysis cannot see past but does report."""
+def test_a_baseline_window_reaching_into_the_transformation_is_trimmed():
+    """The full cooling run (1050-71 degC) puts the transformation itself
+    inside the initial baseline window at the default margin. It used to be
+    fitted as baseline, with a warning; it is now taken out of the window,
+    and what is left is straight (issue #115)."""
     data = load_dilatometry_cooling()
     temperature = np.asarray(data["temperature"])
     strain = np.asarray(data["relative_change"])
 
-    with pytest.warns(UserWarning, match="baseline window is not linear"):
-        find_transformation_limits(temperature, strain, is_cooling=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        limits = find_transformation_limits(temperature, strain, is_cooling=True)
+
+    assert temperature[limits.start_idx] == pytest.approx(947.2, abs=0.5)
+    assert temperature[limits.end_idx] == pytest.approx(768.4, abs=0.5)
+
+
+def test_a_second_transformation_in_a_baseline_window_is_reported():
+    """What taking the transformation out cannot fix: a step of its own
+    inside the final window, which leaves that baseline curved."""
+    temperature, strain = dilatometry_curve()
+    strain = strain - 5e-4 / (1 + np.exp(-(temperature - 875.0) / 4.0))
+
+    with pytest.warns(UserWarning, match="final baseline window is not linear"):
+        find_transformation_limits(temperature, strain)
 
 
 def test_find_transformation_limits_rejects_an_impossible_fraction(curve):
@@ -1202,15 +1223,89 @@ def test_the_margin_has_no_dead_zone(real_curve):
     (823-839 degC), and 0.10-0.13 put the start at 702: the detector took the
     longest run over its threshold, and against the final baseline the whole
     stretch before the transformation deviates by the difference in slope
-    between the two baselines. Every margin up to 0.24 now gives the same
-    transformation.
+    between the two baselines.
+
+    Past 0.24 the final baseline window reached into the transformation and
+    the end drifted inwards, to 916 degC at 0.34 (issue #115, step 2), and the
+    start drifted up to 859 as the widening initial window took more of the
+    drift of the alpha slope for noise (step 3). Every margin the module
+    accepts, up to 0.35, now gives the same transformation to within 5 K.
     """
     temperature, strain = real_curve
 
-    for margin in (0.10, 0.12, 0.15, 0.16, 0.17, 0.20, 0.24):
+    for margin in np.round(np.arange(0.10, 0.355, 0.01), 2):
         limits = find_transformation_limits(temperature, strain, margin=margin)
-        assert 830.0 < temperature[limits.start_idx] < 842.0, margin
-        assert 933.0 < temperature[limits.end_idx] < 939.0, margin
+        assert 832.5 < temperature[limits.start_idx] < 838.5, margin
+        assert 938.0 < temperature[limits.end_idx] < 940.5, margin
+
+
+def test_the_margin_does_not_move_a_cooling_run(real_cooling_curve):
+    """Margins past 0.25 used to pull the end of the cooling run from 757 up to
+    826 degC, the final window having reached into the transformation."""
+    temperature, strain = real_cooling_curve
+
+    for margin in np.round(np.arange(0.10, 0.355, 0.01), 2):
+        limits = find_transformation_limits(
+            temperature, strain, is_cooling=True, margin=margin
+        )
+        assert temperature[limits.start_idx] == pytest.approx(938.4, abs=0.5)
+        assert temperature[limits.end_idx] == pytest.approx(757.4, abs=0.5)
+
+
+def test_too_little_baseline_left_is_reported():
+    """Cut the run at 969 degC and, once the transformation (to 945) is taken
+    out, the final window keeps fewer points than a smoothing window. The
+    detector says so and keeps the last limits that had enough baseline."""
+    temperature, strain = late_transformation_curve()
+    kept = temperature <= 969.0
+
+    with pytest.warns(UserWarning, match="fewer than .* points left"):
+        limits = find_transformation_limits(temperature[kept], strain[kept])
+
+    assert temperature[limits.end_idx] == pytest.approx(942.9, abs=3.0)
+
+
+def test_the_derivative_noise_ignores_a_drifting_slope():
+    """The noise the threshold clears is the measurement's. A baseline whose
+    slope drifts spreads its derivative far more than its noise does, and the
+    spread of the derivative used to be taken for the noise (issue #115)."""
+    temperature = np.linspace(600.0, 900.0, 1000)
+    noise = np.random.default_rng(0).normal(0.0, 2e-5, len(temperature))
+    straight = 1e-5 * (temperature - 600.0) + noise
+    drifting = straight + 1e-7 * (temperature - 600.0) ** 2
+    everywhere = np.ones(len(temperature), dtype=bool)
+    scatter_of_the_noise = _mad_scale(_strain_derivative(temperature, straight, 51, 2))
+
+    measured = _derivative_noise(temperature, drifting, everywhere, 51, 2)
+    spread = _mad_scale(_strain_derivative(temperature, drifting, 51, 2))
+
+    assert measured == pytest.approx(scatter_of_the_noise, rel=0.25)
+    assert spread > 10 * scatter_of_the_noise
+
+
+def late_transformation_curve():
+    """The Zry-4 heating run in outline, with a known answer: 630-1000 degC,
+    straight baselines of different slope, and a transformation from 830 to
+    945 degC -- close enough to the top of the range that wide margins reach
+    into it."""
+    temperature = np.linspace(630.0, 1000.0, 617)
+    x = np.clip((temperature - 830.0) / 115.0, 0.0, 1.0)
+    fraction = x * x * (3 - 2 * x)
+    alpha = 0.31 + 0.38e-3 * (temperature - 630.0)
+    beta = 0.31 + 0.38e-3 * 257.5 - 0.069 + 0.44e-3 * (temperature - 887.5)
+    return temperature, (1 - fraction) * alpha + fraction * beta
+
+
+def test_a_wide_margin_does_not_cut_the_transformation_short():
+    """Where the derivative leaves each baseline by 5 % of the excursion is
+    831.8 and 942.9 degC; the smoothing window widens that by a couple of
+    kelvin. The end used to fall to 885 at margin 0.33."""
+    temperature, strain = late_transformation_curve()
+
+    for margin in np.round(np.arange(0.10, 0.355, 0.01), 2):
+        limits = find_transformation_limits(temperature, strain, margin=margin)
+        assert temperature[limits.start_idx] == pytest.approx(831.8, abs=3.0)
+        assert temperature[limits.end_idx] == pytest.approx(942.9, abs=3.0)
 
 
 def test_auto_margin_steps_over_the_dead_zone(real_curve):
@@ -1218,8 +1313,8 @@ def test_auto_margin_steps_over_the_dead_zone(real_curve):
 
     limits = find_transformation_limits(temperature, strain, margin="auto")
 
-    assert temperature[limits.start_idx] == pytest.approx(839.0, abs=3.0)
-    assert temperature[limits.end_idx] == pytest.approx(936.0, abs=3.0)
+    assert temperature[limits.start_idx] == pytest.approx(836.0, abs=3.0)
+    assert temperature[limits.end_idx] == pytest.approx(939.0, abs=3.0)
 
 
 @pytest.mark.parametrize(
