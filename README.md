@@ -13,7 +13,8 @@ A Python library for thermal analysis kinetic methods, providing tools for data 
 ## Features
 
 ### Data Import
-- Support for thermal analysis instruments:
+- DSC and TGA exports from TA Instruments, Mettler Toledo, Netzsch and Setaram
+- Dilatometry data
 - Flexible custom importer for non-standard formats
 - Automatic manufacturer detection
 - Comprehensive data validation
@@ -29,9 +30,15 @@ A Python library for thermal analysis kinetic methods, providing tools for data 
   - Friedman method
   - Kissinger-Akahira-Sunose (KAS)
   - Ozawa-Flynn-Wall (OFW)
-- Dilatometry analysis
-- DSC analysis
-- Data preprocessing capabilities
+- Dilatometry analysis:
+  - Transformed fraction by the lever rule or the tangent method
+  - Five detectors for the transformation limits (`derivative`, `offset`,
+    `double_tangent`, `second_derivative`, `statistical`), chosen with `detection=`
+  - Automatic baseline margin (`margin="auto"`)
+  - `DilatometryAnalyzer`, which holds the analysis settings in one place
+- DSC analysis: baselines, peaks, thermal events and heat capacity
+- Data preprocessing, with smoothing by Savitzky-Golay, moving average or LOWESS
+- Synthetic data generation for testing the kinetic methods
 - Error handling and validation
 
 ### Visualization
@@ -40,7 +47,6 @@ A Python library for thermal analysis kinetic methods, providing tools for data 
   - Dilatometry data
   - Transformation analysis
   - Custom plot styling options
-- Interactive visualization capabilities
 
 ## Installation
 
@@ -59,6 +65,29 @@ pip install -e .[dev]
 ```
 
 For detailed installation instructions and requirements, see our [Installation Guide](https://pkynetics.readthedocs.io/en/latest/installation.html).
+
+## Quick start
+
+```python
+from pkynetics.data import load_dilatometry_heating
+from pkynetics.technique_analysis import DilatometryAnalyzer
+
+data = load_dilatometry_heating()  # Zircaloy-4 heating run, fetched on first use
+
+result = DilatometryAnalyzer().analyze(
+    data["temperature"], data["relative_change"], method="lever"
+)
+print(result["start_temperature"], result["end_temperature"])
+```
+
+## Example data
+
+Since 0.7.0 the example data does not ship with the package. `pkynetics.data` downloads
+each file on first use from [pkynetics-data](https://github.com/PPeitsch/pkynetics-data),
+verifies it by SHA256 and caches it on disk. Use `pkynetics.data.fetch(name)` for a path,
+or one of the loaders (`load_dilatometry_heating`, `load_dsc_setaram`, `load_cp_three_step`, …)
+for the data already imported. To work offline, point `PKYNETICS_DATA_DIR` at a directory
+holding the files. See [Example data](https://pkynetics.readthedocs.io/en/latest/example_data.html).
 
 ## Documentation
 
@@ -91,10 +120,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you use Pkynetics in your research, please cite it as:
 
 ```bibtex
-@software{pkynetics2025,
+@software{pkynetics,
   author = {Pablo Peitsch},
   title = {Pkynetics: A Python Library for Thermal Analysis Kinetic Methods},
-  year = {2025},
+  year = {2026},
+  version = {0.7.0},
   publisher = {GitHub},
   url = {https://github.com/PPeitsch/pkynetics}
 }

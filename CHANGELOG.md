@@ -8,8 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Removed
-- **Breaking:** the example data no longer ships with the package. Code building a path into `pkynetics/data` will not find the files: use `pkynetics.data.fetch(name)` for a path, or one of the named loaders (`load_dilatometry_heating`, `load_dsc_setaram`, `load_cp_three_step`, …) for the data already imported. The wheel goes from 2.05 MB to under 200 KB.
+
+## [v0.7.0] - 2026-09-29
 
 ### Added
 - `smooth_data` takes a `method`: `savgol` (the default, and what it did before), `moving_average` or `lowess`, and `available_smoothing_methods()` lists them. The preprocessing, Freeman-Carroll and `SignalProcessor.smooth_signal` in DSC each had their own copy of the smoothing; now there is one, in `pkynetics.data_preprocessing.smoothing`, which the others call; Freeman-Carroll keeps its fixed 21-point window, so its results do not change. `lowess` takes the abscissa as `x`. Exponential and weighted moving averages are deliberately absent: they are causal, so they lag the signal and would shift every temperature read off it in the same direction. (#47)
@@ -23,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dilatometry results report `max_backward_step`: the largest step the transformed fraction takes backwards, as a fraction of full scale. The fraction is a point-by-point reading of the strain and is not constrained to be monotonic, so noise can push it back — 1.03 % on the shipped heating run, 0.28 % on the cooling one. It is reported rather than smoothed away, and the tangent method records a warning in `fit_quality["warnings"]` above 5 %. (#103)
 - `find_transformation_limits` returns a `TransformationLimits` named tuple with `start_idx` and `end_idx`, and `calculate_fit_quality` returns a `FitQuality` dataclass. Both are new names for values that were already there: the limits still unpack as a pair, and the analysis result still carries the fit quality as a mapping with the same keys. (#103)
 - Tests that need an example run carry a `network` marker; `pytest -m "not network"` runs the rest, and a CI job does exactly that so the suite stays usable without a network.
+- `find_transformation_limits` locates a transformation on the derivative of the strain and is shared by both dilatometry methods, so `lever` and `tangent` no longer disagree about where the transformation is.
+- A `minimum-versions` job in CI installs the declared dependency floors (numpy 1.24.3, pandas 2.0.3, scipy 1.10.1, matplotlib 3.7.5, statsmodels 0.14.1, chardet 5.0.0) and runs the suite against them. `pip install .` always resolves to the newest release, so nothing exercised the lower bounds and they could drift from what the code actually needs.
+
+### Changed
+- `technique_analysis/dilatometry.py` is now a package: `core`, `transformation_points`, `linear_segments`, `transformed_fraction`, `methods/{lever,tangent}`, `curve_features`, `utilities` and `types`, following the layout of `technique_analysis/dsc`. Nothing moved out of reach — every public name is importable from `pkynetics.technique_analysis.dilatometry` and from `pkynetics.technique_analysis` exactly as before, and the test suite that covers them was not touched.
+- **Breaking:** `analyze_dilatometry_curve` and `tangent_method` take `deviation_fraction` (default 0.05, the fraction of the peak derivative excursion that still counts as transforming) in place of `deviation_threshold`, which no longer has a meaning. `fit_quality` and `parameters` report `deviation_fraction` instead of `deviation_threshold` for the same reason.
+- **Breaking:** `find_inflection_points` takes `deviation_fraction` instead of `residual_std_multiplier` and `min_points_fit`, and its `margin` default drops from 0.3 to 0.2. `find_transformation_points` and `calculate_deviation_threshold` are gone, replaced by `find_transformation_limits`.
+
+### Removed
+- **Breaking:** the example data no longer ships with the package. Code building a path into `pkynetics/data` will not find the files: use `pkynetics.data.fetch(name)` for a path, or one of the named loaders (`load_dilatometry_heating`, `load_dsc_setaram`, `load_cp_three_step`, …) for the data already imported. The wheel goes from 2.05 MB to under 200 KB.
+- The `skills/` submodule, a private repository holding the maintainers' GitHub and release workflows. Nothing in the library, the tests, CI or the packaging referenced it, and it only made `git clone --recursive` fail for anyone without access.
 
 ### Fixed
 - The dilatometry `derivative` detector could report a stretch of baseline as the transformation. It took the longest run of points over its threshold, and since the two baselines have different slopes, measured against the final baseline the whole stretch before the transformation deviates by that difference. Once the threshold dipped below it, that stretch could outlast the transformation: on the Zry-4 heating run, margins of 0.15-0.17 returned a 15 K bracket (823-839 degC) instead of 839-937, and margins of 0.10-0.13 put the start at 702 instead of 833-835. It now takes the run carrying the most deviation, which a single spike (tall, one point) cannot win either. The "dead zones" in the margin reported under `margin="auto"` were this. (#115)
@@ -32,18 +43,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dilatometry reported transformation limits that were not the transformation. Both methods located them by the deviation of the strain from an extrapolated tangent, with a threshold set to three standard deviations of the residuals *inside the fitting window* — a measure of how straight the baseline is, not of how large the transformation is. On a clean curve that threshold collapses to ~1e-9 and the first point examined already clears it, so `tangent` returned the first and last temperature of the data and `lever` returned the edges of its search window. The limits now come from the derivative `dS/dT`, where the curvature of a real baseline stays small and the transformation is a large localised excursion. On the Zry-4 run shipped with the package both methods now put the alpha->beta contraction at 840-929 degC, against 703-1000 and 741-889 before; on a synthetic 705-795 degC transformation both return 707-793. (#94)
 - `find_optimal_margin` returned the margin with the highest R², which is always the narrowest one, since a shorter window fits a line more easily. It now returns the widest margin whose fits both reach `min_r2`, which is what makes the baselines representative.
 - The test suite used `np.trapezoid`, which needs numpy 2.0, while `pyproject.toml` declares `numpy>=1.24.3`: four DSC tests failed on any numpy 1.x, a version the project claims to support. They now use `scipy.integrate.trapezoid`, as the rest of the package does.
-
-### Changed
-- `technique_analysis/dilatometry.py` is now a package: `core`, `transformation_points`, `linear_segments`, `transformed_fraction`, `methods/{lever,tangent}`, `curve_features`, `utilities` and `types`, following the layout of `technique_analysis/dsc`. Nothing moved out of reach — every public name is importable from `pkynetics.technique_analysis.dilatometry` and from `pkynetics.technique_analysis` exactly as before, and the test suite that covers them was not touched.
-- **Breaking:** `analyze_dilatometry_curve` and `tangent_method` take `deviation_fraction` (default 0.05, the fraction of the peak derivative excursion that still counts as transforming) in place of `deviation_threshold`, which no longer has a meaning. `fit_quality` and `parameters` report `deviation_fraction` instead of `deviation_threshold` for the same reason.
-- **Breaking:** `find_inflection_points` takes `deviation_fraction` instead of `residual_std_multiplier` and `min_points_fit`, and its `margin` default drops from 0.3 to 0.2. `find_transformation_points` and `calculate_deviation_threshold` are gone, replaced by `find_transformation_limits`.
-
-### Removed
-- The `skills/` submodule, a private repository holding the maintainers' GitHub and release workflows. Nothing in the library, the tests, CI or the packaging referenced it, and it only made `git clone --recursive` fail for anyone without access.
-
-### Added
-- `find_transformation_limits` locates a transformation on the derivative of the strain and is shared by both dilatometry methods, so `lever` and `tangent` no longer disagree about where the transformation is.
-- A `minimum-versions` job in CI installs the declared dependency floors (numpy 1.24.3, pandas 2.0.3, scipy 1.10.1, matplotlib 3.7.5, statsmodels 0.14.1, chardet 5.0.0) and runs the suite against them. `pip install .` always resolves to the newest release, so nothing exercised the lower bounds and they could drift from what the code actually needs.
 
 
 ## [v0.6.0] - 2026-09-20
