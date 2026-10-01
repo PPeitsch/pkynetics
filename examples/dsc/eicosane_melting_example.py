@@ -18,11 +18,10 @@ together. The integration itself is checked against synthetic peaks of
 known area in ``tests/test_dsc_core.py``.
 """
 
-import os
-
 import matplotlib.pyplot as plt
 import numpy as np
 
+from pkynetics.data import fetch
 from pkynetics.data_import import dsc_importer
 from pkynetics.technique_analysis.dsc import (
     DataValidator,
@@ -32,16 +31,7 @@ from pkynetics.technique_analysis.dsc import (
     plot_dsc_analysis,
 )
 
-DATA_FILE = os.path.join(
-    os.path.dirname(__file__),
-    "..",
-    "..",
-    "src",
-    "pkynetics",
-    "data",
-    "dsc",
-    "sample_dsc_tainstruments.txt",
-)
+DATA_FILE = fetch("dsc_tainstruments_eicosane.txt")
 SAMPLE_MASS = 9.00  # mg, "Size" in the file header
 
 

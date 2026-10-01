@@ -12,25 +12,22 @@ the mean Cp over the step.
   SAPPHIRE_MASS to run it.
 """
 
-import os
 from typing import Dict, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 
+from pkynetics.data import fetch
 from pkynetics.data_import import dsc_importer
 from pkynetics.technique_analysis.dsc import CpCalculator, CpMethod, plot_cp
 
-DATA_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "src", "pkynetics", "data", "heat_capacity"
-)
 SAMPLE_MASS = 58.30  # mg, aluminium sample, from the file header
 SAPPHIRE_MASS: Optional[float] = None  # mg, not in the file header
 
 
 def load(name: str) -> Dict[str, np.ndarray]:
     """Load a Setaram run in K and s."""
-    data = dsc_importer(os.path.join(DATA_DIR, f"{name}.txt"), manufacturer="Setaram")
+    data = dsc_importer(fetch(f"cp_setaram_{name}.txt"), manufacturer="Setaram")
     return {
         "time": data["time"],  # s
         "temperature": data["sample_temperature"] + 273.15,
