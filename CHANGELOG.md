@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- The eicosane melting and stepped heat-capacity DSC examples read their runs from `src/pkynetics/data/`, where they no longer are since the data moved to pkynetics-data, and stopped with `FileNotFoundError`. They fetch them with `pkynetics.data.fetch` now, like the other examples.
+
 
 ## [v0.7.0] - 2026-09-29
 
